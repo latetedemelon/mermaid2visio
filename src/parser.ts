@@ -13,8 +13,8 @@ export interface GraphNode {
     height: number;
     text?: string;
     type?: string; 
-    rounding?: number; // Corner radius
-    url?: string; // Hyperlink
+    rounding?: number;
+    url?: string;
     style?: {
         fill?: string;
         stroke?: string;
@@ -25,7 +25,7 @@ export interface GraphNode {
         fontFamily?: string;
         fontWeight?: string;
         fontStyle?: string;
-        textAlign?: string; // start, middle, end
+        textAlign?: string;
     };
 }
 
@@ -84,24 +84,61 @@ export interface GraphData {
     height: number;
 }
 
-export async function parseMermaid(definition: string): Promise<GraphData> {
-    // --no-sandbox / --disable-dev-shm-usage are required in most container
-    // environments (GitHub Actions runners work either way, but Docker, root
-    // shells, and minimal Linux images all fail without them).
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
+// Mermaid Configuration Interface
+export interface MermaidConfig {
+    layout?: 'elk' | 'dagre' | 'flexbox' | 'linear';
+    theme?: 'default' | 'forest' | 'dark' | 'neutral';
+    themeVariables?: Record<string, string>;
+    flowchart?: {
+        nodeSpacing?: number;
+        rankSpacing?: number;
+        curve?: 'basis' | 'linear' | 'cardinal' | 'monotoneX';
+        useMaxWidth?: boolean;
+    };
+}
+
+export async function parseMermaid(definition: string, config?: MermaidConfig): Promise<GraphData> {
+    const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
 
     // Inject Mermaid from node_modules
     const mermaidPath = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
     await page.addScriptTag({ path: mermaidPath });
 
+    // Prepare theme variables with defaults
+    const defaultThemeVars: Record<string, string> = {
+        primaryColor: '#e1f5fe',
+        primaryTextColor: '#000',
+        primaryBorderColor: '#01579b',
+        lineColor: '#01579b',
+        secondBkgColor: '#f0f0f0',
+        tertiaryColor: '#ffffff',
+        fontSize: '14px',
+        fontFamily: 'Segoe UI, sans-serif'
+    };
+
+    const themeVars = { ...defaultThemeVars, ...config?.themeVariables };
+    const layoutEngine = config?.layout || 'dagre';
+    const theme = config?.theme || 'neutral';
+
     await page.setContent(`
         <div id="graphDiv"></div>
         <script>
-            mermaid.initialize({ startOnLoad: false });
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: '${theme}',
+                layout: '${layoutEngine}',
+                themeVariables: ${JSON.stringify(themeVars)},
+                flowchart: {
+                    nodeSpacing: ${config?.flowchart?.nodeSpacing || 50},
+                    rankSpacing: ${config?.flowchart?.rankSpacing || 50},
+                    curve: '${config?.flowchart?.curve || 'basis'}',
+                    useMaxWidth: ${config?.flowchart?.useMaxWidth !== false}
+                },
+                securityLevel: 'loose',
+                look: 'handDrawn',
+                layout: 'elk'
+            });
         </script>
     `);
 
@@ -117,7 +154,6 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
             const graphHeight = viewBox[3] || parseFloat(svgElement?.getAttribute('height') || '0');
 
             const nodes = Array.from(document.querySelectorAll('.node'));
-            // Select paths that are direct children of .edgePaths or have the flowchart-link class
             const edges = Array.from(document.querySelectorAll('.edgePaths path')); 
             
             // Clusters (Subgraphs)
@@ -126,13 +162,11 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 const rect = cluster.querySelector('rect, polygon, path');
                 const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
                 
-                // Adjust for transform if present on the group
                 const transform = cluster.getAttribute('transform');
                 const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
                 let x = match ? parseFloat(match[1]) : 0;
                 let y = match ? parseFloat(match[2]) : 0;
                 
-                // If the rect itself has x/y, add them (common in some renderers)
                 x += bbox.x;
                 y += bbox.y;
 
@@ -161,8 +195,6 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
 
             // Edge Labels
             const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
-                // Mermaid puts labels in a div inside a foreignObject, or directly as text
-                // The .edgeLabel group usually has the transform
                 const transform = label.getAttribute('transform');
                 const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
                 const x = match ? parseFloat(match[1]) : 0;
@@ -172,15 +204,14 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0 };
                 const text = label.textContent?.trim() || '';
                 
-                // Attempt to get background color if there's a label box
-                const bgRect = label.querySelector('.label-container rect'); // Sometimes mermaid wraps it
+                const bgRect = label.querySelector('.label-container rect');
                 const bgStyle = bgRect ? window.getComputedStyle(bgRect) : null;
                 const textStyle = window.getComputedStyle(div || label);
 
                 return {
                     x,
                     y,
-                    width: bbox.width || 10, // Fallback
+                    width: bbox.width || 10,
                     height: bbox.height || 10,
                     text,
                     style: {
@@ -192,7 +223,7 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         fontStyle: textStyle.fontStyle
                     }
                 };
-            }).filter(l => l.text); // Filter empty labels
+            }).filter(l => l.text);
 
             return {
                 width: graphWidth,
@@ -202,19 +233,12 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                     const nodeClasses = Array.from(node.classList).join(' ');
                     const transform = node.getAttribute('transform');
                     const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                    const tx = match ? parseFloat(match[1]) : 0;
-                    const ty = match ? parseFloat(match[2]) : 0;
-
+                    const x = match ? parseFloat(match[1]) : 0;
+                    const y = match ? parseFloat(match[2]) : 0;
+                    
                     const rect = node.querySelector('rect, circle, polygon, path, ellipse') as SVGGraphicsElement;
                     const bbox = rect ? rect.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-
-                    // Normalize to top-left coordinates so nodes and clusters share one convention.
-                    // Mermaid puts the <g class="node"> transform at the shape center, with the
-                    // inner rect drawn around the origin (bbox.x/y ~= -width/2, -height/2).
-                    const x = tx + bbox.x;
-                    const y = ty + bbox.y;
                     
-                    // Infer shape type from classes and tags
                     let type = 'rectangle';
                     const shapeTag = rect ? rect.tagName.toLowerCase() : 'unknown';
                     const points = rect ? rect.getAttribute('points') || '' : '';
@@ -241,28 +265,22 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         type = 'ellipse';
                     }
 
-                    // Extract styles
                     const computedStyle = window.getComputedStyle(rect || node);
                     const textEl = node.querySelector('div, span, text');
                     const textStyle = textEl ? window.getComputedStyle(textEl) : null;
                     
-                    // Rounding (rx/ry)
                     let rounding = 0;
                     if (rect && rect.tagName.toLowerCase() === 'rect') {
                         const rx = parseFloat(rect.getAttribute('rx') || '0');
                         if (rx > 0) rounding = rx;
                     }
 
-                    // Hyperlink
                     const anchor = node.querySelector('a') || node.closest('a');
                     const url = anchor ? anchor.getAttribute('href') || anchor.getAttribute('xlink:href') : undefined;
 
-                    // Improved text extraction (preserve breaks)
                     let text = '';
                     if (textEl) {
-                        // Clone to not mess up DOM
                         const clone = textEl.cloneNode(true) as HTMLElement;
-                        // Replace <br> with newlines
                         const brs = clone.querySelectorAll('br');
                         brs.forEach(br => br.replaceWith('\n'));
                         text = clone.textContent?.trim() || '';
@@ -270,7 +288,6 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         text = node.textContent?.trim() || '';
                     }
 
-                    // Text Alignment
                     let textAlign = 'center';
                     if (textStyle) {
                         const anchor = textStyle.getPropertyValue('text-anchor');
@@ -304,44 +321,39 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 }),
                 edges: edges.map(path => {
                    const computedStyle = window.getComputedStyle(path);
-                   
-                   // Arrow detection
-                   const markerStart = path.getAttribute('marker-start');
-                   const markerEnd = path.getAttribute('marker-end');
+                    
+                    const markerStart = path.getAttribute('marker-start');
+                    const markerEnd = path.getAttribute('marker-end');
 
-                   // ID Extraction (Start/End Nodes)
-                   // Mermaid v10+ puts classes on the group wrapping the path: <g class="edgePaths ... LS-startId LE-endId">
-                   let startId, endId;
-                   const parentGroup = path.parentElement;
-                   if (parentGroup) {
-                       const classes = Array.from(parentGroup.classList);
-                       // Look for LS-* and LE-*
-                       const ls = classes.find(c => c.startsWith('LS-'));
-                       const le = classes.find(c => c.startsWith('LE-'));
-                       if (ls) startId = ls.replace('LS-', '');
-                       if (le) endId = le.replace('LE-', '');
-                   }
+                    let startId, endId;
+                    const parentGroup = path.parentElement;
+                    if (parentGroup) {
+                        const classes = Array.from(parentGroup.classList);
+                        const ls = classes.find(c => c.startsWith('LS-'));
+                        const le = classes.find(c => c.startsWith('LE-'));
+                        if (ls) startId = ls.replace('LS-', '');
+                        if (le) endId = le.replace('LE-', '');
+                    }
 
-                   return { 
-                       d: path.getAttribute('d') || '',
-                       startId,
-                       endId,
-                       arrowStart: !!markerStart, 
-                       arrowEnd: !!markerEnd,
-                       style: {
-                           stroke: computedStyle.stroke,
-                           strokeWidth: computedStyle.strokeWidth,
-                           strokeDasharray: computedStyle.strokeDasharray
-                       }
-                   };
+                    return { 
+                        d: path.getAttribute('d') || '',
+                        startId,
+                        endId,
+                        arrowStart: !!markerStart, 
+                        arrowEnd: !!markerEnd,
+                        style: {
+                            stroke: computedStyle.stroke,
+                            strokeWidth: computedStyle.strokeWidth,
+                            strokeDasharray: computedStyle.strokeDasharray
+                        }
+                    };
                 }),
                 clusters: clusters.map(c => {
-                    // Re-map cluster styles to include dasharray
                     return {
                         ...c,
                         style: {
                             ...c.style,
-                            strokeDasharray: c.style.strokeDasharray // Was missing in previous replacement
+                            strokeDasharray: c.style.strokeDasharray
                         }
                     };
                 }),
