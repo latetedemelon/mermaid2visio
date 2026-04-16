@@ -2,9 +2,9 @@
   "name": "mermaid2visio",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc && copyfiles -u 1 src/public/**/* dist",
+    "build": "tsc && copyfiles -u 1 src/public/**/* dist && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "keywords": [

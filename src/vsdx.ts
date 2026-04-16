@@ -84,6 +84,7 @@ export class VsdxGenerator {
 
         let shapeId = 1;
         const nodeIdToShapeId = new Map<string, number>();
+        const nodeIdToPin = new Map<string, { pinX: number, pinY: number }>();
         const connects: Array<{ fromSheet: number, fromCell: string, toSheet: number, toCell: string }> = [];
 
         // Helper for LinePattern
@@ -178,17 +179,23 @@ export class VsdxGenerator {
             // Register ID
             nodeIdToShapeId.set(node.id, shapeId);
 
-            // Convert to inches
+            // Convert to inches. node.x/node.y are bounding-box top-left in SVG coords
+            // (the parser normalizes both nodes and clusters to top-left). Visio PinX/PinY
+            // is the shape center in a bottom-left origin, so flip Y and add half-extents.
             const w = node.width / this.dpi;
             const h = node.height / this.dpi;
-            const x = node.x / this.dpi; 
-            const y = this.pageHeight - (node.y / this.dpi);
+            const xTopLeft = node.x / this.dpi;
+            const yTopLeft = node.y / this.dpi;
+            const pinX = xTopLeft + w / 2;
+            const pinY = this.pageHeight - (yTopLeft + h / 2);
+
+            nodeIdToPin.set(node.id, { pinX, pinY });
 
             const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
-            
+
             // Transform
-            shape.ele('Cell', { N: 'PinX', V: x.toString() }).up();
-            shape.ele('Cell', { N: 'PinY', V: y.toString() }).up();
+            shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
+            shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
             shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
             shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
 
@@ -345,79 +352,93 @@ export class VsdxGenerator {
             for (const edge of graph.edges) {
                 if (!edge.d) continue;
 
-                // Create a shape for the connector
-                // In Visio, a connector is just a 1D shape (a line). 
-                // However, since we are drawing a complex path, we treat it as a 2D shape with no fill, just stroke.
-                // We will position the shape at (0,0) of the page and draw absolute coordinates.
-                // This is the easiest way to preserve the exact path.
-                
+                const startPin = edge.startId ? nodeIdToPin.get(edge.startId) : undefined;
+                const endPin = edge.endId ? nodeIdToPin.get(edge.endId) : undefined;
+                const startShapeId = edge.startId ? nodeIdToShapeId.get(edge.startId) : undefined;
+                const endShapeId = edge.endId ? nodeIdToShapeId.get(edge.endId) : undefined;
+                const glued = !!(startPin && endPin && startShapeId && endShapeId);
+
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
-                
-                // Pin at (0,0) of the page, so local coordinates match page coordinates (mostly)
-                // But wait, Visio local coords are relative to PinX/PinY.
-                // If PinX=0, PinY=0 (bottom-left), then local (x,y) are offsets from there.
-                shape.ele('Cell', { N: 'PinX', V: '0' }).up();
-                shape.ele('Cell', { N: 'PinY', V: '0' }).up();
-                shape.ele('Cell', { N: 'Width', V: this.pageWidth.toString() }).up();
-                shape.ele('Cell', { N: 'Height', V: this.pageHeight.toString() }).up();
-                shape.ele('Cell', { N: 'LocPinX', V: '0' }).up();
-                shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
 
-                // Styling
-                shape.ele('Cell', { N: 'FillPattern', V: '0' }).up(); // No fill
-                
-                // Add Arrowhead (Default to EndArrow=13 for standard arrow)
-                // TODO: Check edge style for "arrowhead: none" if needed.
+                if (glued) {
+                    // Proper 1D connector: PinX/PinY derived from BeginX/Y and EndX/Y so that
+                    // Visio's dynamic routing follows the glued shapes. Width/Height express
+                    // the begin->end vector; LocPinX/Y are 0,0 to align with BeginX/Y.
+                    const beginX = startPin!.pinX;
+                    const beginY = startPin!.pinY;
+                    const endX = endPin!.pinX;
+                    const endY = endPin!.pinY;
+                    const pinX = (beginX + endX) / 2;
+                    const pinY = (beginY + endY) / 2;
+                    const width = endX - beginX;
+                    const height = endY - beginY;
+
+                    shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
+                    shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
+                    shape.ele('Cell', { N: 'Width', V: width.toString() }).up();
+                    shape.ele('Cell', { N: 'Height', V: height.toString() }).up();
+                    shape.ele('Cell', { N: 'LocPinX', V: '0' }).up();
+                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
+                    shape.ele('Cell', { N: 'BeginX', V: beginX.toString() }).up();
+                    shape.ele('Cell', { N: 'BeginY', V: beginY.toString() }).up();
+                    shape.ele('Cell', { N: 'EndX', V: endX.toString() }).up();
+                    shape.ele('Cell', { N: 'EndY', V: endY.toString() }).up();
+                } else {
+                    // Fallback: place shape at page origin and draw the raw SVG path in
+                    // absolute coordinates. No glue, but the line is still rendered.
+                    shape.ele('Cell', { N: 'PinX', V: '0' }).up();
+                    shape.ele('Cell', { N: 'PinY', V: '0' }).up();
+                    shape.ele('Cell', { N: 'Width', V: this.pageWidth.toString() }).up();
+                    shape.ele('Cell', { N: 'Height', V: this.pageHeight.toString() }).up();
+                    shape.ele('Cell', { N: 'LocPinX', V: '0' }).up();
+                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
+                }
+
+                shape.ele('Cell', { N: 'FillPattern', V: '0' }).up();
                 shape.ele('Cell', { N: 'EndArrow', V: '13' }).up();
+                // ObjType=2 marks the shape as a connector so Visio routes it dynamically.
+                shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
 
-                if (edge.style) {
-                    if (edge.style.stroke) {
-                         shape.ele('Cell', { N: 'LineColor', V: edge.style.stroke }).up();
-                    }
-                    if (edge.style.strokeWidth) {
-                         const px = parseFloat(edge.style.strokeWidth) || 1;
-                         shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
-                    }
+                if (edge.style?.stroke) {
+                    shape.ele('Cell', { N: 'LineColor', V: edge.style.stroke }).up();
                 } else {
                     shape.ele('Cell', { N: 'LineColor', V: '#000000' }).up();
-                    shape.ele('Cell', { N: 'LineWeight', V: '0.01' }).up();
+                }
+                if (edge.style?.strokeWidth) {
+                    const px = parseFloat(edge.style.strokeWidth) || 1;
+                    shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
+                } else {
+                    shape.ele('Cell', { N: 'LineWeight', V: (1 / this.dpi).toString() }).up();
+                }
+                const edgeLp = getLinePattern(edge.style?.strokeDasharray);
+                if (edgeLp) shape.ele('Cell', { N: 'LinePattern', V: edgeLp }).up();
+
+                if (glued) {
+                    // Standard 1D line geometry spanning Begin -> End in local coords.
+                    const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
+                    geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
+                    geom.ele('Row', { T: 'MoveTo', IX: '1' })
+                        .ele('Cell', { N: 'X', V: '0' }).up()
+                        .ele('Cell', { N: 'Y', V: '0' }).up().up();
+                    geom.ele('Row', { T: 'LineTo', IX: '2' })
+                        .ele('Cell', { N: 'X', V: 'Width' }).up()
+                        .ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                    geom.up();
+
+                    connects.push({ fromSheet: shapeId, fromCell: 'BeginX', toSheet: startShapeId!, toCell: 'PinX' });
+                    connects.push({ fromSheet: shapeId, fromCell: 'EndX', toSheet: endShapeId!, toCell: 'PinX' });
+                } else {
+                    const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
+                    geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
+                    this.parsePathToVisio(edge.d, geom);
+                    geom.up();
                 }
 
-                const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-                geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
-
-                this.parsePathToVisio(edge.d, geom);
-                geom.up();
-
-                // Logic for connection
-                if (edge.startId && edge.endId) {
-                    const startShapeId = nodeIdToShapeId.get(edge.startId);
-                    const endShapeId = nodeIdToShapeId.get(edge.endId);
-
-                    if (startShapeId && endShapeId) {
-                        // Queue the connection
-                        // PinX is the generic center connection point
-                        connects.push({ fromSheet: shapeId, fromCell: 'BeginX', toSheet: startShapeId, toCell: 'PinX' });
-                        connects.push({ fromSheet: shapeId, fromCell: 'EndX', toSheet: endShapeId, toCell: 'PinX' });
-                    }
-                }
-
-                // Add ObjType and XForm1D for proper Connector behavior
-                shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
-                
-                // Routing Style (1 = Right Angle, 2 = Straight)
+                // Routing Style (1 = Right Angle)
                 shape.ele('Section', { N: 'ShapeLayout', IX: '0' })
                     .ele('Row', { IX: '0' })
                         .ele('Cell', { N: 'ConLineRouteExt', V: '1' }).up()
                     .up().up();
-
-                const xform = shape.ele('Section', { N: 'XForm1D', IX: '0' });
-                xform.ele('Row', { IX: '0' })
-                    .ele('Cell', { N: 'BeginX', V: '0' }).up()
-                    .ele('Cell', { N: 'BeginY', V: '0' }).up()
-                    .ele('Cell', { N: 'EndX', V: '0' }).up()
-                    .ele('Cell', { N: 'EndY', V: '0' }).up()
-                .up().up();
 
                 shapeId++;
             }
@@ -495,73 +516,194 @@ export class VsdxGenerator {
         this.zip.folder('visio')?.folder('pages')?.file('page1.xml', root.end({ prettyPrint: true }));
     }
 
-    private parsePathToVisio(d: string, geomXml: any) {
-        // Simple regex-based SVG path parser
-        // Supports M (Move), L (Line), C (Cubic Bezier)
-        // Coordinates in d are separate by space or comma
-        
-        // Normalize: Put spaces around commands
-        const normalized = d.replace(/([a-zA-Z])/g, ' $1 ').trim();
-        const tokens = normalized.split(/[\s,]+|(?=[a-zA-Z])/).filter(t => t.trim().length > 0);
+    // Exported for unit testing.
+    public parsePathToVisio(d: string, geomXml: any) {
+        const commands = this.tokenizeSvgPath(d);
 
         let currentX = 0;
         let currentY = 0;
+        let startX = 0;
+        let startY = 0;
         let rowIx = 1;
 
         const toVisioY = (y: number) => this.pageHeight - (y / this.dpi);
         const toVisioX = (x: number) => x / this.dpi;
 
-        for (let i = 0; i < tokens.length; i++) {
-            const cmd = tokens[i];
-            
-            if (cmd === 'M') {
-                const x = parseFloat(tokens[++i]);
-                const y = parseFloat(tokens[++i]);
-                currentX = x;
-                currentY = y;
-                
-                geomXml.ele('Row', { T: 'MoveTo', IX: rowIx.toString() })
-                    .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
-                    .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
-                rowIx++;
-            } else if (cmd === 'L') {
-                const x = parseFloat(tokens[++i]);
-                const y = parseFloat(tokens[++i]);
-                currentX = x;
-                currentY = y;
-
-                geomXml.ele('Row', { T: 'LineTo', IX: rowIx.toString() })
-                    .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
-                    .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
-                rowIx++;
-            } else if (cmd === 'C') {
-                // Cubic Bezier: C x1 y1, x2 y2, x y
-                const x1 = parseFloat(tokens[++i]);
-                const y1 = parseFloat(tokens[++i]);
-                const x2 = parseFloat(tokens[++i]);
-                const y2 = parseFloat(tokens[++i]);
-                const x = parseFloat(tokens[++i]);
-                const y = parseFloat(tokens[++i]);
-
-                // Flatten the curve into lines for simplicity and robustness
-                // 5 segments
-                const steps = 10;
-                for (let s = 1; s <= steps; s++) {
-                    const t = s / steps;
-                    const mt = 1 - t;
-                    // Bezier formula
-                    const bx = mt*mt*mt*currentX + 3*mt*mt*t*x1 + 3*mt*t*t*x2 + t*t*t*x;
-                    const by = mt*mt*mt*currentY + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y;
-                    
-                    geomXml.ele('Row', { T: 'LineTo', IX: rowIx.toString() })
-                        .ele('Cell', { N: 'X', V: toVisioX(bx).toString() }).up()
-                        .ele('Cell', { N: 'Y', V: toVisioY(by).toString() }).up().up();
-                    rowIx++;
-                }
-
-                currentX = x;
-                currentY = y;
+        const moveTo = (x: number, y: number) => {
+            geomXml.ele('Row', { T: 'MoveTo', IX: rowIx.toString() })
+                .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
+                .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
+            rowIx++;
+        };
+        const lineTo = (x: number, y: number) => {
+            geomXml.ele('Row', { T: 'LineTo', IX: rowIx.toString() })
+                .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
+                .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
+            rowIx++;
+        };
+        const flattenCubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
+            const steps = 10;
+            for (let s = 1; s <= steps; s++) {
+                const t = s / steps;
+                const mt = 1 - t;
+                const bx = mt*mt*mt*currentX + 3*mt*mt*t*x1 + 3*mt*t*t*x2 + t*t*t*x;
+                const by = mt*mt*mt*currentY + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y;
+                lineTo(bx, by);
             }
+        };
+        const flattenQuadratic = (x1: number, y1: number, x: number, y: number) => {
+            const steps = 10;
+            for (let s = 1; s <= steps; s++) {
+                const t = s / steps;
+                const mt = 1 - t;
+                const bx = mt*mt*currentX + 2*mt*t*x1 + t*t*x;
+                const by = mt*mt*currentY + 2*mt*t*y1 + t*t*y;
+                lineTo(bx, by);
+            }
+        };
+
+        let prevControlX: number | null = null;
+        let prevControlY: number | null = null;
+        let prevCmd = '';
+
+        for (const { cmd, args } of commands) {
+            const relative = cmd >= 'a' && cmd <= 'z';
+            const upper = cmd.toUpperCase();
+
+            if (upper === 'M') {
+                for (let i = 0; i < args.length; i += 2) {
+                    const x = relative ? currentX + args[i] : args[i];
+                    const y = relative ? currentY + args[i + 1] : args[i + 1];
+                    if (i === 0) {
+                        moveTo(x, y);
+                        startX = x;
+                        startY = y;
+                    } else {
+                        // Subsequent pairs after M are implicit L.
+                        lineTo(x, y);
+                    }
+                    currentX = x;
+                    currentY = y;
+                }
+                prevControlX = prevControlY = null;
+            } else if (upper === 'L') {
+                for (let i = 0; i < args.length; i += 2) {
+                    const x = relative ? currentX + args[i] : args[i];
+                    const y = relative ? currentY + args[i + 1] : args[i + 1];
+                    lineTo(x, y);
+                    currentX = x;
+                    currentY = y;
+                }
+                prevControlX = prevControlY = null;
+            } else if (upper === 'H') {
+                for (let i = 0; i < args.length; i++) {
+                    const x = relative ? currentX + args[i] : args[i];
+                    lineTo(x, currentY);
+                    currentX = x;
+                }
+                prevControlX = prevControlY = null;
+            } else if (upper === 'V') {
+                for (let i = 0; i < args.length; i++) {
+                    const y = relative ? currentY + args[i] : args[i];
+                    lineTo(currentX, y);
+                    currentY = y;
+                }
+                prevControlX = prevControlY = null;
+            } else if (upper === 'C') {
+                for (let i = 0; i < args.length; i += 6) {
+                    const x1 = relative ? currentX + args[i] : args[i];
+                    const y1 = relative ? currentY + args[i + 1] : args[i + 1];
+                    const x2 = relative ? currentX + args[i + 2] : args[i + 2];
+                    const y2 = relative ? currentY + args[i + 3] : args[i + 3];
+                    const x  = relative ? currentX + args[i + 4] : args[i + 4];
+                    const y  = relative ? currentY + args[i + 5] : args[i + 5];
+                    flattenCubic(x1, y1, x2, y2, x, y);
+                    prevControlX = x2;
+                    prevControlY = y2;
+                    currentX = x;
+                    currentY = y;
+                }
+            } else if (upper === 'S') {
+                for (let i = 0; i < args.length; i += 4) {
+                    // Smooth cubic: first control is reflection of prev cubic's second control.
+                    const reflect = (prevCmd.toUpperCase() === 'C' || prevCmd.toUpperCase() === 'S')
+                        && prevControlX !== null && prevControlY !== null;
+                    const x1 = reflect ? 2 * currentX - (prevControlX as number) : currentX;
+                    const y1 = reflect ? 2 * currentY - (prevControlY as number) : currentY;
+                    const x2 = relative ? currentX + args[i] : args[i];
+                    const y2 = relative ? currentY + args[i + 1] : args[i + 1];
+                    const x  = relative ? currentX + args[i + 2] : args[i + 2];
+                    const y  = relative ? currentY + args[i + 3] : args[i + 3];
+                    flattenCubic(x1, y1, x2, y2, x, y);
+                    prevControlX = x2;
+                    prevControlY = y2;
+                    currentX = x;
+                    currentY = y;
+                }
+            } else if (upper === 'Q') {
+                for (let i = 0; i < args.length; i += 4) {
+                    const x1 = relative ? currentX + args[i] : args[i];
+                    const y1 = relative ? currentY + args[i + 1] : args[i + 1];
+                    const x  = relative ? currentX + args[i + 2] : args[i + 2];
+                    const y  = relative ? currentY + args[i + 3] : args[i + 3];
+                    flattenQuadratic(x1, y1, x, y);
+                    prevControlX = x1;
+                    prevControlY = y1;
+                    currentX = x;
+                    currentY = y;
+                }
+            } else if (upper === 'T') {
+                for (let i = 0; i < args.length; i += 2) {
+                    const reflect = (prevCmd.toUpperCase() === 'Q' || prevCmd.toUpperCase() === 'T')
+                        && prevControlX !== null && prevControlY !== null;
+                    const x1 = reflect ? 2 * currentX - (prevControlX as number) : currentX;
+                    const y1 = reflect ? 2 * currentY - (prevControlY as number) : currentY;
+                    const x  = relative ? currentX + args[i] : args[i];
+                    const y  = relative ? currentY + args[i + 1] : args[i + 1];
+                    flattenQuadratic(x1, y1, x, y);
+                    prevControlX = x1;
+                    prevControlY = y1;
+                    currentX = x;
+                    currentY = y;
+                }
+            } else if (upper === 'Z') {
+                lineTo(startX, startY);
+                currentX = startX;
+                currentY = startY;
+                prevControlX = prevControlY = null;
+            } else if (upper === 'A') {
+                // Elliptical arc: fall back to a straight line to the endpoint so the
+                // connector stays continuous rather than silently dropping segments.
+                for (let i = 0; i < args.length; i += 7) {
+                    const x = relative ? currentX + args[i + 5] : args[i + 5];
+                    const y = relative ? currentY + args[i + 6] : args[i + 6];
+                    lineTo(x, y);
+                    currentX = x;
+                    currentY = y;
+                }
+                prevControlX = prevControlY = null;
+            }
+            prevCmd = cmd;
         }
+    }
+
+    private tokenizeSvgPath(d: string): Array<{ cmd: string, args: number[] }> {
+        const out: Array<{ cmd: string, args: number[] }> = [];
+        const re = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(d)) !== null) {
+            const cmd = m[1];
+            const rest = m[2].trim();
+            const nums: number[] = [];
+            if (rest.length > 0) {
+                const numRe = /-?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
+                let nm: RegExpExecArray | null;
+                while ((nm = numRe.exec(rest)) !== null) {
+                    nums.push(parseFloat(nm[0]));
+                }
+            }
+            out.push({ cmd, args: nums });
+        }
+        return out;
     }
 }

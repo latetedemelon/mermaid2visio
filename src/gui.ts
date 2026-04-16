@@ -9,6 +9,8 @@ import { exec } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = 3000;
+const HOST = '127.0.0.1';
+const MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MiB
 
 // Path to the HTML file (in dist/public/index.html after build, or src/public for dev?)
 // Since we compile ts to dist, we need to make sure public is copied or read correctly.
@@ -39,11 +41,27 @@ const server = http.createServer(async (req, res) => {
 
     // Convert API
     if (req.method === 'POST' && req.url === '/convert') {
-        let body = '';
-        req.on('data', chunk => body += chunk.toString());
+        const chunks: Buffer[] = [];
+        let received = 0;
+        let aborted = false;
+
+        req.on('data', (chunk: Buffer) => {
+            if (aborted) return;
+            received += chunk.length;
+            if (received > MAX_BODY_BYTES) {
+                aborted = true;
+                res.writeHead(413, { 'Content-Type': 'text/plain' });
+                res.end(`Request body exceeds ${MAX_BODY_BYTES} bytes`);
+                req.destroy();
+                return;
+            }
+            chunks.push(chunk);
+        });
         req.on('end', async () => {
+            if (aborted) return;
             try {
                 console.log("Received conversion request...");
+                const body = Buffer.concat(chunks).toString('utf-8');
                 const graph = await parseMermaid(body);
                 const generator = new VsdxGenerator();
                 const buffer = await generator.generate(graph);
@@ -67,9 +85,9 @@ const server = http.createServer(async (req, res) => {
     res.end('Not Found');
 });
 
-server.listen(PORT, () => {
-    console.log(`GUI Server running at http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+    console.log(`GUI Server running at http://${HOST}:${PORT}`);
     // Try to open browser
     const start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
-    exec(`${start} http://localhost:${PORT}`);
+    exec(`${start} http://${HOST}:${PORT}`);
 });

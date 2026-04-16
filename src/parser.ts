@@ -85,7 +85,13 @@ export interface GraphData {
 }
 
 export async function parseMermaid(definition: string): Promise<GraphData> {
-    const browser = await puppeteer.launch({ headless: true });
+    // --no-sandbox / --disable-dev-shm-usage are required in most container
+    // environments (GitHub Actions runners work either way, but Docker, root
+    // shells, and minimal Linux images all fail without them).
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
     const page = await browser.newPage();
 
     // Inject Mermaid from node_modules
@@ -196,11 +202,17 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                     const nodeClasses = Array.from(node.classList).join(' ');
                     const transform = node.getAttribute('transform');
                     const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                    const x = match ? parseFloat(match[1]) : 0;
-                    const y = match ? parseFloat(match[2]) : 0;
-                    
+                    const tx = match ? parseFloat(match[1]) : 0;
+                    const ty = match ? parseFloat(match[2]) : 0;
+
                     const rect = node.querySelector('rect, circle, polygon, path, ellipse') as SVGGraphicsElement;
                     const bbox = rect ? rect.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+
+                    // Normalize to top-left coordinates so nodes and clusters share one convention.
+                    // Mermaid puts the <g class="node"> transform at the shape center, with the
+                    // inner rect drawn around the origin (bbox.x/y ~= -width/2, -height/2).
+                    const x = tx + bbox.x;
+                    const y = ty + bbox.y;
                     
                     // Infer shape type from classes and tags
                     let type = 'rectangle';
