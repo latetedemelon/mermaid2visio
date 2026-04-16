@@ -5,16 +5,32 @@ module.exports = {
   testMatch: ['**/*.test.ts'],
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
-    '^(\.{1,2}/.*)\.js$': '$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
-    // '^.+\.[tj]sx?$' to process js/ts with `ts-jest`
-    // '^.+\.m?[tj]sx?$' to process js/ts/mjs/mts with `ts-jest`
-    '^.+\.tsx?$': [
+    '^.+\\.tsx?$': [
       'ts-jest',
       {
         useESM: true,
       },
     ],
+  },
+  // v8 provider: collect coverage via Node's native V8 coverage API instead of
+  // source-level Istanbul instrumentation. Istanbul rewrites parser.ts to add
+  // counters like `cov_xxx`, but that source then gets serialized and run
+  // inside Puppeteer's page.evaluate, where those globals do not exist.
+  coverageProvider: 'v8',
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/public/**',
+  ],
+  coverageReporters: ['text-summary', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 70,
+      branches: 70,
+      functions: 75,
+      lines: 70,
+    },
   },
 };

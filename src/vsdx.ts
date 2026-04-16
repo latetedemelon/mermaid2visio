@@ -465,14 +465,12 @@ export class VsdxGenerator {
                 shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
                 shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
 
-                // Invisible box
-                shape.ele('Cell', { N: 'FillPattern', V: '0' }).up();
+                // Invisible line; FillPattern depends on whether a background is requested.
                 shape.ele('Cell', { N: 'LinePattern', V: '0' }).up();
-
-                // Background fill if specified
-                if (label.style?.fill && label.style.fill !== 'none') {
-                    shape.ele('Cell', { N: 'FillPattern', V: '1' }).up();
-                    shape.ele('Cell', { N: 'FillForegnd', V: label.style.fill }).up();
+                const hasBackground = !!(label.style?.fill && label.style.fill !== 'none');
+                shape.ele('Cell', { N: 'FillPattern', V: hasBackground ? '1' : '0' }).up();
+                if (hasBackground) {
+                    shape.ele('Cell', { N: 'FillForegnd', V: label.style!.fill! }).up();
                 }
 
                 const textBlock = shape.ele('Text').txt(label.text).up();
