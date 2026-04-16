@@ -5,54 +5,224 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mermaid to Visio Converter</title>
     <style>
-        :root { --primary: #0078d4; --bg: #f3f2f1; --surface: #ffffff; --border: #e1dfdd; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; display: flex; height: 100vh; flex-direction: column; background: var(--bg); color: #323130; }
+        :root { 
+            --primary: #0078d4; 
+            --bg: #f3f2f1; 
+            --surface: #ffffff; 
+            --border: #e1dfdd;
+            --success: #107c10;
+        }
+        * { box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            flex-direction: column; 
+            background: var(--bg); 
+            color: #323130; 
+        }
         
         header { 
-            background: var(--primary); color: white; padding: 0 1.5rem; height: 50px; 
-            display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: var(--primary); 
+            color: white; 
+            padding: 0 1.5rem; 
+            height: 50px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         h1 { font-size: 1.1rem; font-weight: 600; margin: 0; }
         
-        .main-container { display: flex; flex: 1; overflow: hidden; }
-        .pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); }
-        .pane:last-child { border-right: none; }
+        .header-right {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .main-container { 
+            display: flex; 
+            flex: 1; 
+            overflow: hidden; 
+            gap: 0;
+        }
+        
+        .left-panel {
+            flex: 0 0 30%;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            background: var(--surface);
+            overflow: hidden;
+        }
+        
+        .center-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+        }
+        
+        .right-panel {
+            flex: 0 0 35%;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            overflow: hidden;
+        }
         
         .pane-header { 
-            padding: 0.8rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border); 
-            font-weight: 600; font-size: 0.9rem; color: #605e5c; display: flex; justify-content: space-between;
+            padding: 0.8rem 1rem; 
+            background: #f5f5f5;
+            border-bottom: 1px solid var(--border); 
+            font-weight: 600; 
+            font-size: 0.85rem; 
+            color: #605e5c;
+            display: flex; 
+            justify-content: space-between;
+            align-items: center;
         }
         
         textarea { 
-            flex: 1; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; 
-            padding: 1rem; resize: none; border: none; outline: none; line-height: 1.5; background: #faf9f8;
+            flex: 1; 
+            font-family: 'Consolas', 'Monaco', monospace; 
+            font-size: 13px; 
+            padding: 1rem; 
+            resize: none; 
+            border: none; 
+            outline: none; 
+            line-height: 1.5; 
+            background: #faf9f8;
+            overflow-y: auto;
         }
         textarea:focus { background: var(--surface); }
         
         #preview { 
-            flex: 1; padding: 2rem; overflow: auto; 
-            display: flex; justify-content: center; align-items: flex-start;
-            background-image: radial-gradient(#e1dfdd 1px, transparent 1px); background-size: 20px 20px;
+            flex: 1; 
+            padding: 1.5rem; 
+            overflow: auto; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            background-image: radial-gradient(#e1dfdd 1px, transparent 1px); 
+            background-size: 20px 20px;
+        }
+        
+        .config-section {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .config-group {
+            margin-bottom: 1.2rem;
+        }
+        
+        .config-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 0.4rem;
+            color: #333;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            background: white;
+            color: #333;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
         }
         
         button { 
-            background: white; color: var(--primary); border: none; padding: 0.5rem 1rem; 
-            font-weight: 600; cursor: pointer; border-radius: 2px; transition: all 0.2s;
+            background: white; 
+            color: var(--primary); 
+            border: 1px solid var(--primary);
+            padding: 0.6rem 1.2rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            border-radius: 2px; 
+            transition: all 0.2s;
+            font-size: 0.9rem;
         }
-        button:hover { background: #eff6fc; }
-        button:active { background: #deecf9; }
-        button.primary { background: white; color: var(--primary); }
+        button:hover { 
+            background: #eff6fc;
+        }
+        button:active { 
+            background: #deecf9;
+        }
+        button.primary { 
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        button.primary:hover {
+            background: #106ebe;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         
-        .status { font-size: 0.8rem; opacity: 0.8; margin-right: 1rem; }
+        .status { 
+            font-size: 0.8rem; 
+            opacity: 0.8;
+        }
+        
+        .status.success {
+            color: var(--success);
+        }
+        
+        .status.error {
+            color: #a4373a;
+        }
     </style>
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
         const inputEl = document.getElementById('input');
         const previewEl = document.getElementById('preview');
-        const btn = document.getElementById('convertBtn');
+        const convertBtn = document.getElementById('convertBtn');
         const statusEl = document.getElementById('status');
+        
+        // Config elements
+        const layoutSelect = document.getElementById('layout');
+        const themeSelect = document.getElementById('theme');
+        const fontFamilyInput = document.getElementById('fontFamily');
+        const primaryColorInput = document.getElementById('primaryColor');
+        const nodeSpacingInput = document.getElementById('nodeSpacing');
+        const rankSpacingInput = document.getElementById('rankSpacing');
+        const curveInput = document.getElementById('curve');
+
+        let currentConfig = {
+            layout: 'dagre',
+            theme: 'neutral',
+            themeVariables: {
+                primaryColor: '#e1f5fe',
+                fontFamily: 'Segoe UI, sans-serif'
+            },
+            flowchart: {
+                nodeSpacing: 50,
+                rankSpacing: 50,
+                curve: 'basis'
+            }
+        };
 
         const debounce = (func, wait) => {
             let timeout;
@@ -67,28 +237,57 @@
                 const code = inputEl.value;
                 if (!code.trim()) return;
                 
-                // Clear and render
                 previewEl.innerHTML = '';
-                const { svg } = await mermaid.render('graphDiv', code);
+                
+                // Update mermaid with current config
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: currentConfig.theme,
+                    layout: currentConfig.layout,
+                    themeVariables: currentConfig.themeVariables,
+                    flowchart: currentConfig.flowchart,
+                    securityLevel: 'loose'
+                });
+                
+                const { svg } = await mermaid.render('graphDiv_' + Date.now(), code);
                 previewEl.innerHTML = svg;
-                statusEl.textContent = 'Preview updated';
+                statusEl.textContent = 'Preview updated ✓';
+                statusEl.className = 'status success';
             } catch (e) {
                 console.error(e);
-                // Don't wipe preview on error, just log it or show toast
-                statusEl.textContent = 'Syntax Error';
+                statusEl.textContent = 'Syntax error';
+                statusEl.className = 'status error';
             }
+        };
+
+        window.updateConfig = () => {
+            currentConfig.layout = layoutSelect.value;
+            currentConfig.theme = themeSelect.value;
+            currentConfig.themeVariables.fontFamily = fontFamilyInput.value;
+            currentConfig.themeVariables.primaryColor = primaryColorInput.value;
+            currentConfig.flowchart.nodeSpacing = parseInt(nodeSpacingInput.value) || 50;
+            currentConfig.flowchart.rankSpacing = parseInt(rankSpacingInput.value) || 50;
+            currentConfig.flowchart.curve = curveInput.value;
+            
+            window.updatePreview();
         };
 
         window.convert = async () => {
             const code = inputEl.value;
-            const originalText = btn.innerText;
-            btn.innerText = 'Converting...';
-            btn.disabled = true;
+            const originalText = convertBtn.innerText;
+            convertBtn.innerText = 'Converting...';
+            convertBtn.disabled = true;
 
             try {
                 const res = await fetch('/convert', {
                     method: 'POST',
-                    body: code
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        mermaid: code,
+                        config: currentConfig
+                    })
                 });
                 
                 if (!res.ok) throw new Error(await res.text());
@@ -101,20 +300,33 @@
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-                statusEl.textContent = 'Download started';
+                window.URL.revokeObjectURL(url);
+                
+                statusEl.textContent = 'Downloaded ✓';
+                statusEl.className = 'status success';
             } catch (e) {
+                console.error(e);
                 alert('Error: ' + e.message);
                 statusEl.textContent = 'Conversion failed';
+                statusEl.className = 'status error';
             } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
+                convertBtn.innerText = originalText;
+                convertBtn.disabled = false;
             }
         };
 
-        // Auto-update
+        // Event listeners
         inputEl.addEventListener('input', debounce(window.updatePreview, 800));
+        layoutSelect.addEventListener('change', window.updateConfig);
+        themeSelect.addEventListener('change', window.updateConfig);
+        fontFamilyInput.addEventListener('change', window.updateConfig);
+        primaryColorInput.addEventListener('change', window.updateConfig);
+        nodeSpacingInput.addEventListener('change', window.updateConfig);
+        rankSpacingInput.addEventListener('change', window.updateConfig);
+        curveInput.addEventListener('change', window.updateConfig);
         
         // Initial load
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         window.updatePreview();
     </script>
 </head>
@@ -124,16 +336,78 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 2L2 22h20L12 2zm0 3.5L18.5 20h-13L12 5.5z"/></svg>
             <h1>Mermaid 2 Visio</h1>
         </div>
-        <div>
+        <div class="header-right">
             <span id="status" class="status">Ready</span>
-            <button id="convertBtn" onclick="convert()">Download .VSDX</button>
+            <button id="convertBtn" class="primary" onclick="convert()">📥 Download VSDX</button>
         </div>
     </header>
     <div class="main-container">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Mermaid Code</span>
+        <!-- Left: Configuration Panel -->
+        <div class="left-panel">
+            <div class="pane-header">⚙️ Configuration</div>
+            <div class="config-section">
+                <div class="config-group">
+                    <label for="layout">Layout Engine</label>
+                    <select id="layout">
+                        <option value="dagre">Dagre (Hierarchical)</option>
+                        <option value="elk">ELK (Orthogonal)</option>
+                        <option value="flexbox">Flexbox</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label for="theme">Theme</label>
+                    <select id="theme">
+                        <option value="default">Default</option>
+                        <option value="forest">Forest</option>
+                        <option value="dark">Dark</option>
+                        <option value="neutral" selected>Neutral</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label for="fontFamily">Font Family</label>
+                    <select id="fontFamily">
+                        <option value="Segoe UI, sans-serif" selected>Segoe UI</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="Times New Roman, serif">Times New Roman</option>
+                        <option value="Courier New, monospace">Courier New</option>
+                        <option value="Georgia, serif">Georgia</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label for="primaryColor">Primary Color</label>
+                    <input type="color" id="primaryColor" value="#e1f5fe">
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
+
+                <div class="config-group">
+                    <label for="nodeSpacing">Node Spacing (px)</label>
+                    <input type="number" id="nodeSpacing" value="50" min="10" max="200" step="10">
+                </div>
+
+                <div class="config-group">
+                    <label for="rankSpacing">Rank Spacing (px)</label>
+                    <input type="number" id="rankSpacing" value="50" min="10" max="200" step="10">
+                </div>
+
+                <div class="config-group">
+                    <label for="curve">Curve Type</label>
+                    <select id="curve">
+                        <option value="basis" selected>Basis (Smooth)</option>
+                        <option value="linear">Linear</option>
+                        <option value="cardinal">Cardinal</option>
+                        <option value="monotoneX">Monotone X</option>
+                    </select>
+                </div>
             </div>
+        </div>
+
+        <!-- Center: Code Editor -->
+        <div class="center-panel">
+            <div class="pane-header">📝 Mermaid Code</div>
             <textarea id="input" spellcheck="false">graph TD
     classDef container fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
     classDef success fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
@@ -148,10 +422,10 @@
     class Start,Process container
     class Finish success</textarea>
         </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Live Preview</span>
-            </div>
+
+        <!-- Right: Live Preview -->
+        <div class="right-panel">
+            <div class="pane-header">👁️ Live Preview</div>
             <div id="preview"></div>
         </div>
     </div>
