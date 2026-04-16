@@ -31,15 +31,29 @@ cd mermaid2visio
 npm install
 npm run build
 ```
-
 ## Usage
 
 ### 1. Web GUI (Recommended)
-Visual editor with live preview.
+Visual editor with live preview and configuration panel.
 ```bash
 node dist/gui.js
 ```
-Opens `http://localhost:3000` in your browser. Paste Mermaid code, verify the preview, and download the `.vsdx`.
+Opens `http://localhost:3333` in your browser. Configure layout, theme, and styling options, paste Mermaid code, verify the preview, and download the `.vsdx`.
+
+#### Configuration Options
+The web UI now includes:
+- **Layout Engines**: 
+  - Dagre (Hierarchical) - Default
+  - ELK (Orthogonal) - Professional, structured layouts
+  - Flexbox - Flexible positioning
+- **Themes**: Default, Forest, Dark, Neutral
+- **Theme Variables**: 
+  - Primary Color
+  - Font Family (Segoe UI, Arial, Times New Roman, Courier New, Georgia)
+- **Advanced Options**:
+  - Node Spacing (10-200 px)
+  - Rank Spacing (10-200 px)
+  - Curve Type (Basis, Linear, Cardinal, Monotone X)
 
 ### 2. Command Line (CLI)
 Convert files in bulk or via scripts.
@@ -63,27 +77,39 @@ Add this tool to your AI assistant (e.g., Claude Desktop) to give it "Visio Skil
   }
 }
 ```
-**Prompt:** *"Generate a system architecture diagram for a cloud app and save it as a Visio file."*
+**Prompt:** *"Generate a system architecture diagram for a cloud app using ELK layout and save it as a Visio file."*
 
 ### 4. Windows Context Menu
 Right-click any `.mmd` or `.md` file to convert.
 1. Run `install_context_menu.bat` as Administrator.
 2. Right-click a file -> **Convert to Visio**.
 
-## Supported Features
+## Supported Diagram Types
 
-- **Flowcharts** (`graph TD`, `LR`, etc.)
+All MermaidJS diagram types are now supported with enhanced layout and theming:
+
+- **Flowcharts** (`graph TD`, `LR`, `RL`, `BT`)
+- **Sequence Diagrams**
+- **Class Diagrams**
+- **State Diagrams**
+- **Entity Relationship (ER) Diagrams**
+- **User Journey**
+- **Gantt Charts**
+- **Pie Charts**
+- **Git Graph**
+- **C4 Diagrams**
+- **Mindmaps**
+- **XY Charts**
+- **Sankey Diagrams**
+
+All with:
 - **Subgraphs** (mapped to Containers)
-- **Shapes**:
-  - Rectangle `[]`
-  - Rounded `()`
-  - Cylinder `[()]` (Database)
-  - Rhombus `{}` (Decision)
-  - Stadium `([])`
-  - Subroutine `[[]]`
-  - Circle `(())`
-- **Styling**: `fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`
-- **Interactivity**: Hyperlinks (`click` directive)
+- **Multiple shape types** (Rectangle, Rounded, Cylinder, Rhombus, Stadium, Subroutine, Circle)
+- **Styling** (`fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`)
+- **Hyperlinks** (`click` directive)
+- **Smart Glue & Dynamic Routing** (Auto-rerouting connectors in Visio)
+- **ELK Layout Support** (Professional hierarchical & orthogonal layouts)
+- **Theme Variables** (Full customization)
 
 ## License
 ISC
