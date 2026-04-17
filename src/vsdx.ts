@@ -247,15 +247,17 @@ export class VsdxGenerator {
             return s;
         };
 
-        // Size values in VSDX go in the V attribute as a plain number (in
-        // points when paired with U="PT"). Visio treats "10.5pt" as a literal
-        // string and the cell ends up with no effective value.
+        // Character.Size is a spatial cell; Visio always reads its value in
+        // the document's internal unit (inches), regardless of the U
+        // attribute. Emitting "10.5" with U="PT" makes Visio render text at
+        // 10.5 inches tall, which is what caused shapes to disappear under
+        // giant letters. Convert px -> inches directly (px / 96) and leave U
+        // off so Visio uses the sheet-native unit.
         const getFontSize = (sizeStr?: string) => {
             if (!sizeStr) return null;
             const px = parseFloat(sizeStr);
             if (isNaN(px)) return null;
-            // 1px approx 0.75pt
-            return (px * 0.75).toFixed(2);
+            return (px / this.dpi).toFixed(4);
         };
 
         const getHorzAlign = (align?: string) => {
@@ -522,7 +524,7 @@ export class VsdxGenerator {
                     if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
 
                     const fs = getFontSize(node.style.fontSize);
-                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs, U: 'PT' }).up(); // Unit=Points
+                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
 
                     const st = getFontStyle(node.style.fontWeight, node.style.fontStyle);
                     if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
@@ -686,7 +688,7 @@ export class VsdxGenerator {
                     if (lblColor) charRow.ele('Cell', { N: 'Color', V: lblColor }).up();
 
                     const fs = getFontSize(label.style.fontSize);
-                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs, U: 'PT' }).up();
+                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
 
                     const st = getFontStyle(label.style.fontWeight, label.style.fontStyle);
                     if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();

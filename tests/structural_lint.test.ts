@@ -55,14 +55,16 @@ describe.each(fixtures)('VSDX structural lint ($name)', ({ name, minShapes }) =>
         expect(formulaInV).toBeNull();
     });
 
-    it('emits font sizes as plain numbers (no "pt" suffix in V)', () => {
-        // The unit goes in U="PT"; V must be numeric or Visio treats the cell
-        // as unset and falls back to the default font size.
+    it('emits font sizes as plain inch values (no "pt" suffix, no U="PT")', () => {
+        // Character.Size is spatial — Visio reads it in inches regardless of
+        // U=. V must be numeric (literal "12pt" is dropped), and U must NOT
+        // be "PT" or Visio renders text at V inches tall (12pt -> 12 INCHES).
         const sizeCells = pageXml.match(/<Cell N="Size"[^/]*\/>/g) || [];
         expect(sizeCells.length).toBeGreaterThan(0);
         for (const cell of sizeCells) {
             const v = /V="([^"]+)"/.exec(cell)?.[1];
             expect(v).toMatch(/^\d+(?:\.\d+)?$/);
+            expect(cell).not.toMatch(/U="PT"/);
         }
     });
 

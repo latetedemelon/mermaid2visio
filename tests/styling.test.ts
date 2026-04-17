@@ -33,9 +33,12 @@ describe('Styling cells', () => {
         expect(charMatch).not.toBeNull();
         const char = charMatch![0];
         expect(char).toContain('V="#112233"');
-        // Size V is a numeric value in points (unit comes from U="PT").
-        // The literal "12.00pt" form is invalid; Visio parses V as a number.
-        expect(char).toMatch(/N="Size"\s+V="12\.00"\s+U="PT"/); // 16px * 0.75 = 12pt
+        // Character.Size is a spatial cell: Visio reads it in the document's
+        // internal unit (inches) no matter what U= says. Emitting points with
+        // U="PT" made Visio render text at 12 INCHES tall. Convert px -> in
+        // directly (16 / 96 = 0.1667) and leave U off.
+        expect(char).toMatch(/N="Size"\s+V="0\.1667"\s*\/>/); // 16px / 96dpi = 0.1667in
+        expect(char).not.toMatch(/N="Size"[^/]*U="PT"/);
         expect(char).toMatch(/N="Style"\s+V="3"/);
 
         // HorzAlign=0 (left) lives in a Paragraph section.
