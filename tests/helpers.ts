@@ -7,6 +7,16 @@ export async function unzipPage(buffer: Buffer): Promise<string> {
     return file.async('string');
 }
 
+export async function unzipAll(buffer: Buffer): Promise<Record<string, string>> {
+    const zip = await JSZip.loadAsync(buffer);
+    const out: Record<string, string> = {};
+    for (const [name, entry] of Object.entries(zip.files)) {
+        if (entry.dir) continue;
+        out[name] = await entry.async('string');
+    }
+    return out;
+}
+
 export function getShape(xml: string, shapeId: number): string {
     const re = new RegExp(`<Shape\\b[^>]*ID="${shapeId}"[^>]*>([\\s\\S]*?)</Shape>`);
     const m = re.exec(xml);

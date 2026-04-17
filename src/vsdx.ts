@@ -16,13 +16,14 @@ export class VsdxGenerator {
         // Adjust page size if graph is too big
         const graphWidthIn = graph.width / this.dpi;
         const graphHeightIn = graph.height / this.dpi;
-        
+
         if (graphWidthIn > this.pageWidth) this.pageWidth = graphWidthIn + 1;
         if (graphHeightIn > this.pageHeight) this.pageHeight = graphHeightIn + 1;
 
         this.addContentTypes();
         this.addRels();
         this.addDocumentXml();
+        this.addPagesXml();
         this.addPageXml(graph);
 
         return await this.zip.generateAsync({ type: 'nodebuffer' });
@@ -34,6 +35,7 @@ export class VsdxGenerator {
                 .ele('Default', { Extension: 'rels', ContentType: 'application/vnd.openxmlformats-package.relationships+xml' }).up()
                 .ele('Default', { Extension: 'xml', ContentType: 'application/xml' }).up()
                 .ele('Override', { PartName: '/visio/document.xml', ContentType: 'application/vnd.ms-visio.drawing.main+xml' }).up()
+                .ele('Override', { PartName: '/visio/pages/pages.xml', ContentType: 'application/vnd.ms-visio.pages+xml' }).up()
                 .ele('Override', { PartName: '/visio/pages/page1.xml', ContentType: 'application/vnd.ms-visio.page+xml' }).up()
             .up();
         this.zip.file('[Content_Types].xml', xml.end({ prettyPrint: true }));
@@ -48,6 +50,9 @@ export class VsdxGenerator {
     }
 
     private addDocumentXml() {
+        // Note: the <Pages> collection belongs in visio/pages/pages.xml, not
+        // inline here. Visio rejects (or silently drops) documents that list
+        // pages in document.xml.
         const xml = create({ encoding: 'UTF-8', standalone: true })
             .ele('VisioDocument', { xmlns: 'http://schemas.microsoft.com/office/visio/2012/main' })
                 .ele('DocumentSettings')
@@ -60,21 +65,50 @@ export class VsdxGenerator {
                 .ele('FaceNames').up()
                 .ele('StyleSheets').up()
                 .ele('DocumentSheet').up()
-                .ele('Masters').up() // No masters for now, we use local shapes
-                .ele('Pages')
-                    .ele('Page', { ID: '0', Name: 'Page-1' })
-                    .up()
-                .up()
+                .ele('Masters').up()
             .up();
-        
+
         this.zip.folder('visio')?.file('document.xml', xml.end({ prettyPrint: true }));
-        
-        // Document Rels
+
+        // Document rels: document.xml points at pages/pages.xml (NOT at
+        // page1.xml directly). pages.xml.rels then points at each page part.
         const rels = create({ encoding: 'UTF-8', standalone: true })
             .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
-                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/page', Target: 'pages/page1.xml' }).up()
+                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/pages', Target: 'pages/pages.xml' }).up()
             .up();
         this.zip.folder('visio')?.folder('_rels')?.file('document.xml.rels', rels.end({ prettyPrint: true }));
+    }
+
+    private addPagesXml() {
+        // The Pages collection: one <Page> per page file. The Rel child links
+        // to page1.xml via the relationship declared in pages.xml.rels.
+        const xml = create({ encoding: 'UTF-8', standalone: true })
+            .ele('Pages', {
+                xmlns: 'http://schemas.microsoft.com/office/visio/2012/main',
+                'xmlns:r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+            })
+                .ele('Page', { ID: '0', Name: 'Page-1', NameU: 'Page-1', ViewScale: '1', ViewCenterX: String(this.pageWidth / 2), ViewCenterY: String(this.pageHeight / 2) })
+                    .ele('PageSheet')
+                        .ele('Cell', { N: 'PageWidth',       V: String(this.pageWidth) }).up()
+                        .ele('Cell', { N: 'PageHeight',      V: String(this.pageHeight) }).up()
+                        .ele('Cell', { N: 'ShdwOffsetX',     V: '0.125' }).up()
+                        .ele('Cell', { N: 'ShdwOffsetY',     V: '-0.125' }).up()
+                        .ele('Cell', { N: 'PageScale',       V: '1', U: 'IN_F' }).up()
+                        .ele('Cell', { N: 'DrawingScale',    V: '1', U: 'IN_F' }).up()
+                        .ele('Cell', { N: 'DrawingSizeType', V: '0' }).up()
+                        .ele('Cell', { N: 'DrawingScaleType', V: '0' }).up()
+                        .ele('Cell', { N: 'InhibitSnap',     V: '0' }).up()
+                    .up()
+                    .ele('Rel', { 'r:id': 'rId1' }).up()
+                .up()
+            .up();
+        this.zip.folder('visio')?.folder('pages')?.file('pages.xml', xml.end({ prettyPrint: true }));
+
+        const rels = create({ encoding: 'UTF-8', standalone: true })
+            .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
+                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/page', Target: 'page1.xml' }).up()
+            .up();
+        this.zip.folder('visio')?.folder('pages')?.folder('_rels')?.file('pages.xml.rels', rels.end({ prettyPrint: true }));
     }
 
     private addPageXml(graph: GraphData) {
