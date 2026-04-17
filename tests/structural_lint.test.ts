@@ -14,20 +14,26 @@ import { unzipPage } from './helpers';
 // we encode the schema constraints we actually rely on.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const fixturePath = path.resolve(here, 'fixtures', 'all_features.mmd');
+const fixtures = [
+    { name: 'all_features.mmd',  minShapes: 6 },
+    // rob_test.mmd stresses the generator with ELK layout, nested subgraphs,
+    // classDef on subgraph nodes, quoted edge labels, and emoji + <br> in
+    // node text. Worth keeping as a realistic regression canary.
+    { name: 'rob_test.mmd',      minShapes: 20 },
+];
 
-async function generatePageXml(): Promise<string> {
-    const src = fs.readFileSync(fixturePath, 'utf-8');
+async function generatePageXml(fixture: string): Promise<string> {
+    const src = fs.readFileSync(path.resolve(here, 'fixtures', fixture), 'utf-8');
     const graph = await parseMermaid(src);
     const buf = await new VsdxGenerator().generate(graph);
     return await unzipPage(buf);
 }
 
-describe('VSDX structural lint (all_features fixture)', () => {
+describe.each(fixtures)('VSDX structural lint ($name)', ({ name, minShapes }) => {
     let pageXml: string;
 
     beforeAll(async () => {
-        pageXml = await generatePageXml();
+        pageXml = await generatePageXml(name);
     }, 60000);
 
     it('uses #RRGGBB hex for every color cell, never rgb()/rgba()', () => {
@@ -75,12 +81,12 @@ describe('VSDX structural lint (all_features fixture)', () => {
         }
     });
 
-    it('produces at least one shape per shape kind in the fixture', () => {
+    it('produces the expected number of shapes for the fixture', () => {
         // Sanity check: if the parser silently skipped a shape, the round-trip
         // render test still passes (PDF is non-empty) but coverage is lost.
         // Exact count varies with Mermaid releases, so just assert "many".
         const shapeCount = (pageXml.match(/<Shape\b/g) || []).length;
-        expect(shapeCount).toBeGreaterThan(6);
+        expect(shapeCount).toBeGreaterThan(minShapes);
     });
 
     it('declares ObjType=2 for connector shapes', () => {

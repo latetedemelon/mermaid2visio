@@ -17,7 +17,7 @@ import { VsdxGenerator } from '../src/vsdx';
 // portable. CI installs libreoffice-draw before running.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const fixturePath = path.resolve(here, 'fixtures', 'all_features.mmd');
+const fixtures = ['all_features.mmd', 'rob_test.mmd'];
 
 function findSoffice(): string | null {
     const candidates = ['soffice', 'libreoffice'];
@@ -32,13 +32,14 @@ const sofficePath = findSoffice();
 const describeIfSoffice = sofficePath ? describe : describe.skip;
 
 describeIfSoffice('VSDX round-trips through LibreOffice', () => {
-    it('opens in LibreOffice and exports to a non-empty PDF', async () => {
-        const src = fs.readFileSync(fixturePath, 'utf-8');
+    it.each(fixtures)('opens %s in LibreOffice and exports to a non-empty PDF', async (fixture) => {
+        const src = fs.readFileSync(path.resolve(here, 'fixtures', fixture), 'utf-8');
         const graph = await parseMermaid(src);
         const buf = await new VsdxGenerator().generate(graph);
 
+        const base = fixture.replace(/\.mmd$/, '');
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vsdx-render-'));
-        const vsdxPath = path.join(tmpDir, 'all_features.vsdx');
+        const vsdxPath = path.join(tmpDir, `${base}.vsdx`);
         const outDir = path.join(tmpDir, 'out');
         fs.writeFileSync(vsdxPath, buf);
         fs.mkdirSync(outDir);
@@ -57,10 +58,10 @@ describeIfSoffice('VSDX round-trips through LibreOffice', () => {
             ], { stdio: 'pipe', timeout: 90_000 });
         } catch (err: any) {
             const out = (err.stdout?.toString() || '') + (err.stderr?.toString() || '');
-            throw new Error(`soffice conversion failed: ${err.message}\n${out}`);
+            throw new Error(`soffice conversion failed for ${fixture}: ${err.message}\n${out}`);
         }
 
-        const pdfPath = path.join(outDir, 'all_features.pdf');
+        const pdfPath = path.join(outDir, `${base}.pdf`);
         expect(fs.existsSync(pdfPath)).toBe(true);
 
         const pdf = fs.readFileSync(pdfPath);
@@ -69,5 +70,5 @@ describeIfSoffice('VSDX round-trips through LibreOffice', () => {
         expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
 
         fs.rmSync(tmpDir, { recursive: true, force: true });
-    }, 120_000);
+    }, 180_000);
 });
