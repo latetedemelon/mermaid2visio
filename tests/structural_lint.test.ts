@@ -96,4 +96,22 @@ describe.each(fixtures)('VSDX structural lint ($name)', ({ name, minShapes }) =>
         // instead of a glued connector that follows its endpoints.
         expect(pageXml).toContain('<Cell N="ObjType" V="2"/>');
     });
+
+    it('emits Connection rows starting at IX="1" with DirX/DirY/Type cells', () => {
+        // Visio's Connection section indexes rows from 1. A row at IX="0" is
+        // silently skipped, which leaves the shape with no connection points
+        // at all — edges then glue to PinX (shape center) instead of a face,
+        // so arrows land in odd places.
+        const connSections = pageXml.match(/<Section\b[^>]*N="Connection"[\s\S]*?<\/Section>/g) || [];
+        expect(connSections.length).toBeGreaterThan(0);
+        for (const sec of connSections) {
+            // Must not contain a Row IX="0" row.
+            expect(sec).not.toMatch(/<Row\s+IX="0"/);
+            // Must contain at least one DirX + DirY + Type cell, so Visio knows
+            // which face the connection point lives on.
+            expect(sec).toMatch(/<Cell N="DirX"/);
+            expect(sec).toMatch(/<Cell N="DirY"/);
+            expect(sec).toMatch(/<Cell N="Type"/);
+        }
+    });
 });

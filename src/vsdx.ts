@@ -532,13 +532,25 @@ export class VsdxGenerator {
                 charRow.up().up(); // Row, Section
             }
 
-            // Connection Points. Formulas go in F; V holds the evaluated value.
-            const conn = shape.ele('Section', { N: 'Connection', IX: '0' });
-            conn.ele('Row', { IX: '0' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
-            conn.ele('Row', { IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-            conn.ele('Row', { IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-            conn.ele('Row', { IX: '3' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
-            conn.ele('Row', { IX: '4' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
+            // Connection Points. One row per cardinal side; each row needs
+            // DirX/DirY so Visio knows which way the connector should approach
+            // and Type=0 (inward) so dynamic glue can pick the best face.
+            // Row IX starts at 1 (the Connection section's indexing base);
+            // IX="0" made Visio ignore the row entirely.
+            const conn = shape.ele('Section', { N: 'Connection' });
+            const addConn = (ix: number, x: any, y: any, dirX: string, dirY: string) => {
+                const row = conn.ele('Row', { IX: ix.toString() });
+                row.ele('Cell', { N: 'X', ...x }).up();
+                row.ele('Cell', { N: 'Y', ...y }).up();
+                row.ele('Cell', { N: 'DirX', V: dirX }).up();
+                row.ele('Cell', { N: 'DirY', V: dirY }).up();
+                row.ele('Cell', { N: 'Type', V: '0' }).up();
+                row.up();
+            };
+            addConn(1, xf('Width*0.5'), { V: '0' },          '0',  '-1'); // bottom
+            addConn(2, xf('Width*0.5'), xf('Height'),        '0',  '1');  // top
+            addConn(3, { V: '0' },      xf('Height*0.5'),    '-1', '0');  // left
+            addConn(4, xf('Width'),     xf('Height*0.5'),    '1',  '0');  // right
             conn.up();
 
             // Text goes last (after all Sections).

@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { VsdxGenerator } from '../src/vsdx';
+import { parseMermaid } from '../src/parser';
 import type { GraphData } from '../src/parser';
 
 async function unzipPage(buffer: Buffer): Promise<string> {
@@ -79,6 +80,25 @@ describe('Coordinate conversion', () => {
     expect(xml).toMatch(/<Connect\b[^/]*FromCell="BeginX"[^/]*ToCell="PinX"/);
     expect(xml).toMatch(/<Connect\b[^/]*FromCell="EndX"[^/]*ToCell="PinX"/);
   });
+
+  it('parser emits nodes as top-left corners, matching cluster convention', async () => {
+    // Regression guard for the center-vs-top-left bug: Mermaid's node <g>
+    // groups translate to the node CENTER with the inner rect at (-W/2, -H/2).
+    // The parser must add bbox.x/y so (x, y) becomes the top-left corner,
+    // otherwise every shape lands offset by (W/2, H/2) in Visio.
+    const graph = await parseMermaid(`flowchart TB
+  A[Alpha] --> B[Bravo]`);
+
+    expect(graph.nodes.length).toBe(2);
+    for (const n of graph.nodes) {
+      // Top-left must fit inside the SVG viewport. If x were the center,
+      // x + width would overflow graph.width.
+      expect(n.x).toBeGreaterThanOrEqual(0);
+      expect(n.y).toBeGreaterThanOrEqual(0);
+      expect(n.x + n.width).toBeLessThanOrEqual(graph.width + 1);
+      expect(n.y + n.height).toBeLessThanOrEqual(graph.height + 1);
+    }
+  }, 60000);
 });
 
 describe('parsePathToVisio', () => {

@@ -296,11 +296,16 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
             const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
                 const transform = label.getAttribute('transform');
                 const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                const x = match ? parseFloat(match[1]) : 0;
-                const y = match ? parseFloat(match[2]) : 0;
+                // Same convention shift as nodes: edgeLabel groups sit at the
+                // label center; the inner foreignObject/text is centered around
+                // origin. Add bbox.x/y so (x, y) is the top-left corner.
+                let x = match ? parseFloat(match[1]) : 0;
+                let y = match ? parseFloat(match[2]) : 0;
 
                 const div = label.querySelector('div, foreignObject, text');
-                const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0 };
+                const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+                x += (bbox as any).x || 0;
+                y += (bbox as any).y || 0;
                 const text = label.textContent?.trim() || '';
                 
                 const bgRect = label.querySelector('.label-container rect');
@@ -332,11 +337,18 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     const nodeClasses = Array.from(node.classList).join(' ');
                     const transform = node.getAttribute('transform');
                     const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                    const x = match ? parseFloat(match[1]) : 0;
-                    const y = match ? parseFloat(match[2]) : 0;
-                    
+                    // Mermaid's node <g> groups sit at the node CENTER (translate)
+                    // with the inner rect/polygon anchored at (-w/2, -h/2). Add
+                    // bbox.x/y to land at the top-left corner, which is the
+                    // convention the VSDX generator expects (and which the
+                    // cluster branch above already uses).
+                    let x = match ? parseFloat(match[1]) : 0;
+                    let y = match ? parseFloat(match[2]) : 0;
+
                     const rect = node.querySelector('rect, circle, polygon, path, ellipse') as SVGGraphicsElement;
                     const bbox = rect ? rect.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+                    x += bbox.x;
+                    y += bbox.y;
                     
                     let type = 'rectangle';
                     const shapeTag = rect ? rect.tagName.toLowerCase() : 'unknown';
