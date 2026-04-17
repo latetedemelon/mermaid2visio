@@ -333,7 +333,13 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 width: graphWidth,
                 height: graphHeight,
                 nodes: nodes.map(node => {
-                    const id = node.id;
+                    const rawId = node.id;
+                    // Mermaid 11.x emits node ids as "flowchart-<USERID>-<IDX>"
+                    // (e.g. "flowchart-A-0"). Edges reference the user-facing
+                    // id ("A"), so strip the scaffold here so the generator's
+                    // nodeId -> pin lookup matches what the edge carries.
+                    const normIdMatch = /^flowchart-(.+)-\d+$/.exec(rawId);
+                    const id = normIdMatch ? normIdMatch[1] : rawId;
                     const nodeClasses = Array.from(node.classList).join(' ');
                     const transform = node.getAttribute('transform');
                     const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
@@ -436,14 +442,26 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     const markerStart = path.getAttribute('marker-start');
                     const markerEnd = path.getAttribute('marker-end');
 
+                    // Mermaid 11.x stopped emitting LS-<id>/LE-<id> classes on
+                    // the edge's parent <g>. Instead the edge <path> carries
+                    // id="L_<src>_<dst>_<idx>" (and data-id= the same thing).
+                    // Parse that to recover the endpoint user ids.
                     let startId, endId;
-                    const parentGroup = path.parentElement;
-                    if (parentGroup) {
-                        const classes = Array.from(parentGroup.classList);
-                        const ls = classes.find(c => c.startsWith('LS-'));
-                        const le = classes.find(c => c.startsWith('LE-'));
-                        if (ls) startId = ls.replace('LS-', '');
-                        if (le) endId = le.replace('LE-', '');
+                    const edgeId = path.getAttribute('id') || path.getAttribute('data-id') || '';
+                    const edgeMatch = /^L_(.+)_(.+)_\d+$/.exec(edgeId);
+                    if (edgeMatch) {
+                        startId = edgeMatch[1];
+                        endId = edgeMatch[2];
+                    } else {
+                        // Legacy fallback for older Mermaid versions.
+                        const parentGroup = path.parentElement;
+                        if (parentGroup) {
+                            const classes = Array.from(parentGroup.classList);
+                            const ls = classes.find(c => c.startsWith('LS-'));
+                            const le = classes.find(c => c.startsWith('LE-'));
+                            if (ls) startId = ls.replace('LS-', '');
+                            if (le) endId = le.replace('LE-', '');
+                        }
                     }
 
                     return { 

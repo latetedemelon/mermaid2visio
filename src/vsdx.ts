@@ -300,11 +300,18 @@ export class VsdxGenerator {
             for (const cluster of graph.clusters) {
                 const w = cluster.width / this.dpi;
                 const h = cluster.height / this.dpi;
-                const x = cluster.x / this.dpi; 
+                const x = cluster.x / this.dpi;
                 const y = cluster.y / this.dpi;
-                
+
                 const pinX = x + w/2;
                 const pinY = this.pageHeight - (y + h/2);
+
+                // Clusters can be edge endpoints too (`CH -->|...| S4` in
+                // Mermaid is perfectly legal). Register them in the same
+                // id -> pin/shape maps we use for nodes so the glue path
+                // fires for cluster-endpoint edges.
+                nodeIdToShapeId.set(cluster.id, shapeId);
+                nodeIdToPin.set(cluster.id, { pinX, pinY });
 
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Group' });
                 
@@ -575,9 +582,12 @@ export class VsdxGenerator {
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
 
                 if (glued) {
-                    // Proper 1D connector: PinX/PinY derived from BeginX/Y and EndX/Y so that
-                    // Visio's dynamic routing follows the glued shapes. Width/Height express
-                    // the begin->end vector; LocPinX/Y are 0,0 to align with BeginX/Y.
+                    // Visio 1D shape transform: world(x, y) = PinX + (x - LocPinX),
+                    // PinY + (y - LocPinY). We want world Begin = (beginX, beginY)
+                    // at local (0, 0) and world End = (endX, endY) at local
+                    // (Width, Height). Setting LocPin = (Width/2, Height/2) puts
+                    // PinX at the midpoint (good for rotation) while keeping the
+                    // begin/end points geometrically correct.
                     const beginX = startPin!.pinX;
                     const beginY = startPin!.pinY;
                     const endX = endPin!.pinX;
@@ -586,13 +596,15 @@ export class VsdxGenerator {
                     const pinY = (beginY + endY) / 2;
                     const width = endX - beginX;
                     const height = endY - beginY;
+                    const locPinX = width / 2;
+                    const locPinY = height / 2;
 
                     shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
                     shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
                     shape.ele('Cell', { N: 'Width', V: width.toString() }).up();
                     shape.ele('Cell', { N: 'Height', V: height.toString() }).up();
-                    shape.ele('Cell', { N: 'LocPinX', V: '0' }).up();
-                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
+                    shape.ele('Cell', { N: 'LocPinX', V: locPinX.toString() }).up();
+                    shape.ele('Cell', { N: 'LocPinY', V: locPinY.toString() }).up();
                     shape.ele('Cell', { N: 'BeginX', V: beginX.toString() }).up();
                     shape.ele('Cell', { N: 'BeginY', V: beginY.toString() }).up();
                     shape.ele('Cell', { N: 'EndX', V: endX.toString() }).up();

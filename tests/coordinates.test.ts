@@ -99,6 +99,49 @@ describe('Coordinate conversion', () => {
       expect(n.y + n.height).toBeLessThanOrEqual(graph.height + 1);
     }
   }, 60000);
+
+  it('parses user-facing node ids (not the "flowchart-X-N" scaffold)', async () => {
+    // Mermaid 11.x wraps nodes as id="flowchart-<USERID>-<IDX>". Edges still
+    // carry the plain user id, so the parser MUST strip the scaffold or every
+    // lookup in the generator's nodeIdToPin map misses and every connector
+    // falls through to the unglued path-drawing branch.
+    const graph = await parseMermaid(`flowchart TB
+  A[Alpha] --> B[Bravo]`);
+    const ids = graph.nodes.map(n => n.id).sort();
+    expect(ids).toEqual(['A', 'B']);
+  }, 60000);
+
+  it('links edges to their endpoints via startId/endId', async () => {
+    // Regression for the LS-/LE- vs L_src_dst_idx format change. Without
+    // endpoint ids, every connector falls back to raw path drawing — the
+    // shape is no longer a real Visio connector and Visio renders it as a
+    // static line that does not follow its nodes when they move.
+    const graph = await parseMermaid(`flowchart TB
+  A[Alpha] --> B[Bravo]
+  B --> C[Charlie]`);
+    expect(graph.edges.length).toBe(2);
+    for (const e of graph.edges) {
+      expect(e.startId).toBeTruthy();
+      expect(e.endId).toBeTruthy();
+    }
+    const pairs = graph.edges.map(e => `${e.startId}->${e.endId}`).sort();
+    expect(pairs).toEqual(['A->B', 'B->C']);
+  }, 60000);
+
+  it('glues edges whose endpoints are clusters (subgraphs)', async () => {
+    // Mermaid allows `subgraphName --> node` edges. Clusters need to be
+    // registered in the same id -> pin map as nodes so the glue branch fires.
+    const graph = await parseMermaid(`flowchart TB
+  subgraph G [Group]
+    A[Alpha]
+  end
+  G --> B[Bravo]`);
+    const buffer = await new VsdxGenerator().generate(graph);
+    const xml = await unzipPage(buffer);
+    // If the G->B edge was unglued, there'd be no Connect rows at all.
+    expect(xml).toMatch(/<Connect\b[^/]*FromCell="BeginX"[^/]*ToCell="PinX"/);
+    expect(xml).toMatch(/<Connect\b[^/]*FromCell="EndX"[^/]*ToCell="PinX"/);
+  }, 60000);
 });
 
 describe('parsePathToVisio', () => {
