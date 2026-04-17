@@ -1,11 +1,10 @@
 # Mermaid2Visio
 
+[![CI](https://github.com/latetedemelon/mermaid2visio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/latetedemelon/mermaid2visio/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-ISC-blue)
-![Build Status](https://github.com/tropikandy/mermaid2visio/actions/workflows/ci.yml/badge.svg)
+![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Mac%20%7C%20Linux-lightgrey)
 ![Status](https://img.shields.io/badge/status-Active-green)
-
-Let's fix the build status.
 
 **Mermaid2Visio** is a modern, cross-platform utility that converts [MermaidJS](https://mermaid.js.org/) diagrams into native, editable Microsoft Visio (`.vsdx`) files. 
 

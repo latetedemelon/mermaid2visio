@@ -24,7 +24,7 @@ module.exports = {
     'src/**/*.ts',
     '!src/public/**',
   ],
-  coverageReporters: ['text-summary', 'lcov', 'html'],
+  coverageReporters: ['text-summary', 'lcov', 'html', 'json-summary'],
   coverageThreshold: {
     global: {
       statements: 70,
