@@ -25,8 +25,11 @@ describe('VSDX package structure', () => {
         const required = [
             '[Content_Types].xml',
             '_rels/.rels',
+            'docProps/app.xml',
+            'docProps/core.xml',
             'visio/document.xml',
             'visio/_rels/document.xml.rels',
+            'visio/windows.xml',
             'visio/pages/pages.xml',
             'visio/pages/_rels/pages.xml.rels',
             'visio/pages/page1.xml',
@@ -36,32 +39,67 @@ describe('VSDX package structure', () => {
         }
     });
 
-    it('declares content types for document, pages, and page parts', async () => {
+    it('declares content types for document, pages, page, docProps, and windows parts', async () => {
         const files = await generate();
         const ct = files['[Content_Types].xml'];
         expect(ct).toContain('application/vnd.ms-visio.drawing.main+xml');
         expect(ct).toContain('application/vnd.ms-visio.pages+xml');
         expect(ct).toContain('application/vnd.ms-visio.page+xml');
+        expect(ct).toContain('application/vnd.ms-visio.windows+xml');
+        expect(ct).toContain('application/vnd.openxmlformats-officedocument.extended-properties+xml');
+        expect(ct).toContain('application/vnd.openxmlformats-package.core-properties+xml');
         expect(ct).toContain('/visio/pages/pages.xml');
     });
 
     it('chains document -> pages -> page via relationships', async () => {
         const files = await generate();
-        // root rels -> document
-        expect(files['_rels/.rels']).toContain('Target="visio/document.xml"');
-        expect(files['_rels/.rels']).toContain('relationships/document');
+        // root rels -> document, extended-properties, core-properties
+        const rootRels = files['_rels/.rels'];
+        expect(rootRels).toContain('Target="visio/document.xml"');
+        expect(rootRels).toContain('relationships/document');
+        expect(rootRels).toContain('Target="docProps/app.xml"');
+        expect(rootRels).toContain('relationships/extended-properties');
+        expect(rootRels).toContain('Target="docProps/core.xml"');
+        expect(rootRels).toContain('relationships/metadata/core-properties');
 
         // document rels -> pages.xml (NOT directly to page1.xml; Visio rejects
-        // that shortcut).
+        // that shortcut) and windows.xml for the saved view state.
         const docRels = files['visio/_rels/document.xml.rels'];
         expect(docRels).toContain('Target="pages/pages.xml"');
         expect(docRels).toContain('relationships/pages');
+        expect(docRels).toContain('Target="windows.xml"');
+        expect(docRels).toContain('relationships/windows');
         expect(docRels).not.toMatch(/Target="pages\/page1\.xml"/);
 
         // pages.xml.rels -> page1.xml
         const pagesRels = files['visio/pages/_rels/pages.xml.rels'];
         expect(pagesRels).toContain('Target="page1.xml"');
         expect(pagesRels).toContain('relationships/page');
+    });
+
+    it('omits empty collection elements from document.xml', async () => {
+        // Visio 16 error 1400015 / 0x10F ("parts are missing or invalid")
+        // fires when optional collections like <FaceNames/> are present but
+        // empty. Schema says they're OK to omit; it is NOT OK to include them
+        // with zero children.
+        const files = await generate();
+        const doc = files['visio/document.xml'];
+        expect(doc).not.toMatch(/<FaceNames\s*\/>/);
+        expect(doc).not.toMatch(/<StyleSheets\s*\/>/);
+        expect(doc).not.toMatch(/<DocumentSheet\s*\/>/);
+        expect(doc).not.toMatch(/<Masters\s*\/>/);
+    });
+
+    it('writes a Drawing window in windows.xml pinned to Page-1', async () => {
+        // Without windows.xml Visio 2016+ can open the file but refuses to
+        // persist zoom/pan state and, on some builds, complains about a
+        // missing view part at load time. The Window must carry
+        // WindowType="Drawing" and ContainerType="Page".
+        const files = await generate();
+        const win = files['visio/windows.xml'];
+        expect(win).toContain('WindowType="Drawing"');
+        expect(win).toContain('ContainerType="Page"');
+        expect(win).toMatch(/Page="\d+"/);
     });
 
     it('does not inline <Pages> inside document.xml', async () => {

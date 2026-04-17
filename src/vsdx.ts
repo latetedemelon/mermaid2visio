@@ -42,7 +42,9 @@ export class VsdxGenerator {
 
         this.addContentTypes();
         this.addRels();
+        this.addDocProps();
         this.addDocumentXml();
+        this.addWindowsXml();
         this.addPagesXml();
         this.addPageXml(graph);
 
@@ -54,7 +56,10 @@ export class VsdxGenerator {
             .ele('Types', { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' })
                 .ele('Default', { Extension: 'rels', ContentType: 'application/vnd.openxmlformats-package.relationships+xml' }).up()
                 .ele('Default', { Extension: 'xml', ContentType: 'application/xml' }).up()
+                .ele('Override', { PartName: '/docProps/app.xml', ContentType: 'application/vnd.openxmlformats-officedocument.extended-properties+xml' }).up()
+                .ele('Override', { PartName: '/docProps/core.xml', ContentType: 'application/vnd.openxmlformats-package.core-properties+xml' }).up()
                 .ele('Override', { PartName: '/visio/document.xml', ContentType: 'application/vnd.ms-visio.drawing.main+xml' }).up()
+                .ele('Override', { PartName: '/visio/windows.xml', ContentType: 'application/vnd.ms-visio.windows+xml' }).up()
                 .ele('Override', { PartName: '/visio/pages/pages.xml', ContentType: 'application/vnd.ms-visio.pages+xml' }).up()
                 .ele('Override', { PartName: '/visio/pages/page1.xml', ContentType: 'application/vnd.ms-visio.page+xml' }).up()
             .up();
@@ -62,17 +67,63 @@ export class VsdxGenerator {
     }
 
     private addRels() {
+        // Root _rels/.rels: Visio's loader expects the usual OOXML trio
+        // (document + core-properties + extended-properties). Missing
+        // core/app props is one of the triggers for error 1400015/0x10F.
         const xml = create({ encoding: 'UTF-8', standalone: true })
             .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
                 .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/document', Target: 'visio/document.xml' }).up()
+                .ele('Relationship', { Id: 'rId2', Type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties', Target: 'docProps/app.xml' }).up()
+                .ele('Relationship', { Id: 'rId3', Type: 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties', Target: 'docProps/core.xml' }).up()
             .up();
         this.zip.folder('_rels')?.file('.rels', xml.end({ prettyPrint: true }));
+    }
+
+    private addDocProps() {
+        // docProps/app.xml: OOXML extended properties. The Application string
+        // is what Visio reads to recognize its own files in some code paths.
+        const app = create({ encoding: 'UTF-8', standalone: true })
+            .ele('Properties', {
+                xmlns: 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
+                'xmlns:vt': 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes',
+            })
+                .ele('Application').txt('Microsoft Visio').up()
+                .ele('ScaleCrop').txt('false').up()
+                .ele('LinksUpToDate').txt('false').up()
+                .ele('SharedDoc').txt('false').up()
+                .ele('HyperlinksChanged').txt('false').up()
+                .ele('AppVersion').txt('16.0000').up()
+            .up();
+        this.zip.folder('docProps')?.file('app.xml', app.end({ prettyPrint: true }));
+
+        // docProps/core.xml: Dublin Core metadata. Timestamps use the static
+        // epoch so generated files are byte-identical run-to-run, which keeps
+        // the structural tests deterministic.
+        const iso = '1970-01-01T00:00:00Z';
+        const core = create({ encoding: 'UTF-8', standalone: true })
+            .ele('cp:coreProperties', {
+                'xmlns:cp': 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
+                'xmlns:dc': 'http://purl.org/dc/elements/1.1/',
+                'xmlns:dcterms': 'http://purl.org/dc/terms/',
+                'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+            })
+                .ele('dc:creator').txt('mermaid2visio').up()
+                .ele('cp:lastModifiedBy').txt('mermaid2visio').up()
+                .ele('dcterms:created', { 'xsi:type': 'dcterms:W3CDTF' }).txt(iso).up()
+                .ele('dcterms:modified', { 'xsi:type': 'dcterms:W3CDTF' }).txt(iso).up()
+            .up();
+        this.zip.folder('docProps')?.file('core.xml', core.end({ prettyPrint: true }));
     }
 
     private addDocumentXml() {
         // Note: the <Pages> collection belongs in visio/pages/pages.xml, not
         // inline here. Visio rejects (or silently drops) documents that list
         // pages in document.xml.
+        //
+        // We deliberately omit empty <FaceNames/>, <StyleSheets/>,
+        // <DocumentSheet/>, <Masters/> — they're all optional in the VSDX
+        // schema but INVALID when present-but-empty, which was the
+        // 1400015/0x10F culprit in prior builds.
         const xml = create({ encoding: 'UTF-8', standalone: true })
             .ele('VisioDocument', { xmlns: 'http://schemas.microsoft.com/office/visio/2012/main' })
                 .ele('DocumentSettings')
@@ -82,21 +133,62 @@ export class VsdxGenerator {
                     .ele('ColorEntry', { IX: '0', RGB: '#000000' }).up()
                     .ele('ColorEntry', { IX: '1', RGB: '#FFFFFF' }).up()
                 .up()
-                .ele('FaceNames').up()
-                .ele('StyleSheets').up()
-                .ele('DocumentSheet').up()
-                .ele('Masters').up()
             .up();
 
         this.zip.folder('visio')?.file('document.xml', xml.end({ prettyPrint: true }));
 
-        // Document rels: document.xml points at pages/pages.xml (NOT at
-        // page1.xml directly). pages.xml.rels then points at each page part.
+        // Document rels: pages.xml (drawing pages) and windows.xml (saved
+        // view/zoom state). Visio treats a missing windows.xml relationship
+        // as "this file wasn't written by Visio" and sometimes refuses to
+        // open it entirely.
         const rels = create({ encoding: 'UTF-8', standalone: true })
             .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
                 .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/pages', Target: 'pages/pages.xml' }).up()
+                .ele('Relationship', { Id: 'rId2', Type: 'http://schemas.microsoft.com/visio/2010/relationships/windows', Target: 'windows.xml' }).up()
             .up();
         this.zip.folder('visio')?.folder('_rels')?.file('document.xml.rels', rels.end({ prettyPrint: true }));
+    }
+
+    private addWindowsXml() {
+        // visio/windows.xml: persisted view state (zoom, scroll position,
+        // which page is current). Visio writes this on every save; we emit
+        // a minimal single Drawing window centered on Page-1.
+        const cx = String(this.pageWidth / 2);
+        const cy = String(this.pageHeight / 2);
+        const xml = create({ encoding: 'UTF-8', standalone: true })
+            .ele('Windows', {
+                xmlns: 'http://schemas.microsoft.com/office/visio/2012/main',
+                ClientWidth: '1024',
+                ClientHeight: '768',
+            })
+                .ele('Window', {
+                    ID: '0',
+                    WindowType: 'Drawing',
+                    WindowState: '1073741824',
+                    WindowLeft: '0',
+                    WindowTop: '0',
+                    WindowWidth: '1024',
+                    WindowHeight: '768',
+                    ContainerType: 'Page',
+                    Page: '0',
+                    ViewScale: '-1',
+                    ViewCenterX: cx,
+                    ViewCenterY: cy,
+                })
+                    .ele('ShowRulers').txt('1').up()
+                    .ele('ShowGrid').txt('1').up()
+                    .ele('ShowPageBreaks').txt('0').up()
+                    .ele('ShowGuides').txt('1').up()
+                    .ele('ShowConnectionPoints').txt('1').up()
+                    .ele('GlueSettings').txt('9').up()
+                    .ele('SnapSettings').txt('65847').up()
+                    .ele('SnapExtensions').txt('34').up()
+                    .ele('SnapAngles').up()
+                    .ele('DynamicGridEnabled').txt('1').up()
+                    .ele('TabSplitterPos').txt('0.5').up()
+                .up()
+            .up();
+        this.zip.folder('visio')?.file('windows.xml', xml.end({ prettyPrint: true }));
     }
 
     private addPagesXml() {
