@@ -39,6 +39,12 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    # libreoffice-draw + libvisio enable the VSDX round-trip render test
+    # (tests/render_libreoffice.test.ts). The suite auto-skips when soffice
+    # isn't on PATH, so this step is what flips the render check on in CI.
+    - name: Install LibreOffice (for VSDX render test)
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-draw
+
     - name: Build
       run: npm run build
 
