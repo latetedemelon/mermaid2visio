@@ -98,7 +98,12 @@ export interface MermaidConfig {
 }
 
 export async function parseMermaid(definition: string, config?: MermaidConfig): Promise<GraphData> {
-    const browser = await puppeteer.launch({ headless: true });
+    // --no-sandbox is required when running as root in CI containers;
+    // --disable-dev-shm-usage avoids /dev/shm size limits on small runners.
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
     const page = await browser.newPage();
 
     // Inject Mermaid from node_modules
@@ -121,6 +126,11 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
     const layoutEngine = config?.layout || 'dagre';
     const theme = config?.theme || 'neutral';
 
+    // NOTE: only set `layout` once. A second hardcoded `layout: 'elk'` here
+    // would silently shadow the user's choice AND require the optional
+    // @mermaid-js/layout-elk package, yielding an empty SVG when missing.
+    // Likewise, `look: 'handDrawn'` alters the rendered DOM in ways the
+    // downstream class-based selectors don't expect.
     await page.setContent(`
         <div id="graphDiv"></div>
         <script>
@@ -135,9 +145,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     curve: '${config?.flowchart?.curve || 'basis'}',
                     useMaxWidth: ${config?.flowchart?.useMaxWidth !== false}
                 },
-                securityLevel: 'loose',
-                look: 'handDrawn',
-                layout: 'elk'
+                securityLevel: 'loose'
             });
         </script>
     `);
