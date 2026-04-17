@@ -12,6 +12,26 @@ export class VsdxGenerator {
         this.zip = new JSZip();
     }
 
+    // Visio rejects CSS `rgb(r, g, b)` syntax (and named colors) in cell values;
+    // it wants `#RRGGBB`. Mermaid's rendered SVG uses rgb(...) for almost all
+    // computed styles, so normalize everything here.
+    public static normalizeColor(c: string | undefined | null): string | undefined {
+        if (!c) return undefined;
+        const t = String(c).trim();
+        if (!t || t === 'none' || t === 'transparent') return undefined;
+        if (/^#[0-9a-fA-F]{6}$/.test(t)) return t.toLowerCase();
+        if (/^#[0-9a-fA-F]{3}$/.test(t)) {
+            const r = t[1], g = t[2], b = t[3];
+            return ('#' + r + r + g + g + b + b).toLowerCase();
+        }
+        const m = t.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+        if (m) {
+            const toHex = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10))).toString(16).padStart(2, '0');
+            return ('#' + toHex(m[1]) + toHex(m[2]) + toHex(m[3])).toLowerCase();
+        }
+        return undefined;
+    }
+
     public async generate(graph: GraphData): Promise<Buffer> {
         // Adjust page size if graph is too big
         const graphWidthIn = graph.width / this.dpi;
@@ -135,18 +155,50 @@ export class VsdxGenerator {
             return s;
         };
 
+        // Size values in VSDX go in the V attribute as a plain number (in
+        // points when paired with U="PT"). Visio treats "10.5pt" as a literal
+        // string and the cell ends up with no effective value.
         const getFontSize = (sizeStr?: string) => {
             if (!sizeStr) return null;
             const px = parseFloat(sizeStr);
             if (isNaN(px)) return null;
             // 1px approx 0.75pt
-            return (px * 0.75).toFixed(2) + 'pt';
+            return (px * 0.75).toFixed(2);
         };
 
         const getHorzAlign = (align?: string) => {
             if (align === 'left') return '0';
             if (align === 'right') return '2';
             return '1'; // Center default
+        };
+
+        // Evaluate a ShapeSheet expression over known Width/Height so we can
+        // emit a concrete V alongside the F formula. Only supports the tokens
+        // this generator actually produces (Width, Height, constants, */-).
+        const evalDim = (expr: string, width: number, height: number): number => {
+            const replaced = expr.replace(/Width/g, String(width)).replace(/Height/g, String(height));
+            // Very small parser: strip whitespace, split on + and -, each term
+            // is a product. Safe because the inputs are hand-authored above.
+            const s = replaced.replace(/\s+/g, '');
+            let sign = 1;
+            let i = 0;
+            let total = 0;
+            if (s[0] === '-') { sign = -1; i = 1; }
+            else if (s[0] === '+') { i = 1; }
+            let termStart = i;
+            while (i <= s.length) {
+                const c = s[i];
+                if (i === s.length || c === '+' || c === '-') {
+                    const term = s.slice(termStart, i);
+                    const factors = term.split('*').map(Number);
+                    const product = factors.reduce((a, b) => a * b, 1);
+                    total += sign * product;
+                    sign = c === '-' ? -1 : 1;
+                    termStart = i + 1;
+                }
+                i++;
+            }
+            return total;
         };
 
         // 1. Add Clusters (Subgraphs) - Draw first (background)
@@ -169,8 +221,10 @@ export class VsdxGenerator {
 
                 // Style
                 if (cluster.style) {
-                    if (cluster.style.fill) shape.ele('Cell', { N: 'FillForegnd', V: cluster.style.fill }).up();
-                    if (cluster.style.stroke) shape.ele('Cell', { N: 'LineColor', V: cluster.style.stroke }).up();
+                    const fill = VsdxGenerator.normalizeColor(cluster.style.fill);
+                    if (fill) shape.ele('Cell', { N: 'FillForegnd', V: fill }).up();
+                    const stroke = VsdxGenerator.normalizeColor(cluster.style.stroke);
+                    if (stroke) shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                     if (cluster.style.strokeWidth) {
                         const px = parseFloat(cluster.style.strokeWidth) || 1;
                         shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
@@ -179,19 +233,22 @@ export class VsdxGenerator {
                     if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
                 }
 
-                // Geometry - Rectangle
+                // Geometry - Rectangle. Width/Height expressions are formulas
+                // referencing the shape's own Width/Height cells, so they must
+                // live in F attributes; V would be parsed as a literal value.
                 const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
                 geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', F: 'Width', V: w.toString() }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', F: 'Width', V: w.toString() }).up().ele('Cell', { N: 'Y', F: 'Height', V: h.toString() }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', F: 'Height', V: h.toString() }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
                 geom.up();
 
-                // Text
+                // TextBlock section - align text to top (VerticalAlign = 0).
+                // Visio's Shape schema is ordered: Cells, Sections, then Text.
+                // Emitting Text before a Section will cause Visio to reject the
+                // document, so all sections must land first.
                 if (cluster.text) {
-                    const textBlock = shape.ele('Text').txt(cluster.text).up();
-                    // Align text to top (Vertical Align = 0)
                     const txtXform = shape.ele('Section', { N: 'TextBlock', IX: '0' });
                     txtXform.ele('Row', { IX: '0' })
                         .ele('Cell', { N: 'VerticalAlign', V: '0' }).up() // Top
@@ -203,6 +260,12 @@ export class VsdxGenerator {
                 user.ele('Row', { N: 'msvStructureType', IX: '0' })
                     .ele('Cell', { N: 'Value', V: '"Container"', U: 'STR' }).up()
                 .up().up();
+
+                // Text element goes LAST in the shape so Visio's ordered schema
+                // accepts the document.
+                if (cluster.text) {
+                    shape.ele('Text').txt(cluster.text).up();
+                }
 
                 shapeId++;
             }
@@ -242,11 +305,13 @@ export class VsdxGenerator {
 
             // Styles
             if (node.style) {
-                if (node.style.fill) {
-                     shape.ele('Cell', { N: 'FillForegnd', V: node.style.fill }).up();
+                const fill = VsdxGenerator.normalizeColor(node.style.fill);
+                if (fill) {
+                     shape.ele('Cell', { N: 'FillForegnd', V: fill }).up();
                 }
-                if (node.style.stroke) {
-                     shape.ele('Cell', { N: 'LineColor', V: node.style.stroke }).up();
+                const stroke = VsdxGenerator.normalizeColor(node.style.stroke);
+                if (stroke) {
+                     shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                 }
                 if (node.style.strokeWidth) {
                      // Approximate: 1px ~= 0.01 inch
@@ -273,93 +338,97 @@ export class VsdxGenerator {
                     .up().up();
             }
 
-            // Geometry
+            // Geometry. When an expression references Width/Height it's a
+            // formula and must live in the F attribute with the evaluated
+            // number in V. Putting "Width*0.5" in V makes Visio treat it as an
+            // un-parseable literal and the geometry silently drops out.
+            const xf = (fx: string) => ({ F: fx, V: evalDim(fx, w, h).toString() });
             const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-            
+
             if (node.type === 'circle' || node.type === 'ellipse') {
                 geom.ele('Row', { T: 'Ellipse', IX: '1' })
-                    .ele('Cell', { N: 'X', V: 'Width*0.5' }).up()
-                    .ele('Cell', { N: 'Y', V: 'Height*0.5' }).up()
-                    .ele('Cell', { N: 'A', V: 'Width' }).up()
-                    .ele('Cell', { N: 'B', V: 'Height*0.5' }).up()
-                    .ele('Cell', { N: 'C', V: 'Width*0.5' }).up()
-                    .ele('Cell', { N: 'D', V: 'Height' }).up().up();
+                    .ele('Cell', { N: 'X', ...xf('Width*0.5') }).up()
+                    .ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up()
+                    .ele('Cell', { N: 'A', ...xf('Width') }).up()
+                    .ele('Cell', { N: 'B', ...xf('Height*0.5') }).up()
+                    .ele('Cell', { N: 'C', ...xf('Width*0.5') }).up()
+                    .ele('Cell', { N: 'D', ...xf('Height') }).up().up();
             } else if (node.type === 'diamond') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height*0.5' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.5' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
             } else if (node.type === 'stadium') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: 'Height*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width - Height*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width - Height*0.5' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().ele('Cell', { N: 'A', V: 'Width' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: 'Height*0.5' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '5' }).ele('Cell', { N: 'X', V: 'Height*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().ele('Cell', { N: 'A', V: '0' }).up().up();
+                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width-Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'ArcTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width-Height*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().ele('Cell', { N: 'A', ...xf('Width') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+                geom.ele('Row', { T: 'ArcTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().ele('Cell', { N: 'A', V: '0' }).up().up();
             } else if (node.type === 'parallelogram') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: 'Width*0.2' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width*0.8' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: 'Width*0.2' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.2') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width*0.8') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Width*0.2') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
             } else if (node.type === 'cylinder') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.15' }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height*0.15' }).up().ele('Cell', { N: 'A', V: 'Width*0.2' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height*0.85' }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.85' }).up().ele('Cell', { N: 'A', V: '-Width*0.2' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.15' }).up().up();
+                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().up();
+                geom.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().ele('Cell', { N: 'A', ...xf('Width*0.2') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().up();
+                geom.ele('Row', { T: 'ArcTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().ele('Cell', { N: 'A', ...xf('-Width*0.2') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().up();
 
                 const geom2 = shape.ele('Section', { N: 'Geometry', IX: '1' });
                 geom2.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                geom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.85' }).up().up();
-                geom2.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height*0.85' }).up().ele('Cell', { N: 'A', V: 'Width*0.2' }).up().up();
+                geom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().up();
+                geom2.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().ele('Cell', { N: 'A', ...xf('Width*0.2') }).up().up();
             } else if (node.type === 'subroutine') {
                 geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
 
                 const subGeom1 = shape.ele('Section', { N: 'Geometry', IX: '1' });
                 subGeom1.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                subGeom1.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0.1*Width' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                subGeom1.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: '0.1*Width' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                subGeom1.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.1') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                subGeom1.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.1') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
 
                 const subGeom2 = shape.ele('Section', { N: 'Geometry', IX: '2' });
                 subGeom2.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                subGeom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0.9*Width' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                subGeom2.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', V: '0.9*Width' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                subGeom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.9') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+                subGeom2.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.9') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
             } else {
                 // Default: Rectangle
                 geom.ele('Row', { T: 'MoveTo', IX: '1' })
                     .ele('Cell', { N: 'X', V: '0' }).up()
                     .ele('Cell', { N: 'Y', V: '0' }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '2' })
-                    .ele('Cell', { N: 'X', V: 'Width' }).up()
+                    .ele('Cell', { N: 'X', ...xf('Width') }).up()
                     .ele('Cell', { N: 'Y', V: '0' }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '3' })
-                    .ele('Cell', { N: 'X', V: 'Width' }).up()
-                    .ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                    .ele('Cell', { N: 'X', ...xf('Width') }).up()
+                    .ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '4' })
                     .ele('Cell', { N: 'X', V: '0' }).up()
-                    .ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                    .ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
                 geom.ele('Row', { T: 'LineTo', IX: '5' })
                     .ele('Cell', { N: 'X', V: '0' }).up()
                     .ele('Cell', { N: 'Y', V: '0' }).up().up();
             }
             geom.up();
 
-            // Text
+            // Character section. Emitted before <Text> because Visio's Shape
+            // schema orders Cells -> Sections -> Text; emitting Text first
+            // makes the document invalid.
             if (node.text) {
-                const textBlock = shape.ele('Text').txt(node.text).up();
-                
-                // Character Props
                 const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
                 const charRow = charSec.ele('Row', { IX: '0' });
-                
+
                 if (node.style) {
-                    if (node.style.color) charRow.ele('Cell', { N: 'Color', V: node.style.color }).up();
-                    
+                    const color = VsdxGenerator.normalizeColor(node.style.color);
+                    if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
+
                     const fs = getFontSize(node.style.fontSize);
                     if (fs) charRow.ele('Cell', { N: 'Size', V: fs, U: 'PT' }).up(); // Unit=Points
 
@@ -369,14 +438,19 @@ export class VsdxGenerator {
                 charRow.up().up(); // Row, Section
             }
 
-            // Connection Points
+            // Connection Points. Formulas go in F; V holds the evaluated value.
             const conn = shape.ele('Section', { N: 'Connection', IX: '0' });
-            conn.ele('Row', { IX: '0' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: 'Height*0.5' }).up().up();
-            conn.ele('Row', { IX: '1' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: 'Height' }).up().up();
-            conn.ele('Row', { IX: '2' }).ele('Cell', { N: 'X', V: 'Width*0.5' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-            conn.ele('Row', { IX: '3' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: 'Height*0.5' }).up().up();
-            conn.ele('Row', { IX: '4' }).ele('Cell', { N: 'X', V: 'Width' }).up().ele('Cell', { N: 'Y', V: 'Height*0.5' }).up().up();
+            conn.ele('Row', { IX: '0' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
+            conn.ele('Row', { IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
+            conn.ele('Row', { IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
+            conn.ele('Row', { IX: '3' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
+            conn.ele('Row', { IX: '4' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
             conn.up();
+
+            // Text goes last (after all Sections).
+            if (node.text) {
+                shape.ele('Text').txt(node.text).up();
+            }
 
             shapeId++;
         }
@@ -433,11 +507,8 @@ export class VsdxGenerator {
                 // ObjType=2 marks the shape as a connector so Visio routes it dynamically.
                 shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
 
-                if (edge.style?.stroke) {
-                    shape.ele('Cell', { N: 'LineColor', V: edge.style.stroke }).up();
-                } else {
-                    shape.ele('Cell', { N: 'LineColor', V: '#000000' }).up();
-                }
+                const edgeStroke = VsdxGenerator.normalizeColor(edge.style?.stroke) || '#000000';
+                shape.ele('Cell', { N: 'LineColor', V: edgeStroke }).up();
                 if (edge.style?.strokeWidth) {
                     const px = parseFloat(edge.style.strokeWidth) || 1;
                     shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
@@ -449,14 +520,19 @@ export class VsdxGenerator {
 
                 if (glued) {
                     // Standard 1D line geometry spanning Begin -> End in local coords.
+                    // Width/Height are formulas; V carries the evaluated edge extent.
+                    const edgeWidth = endPin!.pinX - startPin!.pinX;
+                    const edgeHeight = endPin!.pinY - startPin!.pinY;
                     const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
                     geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
+                    geom.ele('Cell', { N: 'NoLine', V: '0' }).up();
+                    geom.ele('Cell', { N: 'NoShow', V: '0' }).up();
                     geom.ele('Row', { T: 'MoveTo', IX: '1' })
                         .ele('Cell', { N: 'X', V: '0' }).up()
                         .ele('Cell', { N: 'Y', V: '0' }).up().up();
                     geom.ele('Row', { T: 'LineTo', IX: '2' })
-                        .ele('Cell', { N: 'X', V: 'Width' }).up()
-                        .ele('Cell', { N: 'Y', V: 'Height' }).up().up();
+                        .ele('Cell', { N: 'X', F: 'Width', V: edgeWidth.toString() }).up()
+                        .ele('Cell', { N: 'Y', F: 'Height', V: edgeHeight.toString() }).up().up();
                     geom.up();
 
                     connects.push({ fromSheet: shapeId, fromCell: 'BeginX', toSheet: startShapeId!, toCell: 'PinX' });
@@ -501,21 +577,22 @@ export class VsdxGenerator {
 
                 // Invisible line; FillPattern depends on whether a background is requested.
                 shape.ele('Cell', { N: 'LinePattern', V: '0' }).up();
-                const hasBackground = !!(label.style?.fill && label.style.fill !== 'none');
+                const labelFill = VsdxGenerator.normalizeColor(label.style?.fill);
+                const hasBackground = !!labelFill;
                 shape.ele('Cell', { N: 'FillPattern', V: hasBackground ? '1' : '0' }).up();
                 if (hasBackground) {
-                    shape.ele('Cell', { N: 'FillForegnd', V: label.style!.fill! }).up();
+                    shape.ele('Cell', { N: 'FillForegnd', V: labelFill! }).up();
                 }
 
-                const textBlock = shape.ele('Text').txt(label.text).up();
-                
-                // Char Props
+                // Character section first, then Text (Visio enforces
+                // Cells -> Sections -> Text order).
                 const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
                 const charRow = charSec.ele('Row', { IX: '0' });
 
                  if (label.style) {
-                    if (label.style.color) charRow.ele('Cell', { N: 'Color', V: label.style.color }).up();
-                    
+                    const lblColor = VsdxGenerator.normalizeColor(label.style.color);
+                    if (lblColor) charRow.ele('Cell', { N: 'Color', V: lblColor }).up();
+
                     const fs = getFontSize(label.style.fontSize);
                     if (fs) charRow.ele('Cell', { N: 'Size', V: fs, U: 'PT' }).up();
 
@@ -523,6 +600,8 @@ export class VsdxGenerator {
                     if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
                 }
                 charRow.up().up();
+
+                shape.ele('Text').txt(label.text).up();
 
                 shapeId++;
             }

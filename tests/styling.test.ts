@@ -33,7 +33,9 @@ describe('Styling cells', () => {
         expect(charMatch).not.toBeNull();
         const char = charMatch![0];
         expect(char).toContain('V="#112233"');
-        expect(char).toMatch(/N="Size"\s+V="12\.00pt"/); // 16px * 0.75 = 12pt
+        // Size V is a numeric value in points (unit comes from U="PT").
+        // The literal "12.00pt" form is invalid; Visio parses V as a number.
+        expect(char).toMatch(/N="Size"\s+V="12\.00"\s+U="PT"/); // 16px * 0.75 = 12pt
         expect(char).toMatch(/N="Style"\s+V="3"/);
 
         // HorzAlign=0 (left) lives in a Paragraph section.

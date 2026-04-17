@@ -83,4 +83,38 @@ describe('VSDX package structure', () => {
         // renders nothing.
         expect(pagesXml).toMatch(/<Rel\s+r:id="rId1"\s*\/>/);
     });
+
+    it('never puts ShapeSheet formulas in the V attribute', async () => {
+        // Visio parses V as a literal value; formula expressions like
+        // "Width*0.5" must live in F, otherwise the cell ends up with no
+        // effective coordinate and the shape renders empty.
+        const files = await generate();
+        const page = files['visio/pages/page1.xml'];
+        expect(page).not.toMatch(/V="Width\*/);
+        expect(page).not.toMatch(/V="Height\*/);
+        expect(page).not.toMatch(/V="Width"/);
+        expect(page).not.toMatch(/V="Height"/);
+    });
+
+    it('emits only hex colors (no rgb(), no named colors)', async () => {
+        // Visio rejects CSS rgb() syntax in cell values; must be #RRGGBB.
+        const files = await generate();
+        const page = files['visio/pages/page1.xml'];
+        expect(page).not.toMatch(/rgb\s*\(/);
+    });
+
+    it('places <Text> after all <Section> elements in a shape', async () => {
+        // Shape schema: Cells -> Sections -> Text. Visio rejects documents
+        // that interleave Text between Sections.
+        const files = await generate();
+        const page = files['visio/pages/page1.xml'];
+        const shapeMatch = /<Shape\b[^>]*>([\s\S]*?)<\/Shape>/.exec(page);
+        expect(shapeMatch).not.toBeNull();
+        const body = shapeMatch![1];
+        const lastSection = body.lastIndexOf('</Section>');
+        const textStart = body.indexOf('<Text');
+        if (textStart !== -1 && lastSection !== -1) {
+            expect(textStart).toBeGreaterThan(lastSection);
+        }
+    });
 });
