@@ -196,6 +196,23 @@
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
+        // Mermaid 11 ships ELK as a separate package that must be registered
+        // before `initialize`. The GUI server vendors the bundle under
+        // /vendor/mermaid-layout-elk/ so the preview works offline.
+        let elkRegistered = false;
+        async function ensureElk() {
+            if (elkRegistered) return true;
+            try {
+                const mod = await import('/vendor/mermaid-layout-elk/mermaid-layout-elk.esm.min.mjs');
+                mermaid.registerLayoutLoaders(mod.default);
+                elkRegistered = true;
+                return true;
+            } catch (e) {
+                console.warn('ELK layout loader failed to load:', e);
+                return false;
+            }
+        }
+
         const inputEl = document.getElementById('input');
         const previewEl = document.getElementById('preview');
         const convertBtn = document.getElementById('convertBtn');
@@ -236,22 +253,30 @@
             try {
                 const code = inputEl.value;
                 if (!code.trim()) return;
-                
+
                 previewEl.innerHTML = '';
-                
-                // Update mermaid with current config
+
+                // Register ELK on demand; fall back to dagre if it fails.
+                let effectiveLayout = currentConfig.layout;
+                if (effectiveLayout === 'elk') {
+                    const ok = await ensureElk();
+                    if (!ok) effectiveLayout = 'dagre';
+                }
+
                 mermaid.initialize({
                     startOnLoad: false,
                     theme: currentConfig.theme,
-                    layout: currentConfig.layout,
+                    layout: effectiveLayout,
                     themeVariables: currentConfig.themeVariables,
                     flowchart: currentConfig.flowchart,
                     securityLevel: 'loose'
                 });
-                
+
                 const { svg } = await mermaid.render('graphDiv_' + Date.now(), code);
                 previewEl.innerHTML = svg;
-                statusEl.textContent = 'Preview updated ✓';
+                statusEl.textContent = effectiveLayout !== currentConfig.layout
+                    ? `Preview updated (fell back to ${effectiveLayout})`
+                    : 'Preview updated \u2713';
                 statusEl.className = 'status success';
             } catch (e) {
                 console.error(e);

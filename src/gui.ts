@@ -14,6 +14,12 @@ export const HOST = '127.0.0.1';
 export const MAX_BODY_BYTES = 1 * 1024 * 1024;
 export const DEFAULT_PUBLIC_DIR = path.join(__dirname, 'public');
 
+// Serve vendored ESM bundles (currently the ELK layout loader) out of
+// node_modules so the browser preview works offline too.
+const VENDOR_MAP: Record<string, string> = {
+    '/vendor/mermaid-layout-elk/': path.resolve(__dirname, '../node_modules/@mermaid-js/layout-elk/dist'),
+};
+
 export interface HandlerOptions {
     publicDir?: string;
     maxBodyBytes?: number;
@@ -21,6 +27,27 @@ export interface HandlerOptions {
     // bodies (falling back to plain text) and runs parseMermaid + VsdxGenerator.
     // Tests inject a stub to avoid launching Puppeteer.
     convert?: (body: string) => Promise<Buffer>;
+}
+
+function serveVendor(urlPath: string, res: ServerResponse): boolean {
+    for (const [prefix, dir] of Object.entries(VENDOR_MAP)) {
+        if (!urlPath.startsWith(prefix)) continue;
+        const rel = urlPath.slice(prefix.length);
+        const abs = path.resolve(dir, rel);
+        if (!abs.startsWith(dir + path.sep) && abs !== dir) {
+            res.writeHead(403); res.end(); return true;
+        }
+        if (!fs.existsSync(abs)) {
+            res.writeHead(404); res.end(); return true;
+        }
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript',
+            'Cache-Control': 'public, max-age=3600',
+        });
+        fs.createReadStream(abs).pipe(res);
+        return true;
+    }
+    return false;
 }
 
 async function defaultConvert(body: string): Promise<Buffer> {
@@ -67,7 +94,9 @@ export function createHandler(opts: HandlerOptions = {}) {
     const convert = opts.convert ?? defaultConvert;
 
     return async function handler(req: IncomingMessage, res: ServerResponse) {
-        if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+        const urlPath = (req.url || '/').split('?')[0];
+
+        if (req.method === 'GET' && (urlPath === '/' || urlPath === '/index.html')) {
             const htmlPath = path.join(publicDir, 'index.html');
             if (fs.existsSync(htmlPath)) {
                 res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -78,6 +107,8 @@ export function createHandler(opts: HandlerOptions = {}) {
             }
             return;
         }
+
+        if (req.method === 'GET' && serveVendor(urlPath, res)) return;
 
         if (req.method === 'POST' && req.url === '/convert') {
             const body = await readBody(req, cap);

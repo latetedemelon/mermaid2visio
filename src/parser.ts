@@ -1,5 +1,7 @@
 import puppeteer from 'puppeteer';
 import path from 'path';
+import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -123,14 +125,64 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
     };
 
     const themeVars = { ...defaultThemeVars, ...config?.themeVariables };
-    const layoutEngine = config?.layout || 'dagre';
+    const requestedLayout = config?.layout || 'dagre';
     const theme = config?.theme || 'neutral';
 
-    // NOTE: only set `layout` once. A second hardcoded `layout: 'elk'` here
-    // would silently shadow the user's choice AND require the optional
-    // @mermaid-js/layout-elk package, yielding an empty SVG when missing.
-    // Likewise, `look: 'handDrawn'` alters the rendered DOM in ways the
-    // downstream class-based selectors don't expect.
+    // Mermaid 11 moved non-dagre layouts into separate packages that must be
+    // registered before `initialize`. Serve the ELK bundle from node_modules
+    // via a short-lived localhost HTTP server so relative chunk imports
+    // resolve, ESM MIME type is correct, and no network is required.
+    let layoutEngine = requestedLayout;
+    let elkServer: http.Server | null = null;
+    if (requestedLayout === 'elk') {
+        const elkDistDir = path.resolve(__dirname, '../node_modules/@mermaid-js/layout-elk/dist');
+        let registered = false;
+        try {
+            if (!fs.existsSync(elkDistDir)) {
+                throw new Error(`@mermaid-js/layout-elk not installed at ${elkDistDir}`);
+            }
+            elkServer = http.createServer((req, res) => {
+                const rel = (req.url || '/').split('?')[0].replace(/^\/+/, '');
+                const abs = path.resolve(elkDistDir, rel);
+                if (!abs.startsWith(elkDistDir + path.sep) && abs !== elkDistDir) {
+                    res.writeHead(403); res.end(); return;
+                }
+                fs.readFile(abs, (err, buf) => {
+                    if (err) { res.writeHead(404); res.end(); return; }
+                    res.writeHead(200, {
+                        'Content-Type': 'application/javascript',
+                        'Access-Control-Allow-Origin': '*',
+                    });
+                    res.end(buf);
+                });
+            });
+            await new Promise<void>((resolve) => elkServer!.listen(0, '127.0.0.1', resolve));
+            const port = (elkServer.address() as any).port;
+            const elkUrl = `http://127.0.0.1:${port}/mermaid-layout-elk.esm.min.mjs`;
+            await page.addScriptTag({
+                content: `
+                    import elk from '${elkUrl}';
+                    window.__elkLoader = elk;
+                    window.__elkReady = true;
+                `,
+                type: 'module',
+            });
+            // Module scripts fire their load event before their top-level
+            // await chain resolves the sub-chunk imports, so poll briefly
+            // until the loader is actually on `window`.
+            await page.waitForFunction(() => (window as any).__elkReady === true, { timeout: 5000 });
+            registered = await page.evaluate(() => {
+                const loader = (window as any).__elkLoader;
+                if (!loader) return false;
+                (window as any).mermaid.registerLayoutLoaders(loader);
+                return true;
+            });
+        } catch (e) {
+            console.warn('ELK layout loader failed, falling back to dagre:', e);
+        }
+        if (!registered) layoutEngine = 'dagre';
+    }
+
     await page.setContent(`
         <div id="graphDiv"></div>
         <script>
@@ -372,5 +424,8 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
         return result;
     } finally {
         await browser.close();
+        if (elkServer) {
+            await new Promise<void>((resolve) => elkServer!.close(() => resolve()));
+        }
     }
 }

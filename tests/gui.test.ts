@@ -117,4 +117,29 @@ describe('GUI HTTP server', () => {
     it('uses a 1 MiB default body cap', () => {
         expect(MAX_BODY_BYTES).toBe(1024 * 1024);
     });
+
+    it('serves the vendored ELK loader under /vendor/', async () => {
+        const { base, stop } = await startServer();
+        try {
+            const res = await request(`${base}/vendor/mermaid-layout-elk/mermaid-layout-elk.esm.min.mjs`);
+            expect(res.status).toBe(200);
+            expect(res.headers['content-type']).toBe('application/javascript');
+            // The ESM module's first statement imports its chunk module.
+            expect(res.body.toString()).toContain('import');
+        } finally {
+            await stop();
+        }
+    });
+
+    it('blocks path traversal under /vendor/', async () => {
+        const { base, stop } = await startServer();
+        try {
+            const res = await request(`${base}/vendor/mermaid-layout-elk/../../../etc/passwd`);
+            // Node's http client normalizes the URL before send, so we also
+            // accept 404 as an acceptable "not served" outcome.
+            expect([403, 404]).toContain(res.status);
+        } finally {
+            await stop();
+        }
+    });
 });
