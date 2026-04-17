@@ -110,5 +110,30 @@ All with:
 - **ELK Layout Support** (Professional hierarchical & orthogonal layouts)
 - **Theme Variables** (Full customization)
 
+## Troubleshooting
+
+### `Failed to launch the browser process: Code 127`
+Puppeteer's bundled Chromium is missing or can't resolve its shared libraries
+(exit 127 = "command not found" under the hood). Pick one:
+
+1. **Install the bundled browser:** `npm run install:browser`
+   (equivalent to `npx puppeteer browsers install chrome`)
+2. **Point at an existing Chrome/Chromium:**
+   `export PUPPETEER_EXECUTABLE_PATH=/path/to/chrome`
+3. **On Debian/Ubuntu, install missing system libraries:**
+   ```bash
+   sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+     libgbm1 libpango-1.0-0 libcairo2 libasound2
+   ```
+
+Run `npm run doctor` to diagnose which of the above applies.
+
+### `ELK layout option doesn't re-render`
+Mermaid 11 moved ELK into a separate package that must be registered at
+runtime. This project vendors it automatically (`@mermaid-js/layout-elk`);
+if you see ELK silently behaving like dagre, confirm with `npm run doctor`
+that the package is installed, then reinstall with `npm ci`.
+
 ## License
 ISC

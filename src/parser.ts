@@ -99,13 +99,52 @@ export interface MermaidConfig {
     };
 }
 
+// Turn Puppeteer's opaque "Failed to launch the browser process" errors into
+// something a user can act on. Exit code 127 means the binary is missing or
+// its shared libraries can't be resolved; ENOENT means the path is wrong.
+export function explainLaunchFailure(err: any): string {
+    const raw = String(err?.message || err);
+    const base = 'Puppeteer could not launch Chromium.';
+    const remediation = [
+        '',
+        'To fix:',
+        '  1. Download the bundled browser:',
+        '       npx puppeteer browsers install chrome',
+        '  2. Or point Puppeteer at an existing Chrome/Chromium:',
+        '       export PUPPETEER_EXECUTABLE_PATH=/path/to/chrome',
+        '  3. On Linux, you may also need system libraries. Debian/Ubuntu:',
+        '       sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 \\',
+        '         libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \\',
+        '         libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 \\',
+        '         libasound2',
+    ].join('\n');
+
+    // Puppeteer formats the exit status as either "Code: 127" or "Code 127"
+    // depending on version, so accept either.
+    if (/code:?\s*127\b/i.test(raw) || /ENOENT/i.test(raw)) {
+        return `${base} The browser binary is missing or cannot find its shared libraries (exit 127 / ENOENT).\n\nOriginal error: ${raw}${remediation}`;
+    }
+    if (/code:?\s*126\b/i.test(raw)) {
+        return `${base} The browser binary is not executable (exit 126). Check file permissions on the Chromium binary.\n\nOriginal error: ${raw}${remediation}`;
+    }
+    if (/Running as root without --no-sandbox/i.test(raw)) {
+        return `${base} Chromium refuses to run as root without --no-sandbox. This project already passes that flag, so something else is overriding it.\n\nOriginal error: ${raw}`;
+    }
+    return `${base}\n\nOriginal error: ${raw}${remediation}`;
+}
+
 export async function parseMermaid(definition: string, config?: MermaidConfig): Promise<GraphData> {
     // --no-sandbox is required when running as root in CI containers;
     // --disable-dev-shm-usage avoids /dev/shm size limits on small runners.
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
+    let browser;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        });
+    } catch (err: any) {
+        throw new Error(explainLaunchFailure(err));
+    }
     const page = await browser.newPage();
 
     // Inject Mermaid from node_modules
