@@ -148,6 +148,41 @@ export function formatMermaidError(rawMsg: string, definition: string): string {
            `Diagram (line ${actualLine}):\n${ctx}${hint}`;
 }
 
+// Translate every absolute coordinate pair in an SVG path `d` string by (dx, dy).
+// Mermaid's edge paths use absolute commands (M, L, C, S, Q, T, A); we don't
+// see relative commands in practice, but if any appear we leave them alone
+// (their values are deltas, unaffected by translation).
+export function translatePathD(d: string, dx: number, dy: number): string {
+    return d.replace(
+        /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g,
+        (_, cmd: string, args: string) => {
+            const isRelative = cmd >= 'a' && cmd <= 'z';
+            const upper = cmd.toUpperCase();
+            if (upper === 'Z' || isRelative) return cmd + args;
+            const nums = args.match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+            if (!nums) return cmd + args;
+            const vals = nums.map(parseFloat);
+            // Per-command pattern of which numeric slots are X (true), Y (false), or neither (null).
+            // A command: rx ry x-axis-rotation large-arc-flag sweep-flag x y → [null,null,null,null,null,X,Y]
+            let pattern: Array<'x' | 'y' | null>;
+            if (upper === 'M' || upper === 'L' || upper === 'T') pattern = ['x', 'y'];
+            else if (upper === 'H') pattern = ['x'];
+            else if (upper === 'V') pattern = ['y'];
+            else if (upper === 'C') pattern = ['x', 'y', 'x', 'y', 'x', 'y'];
+            else if (upper === 'S' || upper === 'Q') pattern = ['x', 'y', 'x', 'y'];
+            else if (upper === 'A') pattern = [null, null, null, null, null, 'x', 'y'];
+            else return cmd + args;
+            const out = vals.map((v, i) => {
+                const slot = pattern[i % pattern.length];
+                if (slot === 'x') return v + dx;
+                if (slot === 'y') return v + dy;
+                return v;
+            });
+            return cmd + ' ' + out.join(' ');
+        },
+    );
+}
+
 // Turn Puppeteer's opaque "Failed to launch the browser process" errors into
 // something a user can act on. Exit code 127 means the binary is missing or
 // its shared libraries can't be resolved; ENOENT means the path is wrong.
@@ -608,8 +643,56 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
             };
         }, definition);
 
+        // Normalise all coordinates so the page origin is the top-left of the
+        // actual rendered content.  Mermaid+ELK place shapes in SVG user space
+        // whose origin doesn't match the viewBox top-left (e.g. ELK puts the
+        // Legend subgraph at y=-11 above viewBox y=4 in this fixture).  If we
+        // hand those raw SVG coordinates to the generator, shapes with x<0 or
+        // y<0 land off-page in Visio.  Compute the actual content bounds across
+        // every extracted shape and translate by (-minX, -minY) here, so the
+        // generator only sees non-negative coordinates that fit the page.
+        const xs: number[] = [];
+        const ys: number[] = [];
+        const maxXs: number[] = [];
+        const maxYs: number[] = [];
+        for (const n of result.nodes) {
+            xs.push(n.x); ys.push(n.y);
+            maxXs.push(n.x + n.width); maxYs.push(n.y + n.height);
+        }
+        for (const c of result.clusters) {
+            xs.push(c.x); ys.push(c.y);
+            maxXs.push(c.x + c.width); maxYs.push(c.y + c.height);
+        }
+        for (const l of result.labels) {
+            xs.push(l.x); ys.push(l.y);
+            maxXs.push(l.x + l.width); maxYs.push(l.y + l.height);
+        }
+        const minX = xs.length ? Math.min(...xs) : 0;
+        const minY = ys.length ? Math.min(...ys) : 0;
+        const maxX = maxXs.length ? Math.max(...maxXs) : result.width;
+        const maxY = maxYs.length ? Math.max(...maxYs) : result.height;
+
+        for (const n of result.nodes) { n.x -= minX; n.y -= minY; }
+        for (const c of result.clusters) { c.x -= minX; c.y -= minY; }
+        for (const l of result.labels) { l.x -= minX; l.y -= minY; }
+        // Edge `d` strings carry absolute SVG coordinates; the only safe
+        // translation in path syntax is rewriting the leading "M x y" of each
+        // subpath (only M/L/C/S/Q/T/A take absolute coordinate pairs in our
+        // input — Mermaid emits absolute commands).  Walk the tokens and
+        // subtract (minX, minY) from every absolute coordinate pair so the
+        // fallback path-drawing code lands shapes in the same space as nodes.
+        for (const e of result.edges) {
+            if (e.d) e.d = translatePathD(e.d, -minX, -minY);
+        }
+
+        result.width = maxX - minX;
+        result.height = maxY - minY;
+
         log(`render OK: ${result.nodes.length} nodes, ${result.edges.length} edges, ` +
             `${result.clusters.length} clusters, ${result.labels.length} labels`);
+        log(`content bounds: x=[${minX.toFixed(1)}, ${maxX.toFixed(1)}] ` +
+            `y=[${minY.toFixed(1)}, ${maxY.toFixed(1)}] ` +
+            `(translated by ${(-minX).toFixed(1)}, ${(-minY).toFixed(1)})`);
         return result;
     } catch (e: any) {
         const msg = e?.message ?? String(e);
