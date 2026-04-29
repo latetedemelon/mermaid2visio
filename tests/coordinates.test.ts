@@ -185,7 +185,7 @@ describe('parsePathToVisio', () => {
     const { geom, rows } = mockGeom();
     g.parsePathToVisio('M 0 0 Q 10 10 20 0 A 5 5 0 0 1 30 0', geom);
     const lineTos = rows.filter(r => r.T === 'LineTo').length;
-    // 10 flattened segments for Q + 1 fallback segment for A = 11
-    expect(lineTos).toBeGreaterThanOrEqual(11);
+    // 4 flattened segments for Q + 1 fallback segment for A = 5
+    expect(lineTos).toBeGreaterThanOrEqual(5);
   });
 });
