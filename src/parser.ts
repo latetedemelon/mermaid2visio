@@ -432,18 +432,41 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
             // Edge Labels
             const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
-                const transform = label.getAttribute('transform');
-                const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                // Same convention shift as nodes: edgeLabel groups sit at the
-                // label center; the inner foreignObject/text is centered around
-                // origin. Add bbox.x/y so (x, y) is the top-left corner.
-                let x = match ? parseFloat(match[1]) : 0;
-                let y = match ? parseFloat(match[2]) : 0;
-
                 const div = label.querySelector('div, foreignObject, text');
+                // getBBox on the inner element gives its position within the label group's
+                // local coord system (bbox.x/y = offset from group origin to content top-left).
                 const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-                x += (bbox as any).x || 0;
-                y += (bbox as any).y || 0;
+
+                // Use CTM to get the label centre in absolute SVG coordinates.
+                // The `.edgeLabel` element may be an HTML <div> inside a
+                // <foreignObject> (no getCTM), so walk up to the nearest SVG
+                // <g> ancestor which always has getCTM available.
+                let x = 0;
+                let y = 0;
+                let labelG: SVGGraphicsElement | null = null;
+                let el: Element | null = label;
+                while (el && el !== svgElement) {
+                    if (el.tagName === 'g' && typeof (el as any).getCTM === 'function') {
+                        labelG = el as SVGGraphicsElement; break;
+                    }
+                    el = el.parentElement;
+                }
+                if (labelG && svgElement) {
+                    const ctm = labelG.getCTM();
+                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                    if (ctm && svgCTM) {
+                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                        pt.x = 0; pt.y = 0;
+                        const center = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                        x = center.x + ((bbox as any).x || 0);
+                        y = center.y + ((bbox as any).y || 0);
+                    } else {
+                        const transform = labelG.getAttribute('transform');
+                        const m = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                        x = (m ? parseFloat(m[1]) : 0) + ((bbox as any).x || 0);
+                        y = (m ? parseFloat(m[2]) : 0) + ((bbox as any).y || 0);
+                    }
+                }
                 const text = label.textContent?.trim() || '';
                 
                 const bgRect = label.querySelector('.label-container rect');
