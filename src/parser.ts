@@ -102,7 +102,21 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
     try {
         const result = await page.evaluate(async (def) => {
             // @ts-ignore
-            const { svg } = await mermaid.render('graphDiv', def);
+            let svg: string;
+            try {
+                // @ts-ignore
+                ({ svg } = await mermaid.render('graphDiv', def));
+            } catch (renderErr) {
+                // Strip YAML frontmatter (e.g. layout:elk requires the optional ELK adapter)
+                // and retry with the default layout engine
+                const stripped = def.replace(/^---[\s\S]*?---\s*\n?/, '');
+                if (stripped !== def) {
+                    // @ts-ignore
+                    ({ svg } = await mermaid.render('graphDiv2', stripped));
+                } else {
+                    throw renderErr;
+                }
+            }
             document.body.innerHTML = svg;
             
             const svgElement = document.querySelector('svg');
@@ -119,16 +133,28 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 const id = cluster.id;
                 const rect = cluster.querySelector('rect, polygon, path');
                 const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-                
-                // Adjust for transform if present on the group
-                const transform = cluster.getAttribute('transform');
-                const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                let x = match ? parseFloat(match[1]) : 0;
-                let y = match ? parseFloat(match[2]) : 0;
-                
-                // If the rect itself has x/y, add them (common in some renderers)
-                x += bbox.x;
-                y += bbox.y;
+
+                // Use the CTM to get absolute SVG coordinates; this handles nested subgraphs
+                // correctly because getCTM() accumulates all ancestor transforms.
+                let x = 0, y = 0;
+                if (rect && svgElement) {
+                    const ctm = (rect as SVGGraphicsElement).getCTM();
+                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                    if (ctm && svgCTM) {
+                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                        pt.x = bbox.x;
+                        pt.y = bbox.y;
+                        const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                        x = abs.x;
+                        y = abs.y;
+                    } else {
+                        // Fallback for environments where CTM is unavailable
+                        const transform = cluster.getAttribute('transform');
+                        const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                        x = (match ? parseFloat(match[1]) : 0) + bbox.x;
+                        y = (match ? parseFloat(match[2]) : 0) + bbox.y;
+                    }
+                }
 
                 const textEl = cluster.querySelector('.nodeLabel, text');
                 const text = textEl?.textContent?.trim();
@@ -192,7 +218,10 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 width: graphWidth,
                 height: graphHeight,
                 nodes: nodes.map(node => {
-                    const id = node.id;
+                    const rawId = node.id;
+                    // Mermaid renders node IDs as 'flowchart-ORIGINALID-N'; strip to short form
+                    // so it matches the LS-/LE- class IDs used in edge extraction
+                    const id = rawId.replace(/^flowchart-/, '').replace(/-\d+$/, '');
                     const nodeClasses = Array.from(node.classList).join(' ');
                     const transform = node.getAttribute('transform');
                     const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');

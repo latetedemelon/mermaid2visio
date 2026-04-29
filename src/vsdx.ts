@@ -117,6 +117,9 @@ export class VsdxGenerator {
         // 1. Add Clusters (Subgraphs) - Draw first (background)
         if (graph.clusters) {
             for (const cluster of graph.clusters) {
+                // Register cluster so edges that target a subgraph ID can connect to it
+                nodeIdToShapeId.set(cluster.id, shapeId);
+
                 const w = cluster.width / this.dpi;
                 const h = cluster.height / this.dpi;
                 const x = cluster.x / this.dpi; 
