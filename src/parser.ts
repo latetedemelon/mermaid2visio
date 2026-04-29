@@ -97,6 +97,55 @@ export interface MermaidConfig {
         curve?: 'basis' | 'linear' | 'cardinal' | 'monotoneX';
         useMaxWidth?: boolean;
     };
+    // When true, parseMermaid emits diagnostic logs to stderr for layout
+    // selection, ELK adapter registration, and the parsed graph summary.
+    // Mermaid render errors are also re-thrown with diagram context (the
+    // line number Mermaid reports plus surrounding source) so a user can
+    // see *which* part of their diagram was rejected without re-running.
+    verbose?: boolean;
+}
+
+// Re-shape Mermaid's "Lexical error on line N. Unrecognized text..." message
+// into something a user can act on: surface the diagram lines around the
+// reported line, and call out the most common cause we've seen (inline `%%`
+// comments at the end of directive lines, which Mermaid lexes as part of
+// the directive instead of as a comment).
+export function formatMermaidError(rawMsg: string, definition: string): string {
+    const lineMatch = /(?:Lexical|Parse) error on line (\d+)\./.exec(rawMsg);
+    if (!lineMatch) return rawMsg;
+
+    const reportedLine = parseInt(lineMatch[1], 10);
+
+    // Mermaid reports errors against the diagram body *after* it strips the
+    // YAML frontmatter, so add the frontmatter line count back to map to
+    // the user's original line numbering.
+    const fmMatch = /^---\s*\n[\s\S]*?\n---\s*\n?/.exec(definition);
+    const fmLineCount = fmMatch ? (fmMatch[0].match(/\n/g)?.length ?? 0) : 0;
+    const actualLine = reportedLine + fmLineCount;
+
+    const lines = definition.split('\n');
+    const start = Math.max(0, actualLine - 3);
+    const end = Math.min(lines.length, actualLine + 1);
+    const ctx = lines.slice(start, end).map((l, i) => {
+        const num = start + i + 1;
+        const marker = num === actualLine ? '>' : ' ';
+        return `${marker} ${num.toString().padStart(4)} | ${l}`;
+    }).join('\n');
+
+    // Inline-%% gotcha: a directive followed by `%% something` is a parse
+    // error because Mermaid only treats %% as a comment when the line begins
+    // with it (after optional whitespace).
+    const offending = lines[actualLine - 1] ?? '';
+    const inlineComment = /^[^%\n]*\S\s+%%/.test(offending);
+    const hint = inlineComment
+        ? '\n\nHint: This line ends with an inline `%% ...` comment.\n' +
+          '      Mermaid only recognises `%%` as a comment when it starts the line; trailing\n' +
+          '      `%%` text is lexed as part of the directive and triggers a syntax error.\n' +
+          '      Move the comment to its own line.'
+        : '';
+
+    return `Mermaid syntax error:\n  ${rawMsg.trim().replace(/\n/g, '\n  ')}\n\n` +
+           `Diagram (line ${actualLine}):\n${ctx}${hint}`;
 }
 
 // Turn Puppeteer's opaque "Failed to launch the browser process" errors into
@@ -134,6 +183,12 @@ export function explainLaunchFailure(err: any): string {
 }
 
 export async function parseMermaid(definition: string, config?: MermaidConfig): Promise<GraphData> {
+    const log = (msg: string) => {
+        if (config?.verbose) console.error(`[parseMermaid] ${msg}`);
+    };
+
+    log(`input: ${definition.split('\n').length} lines, ${definition.length} chars`);
+
     // --no-sandbox is required when running as root in CI containers;
     // --disable-dev-shm-usage avoids /dev/shm size limits on small runners.
     let browser;
@@ -146,6 +201,10 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
         throw new Error(explainLaunchFailure(err));
     }
     const page = await browser.newPage();
+    if (config?.verbose) {
+        page.on('console', (m) => log(`[browser:${m.type()}] ${m.text()}`));
+        page.on('pageerror', (e) => log(`[browser:pageerror] ${e.message}`));
+    }
 
     // Inject Mermaid from node_modules
     const mermaidPath = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
@@ -172,11 +231,16 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
     // frontmatter parser overrides the initialize() layout at render time and tries
     // to use ELK — but the adapter was never registered, causing a render failure.
     let requestedLayout: MermaidConfig['layout'] = config?.layout ?? 'dagre';
+    let layoutSource = config?.layout ? 'config' : 'default';
     if (!config?.layout) {
         const frontmatter = /^---[\s\S]*?---/.exec(definition)?.[0] ?? '';
         const fmLayout = /\blayout:\s*(\S+)/.exec(frontmatter)?.[1];
-        if (fmLayout) requestedLayout = fmLayout as MermaidConfig['layout'];
+        if (fmLayout) {
+            requestedLayout = fmLayout as MermaidConfig['layout'];
+            layoutSource = 'frontmatter';
+        }
     }
+    log(`layout=${requestedLayout} (source=${layoutSource})`);
 
     // Mermaid 11 moved non-dagre layouts into separate packages that must be
     // registered before `initialize`. Serve the ELK bundle from node_modules
@@ -231,6 +295,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
             console.warn('ELK layout loader failed, falling back to dagre:', e);
         }
         if (!registered) layoutEngine = 'dagre';
+        log(registered ? 'ELK adapter registered' : 'ELK registration failed; falling back to dagre');
     }
 
     await page.setContent(`
@@ -254,9 +319,17 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
     try {
         const result = await page.evaluate(async (def) => {
-            // @ts-ignore
-            const { svg } = await mermaid.render('graphDiv', def);
-            document.body.innerHTML = svg;
+            try {
+                // @ts-ignore
+                const { svg } = await mermaid.render('graphDiv', def);
+                document.body.innerHTML = svg;
+            } catch (renderErr: any) {
+                // Re-throw as a tagged Error so parseMermaid can recognise this
+                // specifically as a Mermaid render failure (vs. e.g. a DOM bug
+                // in our extraction code) and apply formatMermaidError to it.
+                const msg = renderErr?.message ?? String(renderErr);
+                throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
+            }
             
             const svgElement = document.querySelector('svg');
             const viewBox = svgElement?.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
@@ -520,7 +593,19 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
             };
         }, definition);
 
+        log(`render OK: ${result.nodes.length} nodes, ${result.edges.length} edges, ` +
+            `${result.clusters.length} clusters, ${result.labels.length} labels`);
         return result;
+    } catch (e: any) {
+        const msg = e?.message ?? String(e);
+        const tagged = msg.match(/__MERMAID_RENDER_ERROR__:([\s\S]+)$/);
+        if (tagged) {
+            const formatted = formatMermaidError(tagged[1], definition);
+            log(`render FAILED: ${tagged[1].split('\n')[0]}`);
+            throw new Error(formatted);
+        }
+        log(`evaluate threw: ${msg.split('\n')[0]}`);
+        throw e;
     } finally {
         await browser.close();
         if (elkServer) {
