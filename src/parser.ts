@@ -444,20 +444,35 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     const normIdMatch = /^flowchart-(.+)-\d+$/.exec(rawId);
                     const id = normIdMatch ? normIdMatch[1] : rawId;
                     const nodeClasses = Array.from(node.classList).join(' ');
-                    const transform = node.getAttribute('transform');
-                    const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                    // Mermaid's node <g> groups sit at the node CENTER (translate)
-                    // with the inner rect/polygon anchored at (-w/2, -h/2). Add
-                    // bbox.x/y to land at the top-left corner, which is the
-                    // convention the VSDX generator expects (and which the
-                    // cluster branch above already uses).
-                    let x = match ? parseFloat(match[1]) : 0;
-                    let y = match ? parseFloat(match[2]) : 0;
 
                     const rect = node.querySelector('rect, circle, polygon, path, ellipse') as SVGGraphicsElement;
                     const bbox = rect ? rect.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-                    x += bbox.x;
-                    y += bbox.y;
+
+                    // Use CTM to convert the shape's local bbox top-left to SVG
+                    // root coordinates. Nodes inside a subgraph have a transform
+                    // attribute relative to the parent cluster <g>, not the SVG
+                    // root, so reading the attribute alone gives wrong absolute
+                    // positions for nested nodes. CTM accumulates all ancestor
+                    // transforms and gives the correct absolute result.
+                    let x = 0;
+                    let y = 0;
+                    if (rect && svgElement) {
+                        const ctm = (rect as SVGGraphicsElement).getCTM();
+                        const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                        if (ctm && svgCTM) {
+                            const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                            pt.x = bbox.x;
+                            pt.y = bbox.y;
+                            const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                            x = abs.x;
+                            y = abs.y;
+                        } else {
+                            const transform = node.getAttribute('transform');
+                            const m2 = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                            x = (m2 ? parseFloat(m2[1]) : 0) + bbox.x;
+                            y = (m2 ? parseFloat(m2[2]) : 0) + bbox.y;
+                        }
+                    }
                     
                     let type = 'rectangle';
                     const shapeTag = rect ? rect.tagName.toLowerCase() : 'unknown';

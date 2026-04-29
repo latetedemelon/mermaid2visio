@@ -582,29 +582,26 @@ export class VsdxGenerator {
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
 
                 if (glued) {
-                    // Visio 1D shape transform: world(x, y) = PinX + (x - LocPinX),
-                    // PinY + (y - LocPinY). We want world Begin = (beginX, beginY)
-                    // at local (0, 0) and world End = (endX, endY) at local
-                    // (Width, Height). Setting LocPin = (Width/2, Height/2) puts
-                    // PinX at the midpoint (good for rotation) while keeping the
-                    // begin/end points geometrically correct.
+                    // Visio 1D shapes: Width = Euclidean length, Height = 0,
+                    // Angle = atan2(dy, dx). This is the canonical representation
+                    // Visio uses internally for connectors. Width = endX - beginX
+                    // would be negative for right-to-left edges, which Visio rejects.
                     const beginX = startPin!.pinX;
                     const beginY = startPin!.pinY;
                     const endX = endPin!.pinX;
                     const endY = endPin!.pinY;
-                    const pinX = (beginX + endX) / 2;
-                    const pinY = (beginY + endY) / 2;
-                    const width = endX - beginX;
-                    const height = endY - beginY;
-                    const locPinX = width / 2;
-                    const locPinY = height / 2;
+                    const dx = endX - beginX;
+                    const dy = endY - beginY;
+                    const len = Math.sqrt(dx * dx + dy * dy) || 0.01;
+                    const angle = Math.atan2(dy, dx);
 
-                    shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
-                    shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
-                    shape.ele('Cell', { N: 'Width', V: width.toString() }).up();
-                    shape.ele('Cell', { N: 'Height', V: height.toString() }).up();
-                    shape.ele('Cell', { N: 'LocPinX', V: locPinX.toString() }).up();
-                    shape.ele('Cell', { N: 'LocPinY', V: locPinY.toString() }).up();
+                    shape.ele('Cell', { N: 'PinX', V: ((beginX + endX) / 2).toString() }).up();
+                    shape.ele('Cell', { N: 'PinY', V: ((beginY + endY) / 2).toString() }).up();
+                    shape.ele('Cell', { N: 'Width', V: len.toString() }).up();
+                    shape.ele('Cell', { N: 'Height', V: '0' }).up();
+                    shape.ele('Cell', { N: 'LocPinX', V: (len / 2).toString() }).up();
+                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
+                    shape.ele('Cell', { N: 'Angle', V: angle.toString() }).up();
                     shape.ele('Cell', { N: 'BeginX', V: beginX.toString() }).up();
                     shape.ele('Cell', { N: 'BeginY', V: beginY.toString() }).up();
                     shape.ele('Cell', { N: 'EndX', V: endX.toString() }).up();
@@ -637,20 +634,20 @@ export class VsdxGenerator {
                 if (edgeLp) shape.ele('Cell', { N: 'LinePattern', V: edgeLp }).up();
 
                 if (glued) {
-                    // Standard 1D line geometry spanning Begin -> End in local coords.
-                    // Width/Height are formulas; V carries the evaluated edge extent.
-                    const edgeWidth = endPin!.pinX - startPin!.pinX;
-                    const edgeHeight = endPin!.pinY - startPin!.pinY;
+                    // For a Visio 1D shape, local X points along the connector
+                    // (Begin at 0, End at Width). Height is 0 (line has no
+                    // geometric height). Y is always 0 in local space.
+                    const dx2 = endPin!.pinX - startPin!.pinX;
+                    const dy2 = endPin!.pinY - startPin!.pinY;
+                    const connLen = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 0.01;
                     const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
                     geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                    geom.ele('Cell', { N: 'NoLine', V: '0' }).up();
-                    geom.ele('Cell', { N: 'NoShow', V: '0' }).up();
                     geom.ele('Row', { T: 'MoveTo', IX: '1' })
                         .ele('Cell', { N: 'X', V: '0' }).up()
                         .ele('Cell', { N: 'Y', V: '0' }).up().up();
                     geom.ele('Row', { T: 'LineTo', IX: '2' })
-                        .ele('Cell', { N: 'X', F: 'Width', V: edgeWidth.toString() }).up()
-                        .ele('Cell', { N: 'Y', F: 'Height', V: edgeHeight.toString() }).up().up();
+                        .ele('Cell', { N: 'X', F: 'Width', V: connLen.toString() }).up()
+                        .ele('Cell', { N: 'Y', V: '0' }).up().up();
                     geom.up();
 
                     connects.push({ fromSheet: shapeId, fromCell: 'BeginX', toSheet: startShapeId!, toCell: 'PinX' });
