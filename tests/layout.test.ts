@@ -25,7 +25,33 @@ function fingerprint(nodes: { id: string; x: number; y: number }[]) {
         .join('|');
 }
 
+// A minimal diagram whose frontmatter requests ELK.  parseMermaid is
+// intentionally called without an explicit config so the test exercises the
+// code path where the frontmatter must be read to decide whether to register
+// the ELK adapter.  Without the fix, Mermaid's internal frontmatter parser
+// picks up `layout: elk` at render time and throws because the adapter was
+// never registered.
+const FRONTMATTER_ELK = `---
+config:
+  layout: elk
+---
+graph TD
+  A[Start] --> B[Step 1]
+  B --> C[End]
+`;
+
 describe('layout engine selection', () => {
+    it(
+        'reads layout from YAML frontmatter when no config is passed',
+        async () => {
+            // Should not throw; before the fix this raised "No layout engine for elk".
+            const graph = await parseMermaid(FRONTMATTER_ELK);
+            expect(graph.nodes.length).toBeGreaterThan(0);
+            expect(graph.edges.length).toBeGreaterThan(0);
+        },
+        60000,
+    );
+
     it(
         'produces distinct coordinates for dagre vs elk',
         async () => {

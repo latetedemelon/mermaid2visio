@@ -164,8 +164,19 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
     };
 
     const themeVars = { ...defaultThemeVars, ...config?.themeVariables };
-    const requestedLayout = config?.layout || 'dagre';
     const theme = config?.theme || 'neutral';
+
+    // When the caller doesn't supply a layout, check the diagram's YAML frontmatter
+    // (between ---...--- delimiters) so that `layout: elk` in the diagram itself
+    // still triggers ELK adapter registration.  Without this, Mermaid's internal
+    // frontmatter parser overrides the initialize() layout at render time and tries
+    // to use ELK — but the adapter was never registered, causing a render failure.
+    let requestedLayout: MermaidConfig['layout'] = config?.layout ?? 'dagre';
+    if (!config?.layout) {
+        const frontmatter = /^---[\s\S]*?---/.exec(definition)?.[0] ?? '';
+        const fmLayout = /\blayout:\s*(\S+)/.exec(frontmatter)?.[1];
+        if (fmLayout) requestedLayout = fmLayout as MermaidConfig['layout'];
+    }
 
     // Mermaid 11 moved non-dagre layouts into separate packages that must be
     // registered before `initialize`. Serve the ELK bundle from node_modules
@@ -260,14 +271,33 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 const id = cluster.id;
                 const rect = cluster.querySelector('rect, polygon, path');
                 const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-                
-                const transform = cluster.getAttribute('transform');
-                const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                let x = match ? parseFloat(match[1]) : 0;
-                let y = match ? parseFloat(match[2]) : 0;
-                
-                x += bbox.x;
-                y += bbox.y;
+
+                // Use the SVG current-transformation-matrix (CTM) to convert
+                // the rect's local top-left corner to SVG root coordinates.
+                // Simply parsing the `transform` attribute breaks for nested
+                // subgraphs (like QUAL inside INS) because that attribute is
+                // relative to the *parent* group, not the SVG root — so the
+                // inner cluster lands near (0,0) instead of its true position.
+                let x = 0;
+                let y = 0;
+                if (rect && svgElement) {
+                    const ctm = (rect as SVGGraphicsElement).getCTM();
+                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                    if (ctm && svgCTM) {
+                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                        pt.x = bbox.x;
+                        pt.y = bbox.y;
+                        const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                        x = abs.x;
+                        y = abs.y;
+                    } else {
+                        // Fallback for environments where getCTM is unavailable
+                        const transform = cluster.getAttribute('transform');
+                        const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                        x = (match ? parseFloat(match[1]) : 0) + bbox.x;
+                        y = (match ? parseFloat(match[2]) : 0) + bbox.y;
+                    }
+                }
 
                 const textEl = cluster.querySelector('.nodeLabel, text');
                 const text = textEl?.textContent?.trim();
