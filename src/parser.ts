@@ -430,8 +430,10 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 };
             });
 
-            // Edge Labels
-            const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
+            // Edge Labels — select only SVG <g> elements; Mermaid also emits
+            // a <span class="edgeLabel"> inside the foreignObject for each label,
+            // so '.edgeLabel' would match both and produce duplicates.
+            const labels = Array.from(document.querySelectorAll('g.edgeLabel')).map(label => {
                 const div = label.querySelector('div, foreignObject, text');
                 // getBBox on the inner element gives its position within the label group's
                 // local coord system (bbox.x/y = offset from group origin to content top-left).
