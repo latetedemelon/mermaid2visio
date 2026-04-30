@@ -235,8 +235,10 @@ export class VsdxGenerator {
 
         // Helper for LinePattern
         const getLinePattern = (dash: string | undefined) => {
-             if (!dash || dash === 'none' || dash === '0') return null;
-             return '2'; 
+            if (!dash || dash === 'none') return null;
+            // "0px", "0", "0 0" all mean solid — parseFloat handles the unit suffix
+            if (parseFloat(dash) === 0) return null;
+            return '2';
         };
 
         // Helper for Fonts
