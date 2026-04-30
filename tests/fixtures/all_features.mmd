@@ -1,0 +1,24 @@
+%% Exercises every code path in the VSDX generator: every shape type,
+%% labelled edges, dashed/colored edges, subgraph (cluster), and a
+%% hyperlinked node. Used by the structural-lint and LibreOffice
+%% round-trip render tests.
+graph TD
+    Start((Start Circle)) --> Rect[Rectangle Node]
+    Rect --> Decision{Diamond Decision}
+    Decision -- Yes --> Stad([Stadium Node])
+    Decision -- No --> Par[/Parallelogram/]
+    Par --> Sub[[Subroutine]]
+    Stad --> Cyl[(Cylinder DB)]
+    Cyl --> Done((Done))
+    Sub --> Done
+
+    subgraph Cluster ["Grouped Steps"]
+      Rect
+      Decision
+    end
+
+    classDef warn fill:#fdd,stroke:#900,stroke-width:2px,color:#600;
+    class Decision warn;
+
+    Done -. dashed .-> Start
+    click Rect "https://example.com/rect" "Open docs"

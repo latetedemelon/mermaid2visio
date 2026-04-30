@@ -1,5 +1,7 @@
 import puppeteer from 'puppeteer';
 import path from 'path';
+import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,8 +15,8 @@ export interface GraphNode {
     height: number;
     text?: string;
     type?: string; 
-    rounding?: number; // Corner radius
-    url?: string; // Hyperlink
+    rounding?: number;
+    url?: string;
     style?: {
         fill?: string;
         stroke?: string;
@@ -25,7 +27,7 @@ export interface GraphNode {
         fontFamily?: string;
         fontWeight?: string;
         fontStyle?: string;
-        textAlign?: string; // start, middle, end
+        textAlign?: string;
     };
 }
 
@@ -84,26 +86,285 @@ export interface GraphData {
     height: number;
 }
 
-export async function parseMermaid(definition: string): Promise<GraphData> {
-    const browser = await puppeteer.launch({ headless: true });
+// Mermaid Configuration Interface
+export interface MermaidConfig {
+    layout?: 'elk' | 'dagre' | 'flexbox' | 'linear';
+    theme?: 'default' | 'forest' | 'dark' | 'neutral';
+    themeVariables?: Record<string, string>;
+    flowchart?: {
+        nodeSpacing?: number;
+        rankSpacing?: number;
+        curve?: 'basis' | 'linear' | 'cardinal' | 'monotoneX';
+        useMaxWidth?: boolean;
+    };
+    // When true, parseMermaid emits diagnostic logs to stderr for layout
+    // selection, ELK adapter registration, and the parsed graph summary.
+    // Mermaid render errors are also re-thrown with diagram context (the
+    // line number Mermaid reports plus surrounding source) so a user can
+    // see *which* part of their diagram was rejected without re-running.
+    verbose?: boolean;
+}
+
+// Re-shape Mermaid's "Lexical error on line N. Unrecognized text..." message
+// into something a user can act on: surface the diagram lines around the
+// reported line, and call out the most common cause we've seen (inline `%%`
+// comments at the end of directive lines, which Mermaid lexes as part of
+// the directive instead of as a comment).
+export function formatMermaidError(rawMsg: string, definition: string): string {
+    const lineMatch = /(?:Lexical|Parse) error on line (\d+)\./.exec(rawMsg);
+    if (!lineMatch) return rawMsg;
+
+    const reportedLine = parseInt(lineMatch[1], 10);
+
+    // Mermaid reports errors against the diagram body *after* it strips the
+    // YAML frontmatter, so add the frontmatter line count back to map to
+    // the user's original line numbering.
+    const fmMatch = /^---\s*\n[\s\S]*?\n---\s*\n?/.exec(definition);
+    const fmLineCount = fmMatch ? (fmMatch[0].match(/\n/g)?.length ?? 0) : 0;
+    const actualLine = reportedLine + fmLineCount;
+
+    const lines = definition.split('\n');
+    const start = Math.max(0, actualLine - 3);
+    const end = Math.min(lines.length, actualLine + 1);
+    const ctx = lines.slice(start, end).map((l, i) => {
+        const num = start + i + 1;
+        const marker = num === actualLine ? '>' : ' ';
+        return `${marker} ${num.toString().padStart(4)} | ${l}`;
+    }).join('\n');
+
+    // Inline-%% gotcha: a directive followed by `%% something` is a parse
+    // error because Mermaid only treats %% as a comment when the line begins
+    // with it (after optional whitespace).
+    const offending = lines[actualLine - 1] ?? '';
+    const inlineComment = /^[^%\n]*\S\s+%%/.test(offending);
+    const hint = inlineComment
+        ? '\n\nHint: This line ends with an inline `%% ...` comment.\n' +
+          '      Mermaid only recognises `%%` as a comment when it starts the line; trailing\n' +
+          '      `%%` text is lexed as part of the directive and triggers a syntax error.\n' +
+          '      Move the comment to its own line.'
+        : '';
+
+    return `Mermaid syntax error:\n  ${rawMsg.trim().replace(/\n/g, '\n  ')}\n\n` +
+           `Diagram (line ${actualLine}):\n${ctx}${hint}`;
+}
+
+// Translate every absolute coordinate pair in an SVG path `d` string by (dx, dy).
+// Mermaid's edge paths use absolute commands (M, L, C, S, Q, T, A); we don't
+// see relative commands in practice, but if any appear we leave them alone
+// (their values are deltas, unaffected by translation).
+export function translatePathD(d: string, dx: number, dy: number): string {
+    return d.replace(
+        /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g,
+        (_, cmd: string, args: string) => {
+            const isRelative = cmd >= 'a' && cmd <= 'z';
+            const upper = cmd.toUpperCase();
+            if (upper === 'Z' || isRelative) return cmd + args;
+            const nums = args.match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+            if (!nums) return cmd + args;
+            const vals = nums.map(parseFloat);
+            // Per-command pattern of which numeric slots are X (true), Y (false), or neither (null).
+            // A command: rx ry x-axis-rotation large-arc-flag sweep-flag x y → [null,null,null,null,null,X,Y]
+            let pattern: Array<'x' | 'y' | null>;
+            if (upper === 'M' || upper === 'L' || upper === 'T') pattern = ['x', 'y'];
+            else if (upper === 'H') pattern = ['x'];
+            else if (upper === 'V') pattern = ['y'];
+            else if (upper === 'C') pattern = ['x', 'y', 'x', 'y', 'x', 'y'];
+            else if (upper === 'S' || upper === 'Q') pattern = ['x', 'y', 'x', 'y'];
+            else if (upper === 'A') pattern = [null, null, null, null, null, 'x', 'y'];
+            else return cmd + args;
+            const out = vals.map((v, i) => {
+                const slot = pattern[i % pattern.length];
+                if (slot === 'x') return v + dx;
+                if (slot === 'y') return v + dy;
+                return v;
+            });
+            return cmd + ' ' + out.join(' ');
+        },
+    );
+}
+
+// Turn Puppeteer's opaque "Failed to launch the browser process" errors into
+// something a user can act on. Exit code 127 means the binary is missing or
+// its shared libraries can't be resolved; ENOENT means the path is wrong.
+export function explainLaunchFailure(err: any): string {
+    const raw = String(err?.message || err);
+    const base = 'Puppeteer could not launch Chromium.';
+    const remediation = [
+        '',
+        'To fix:',
+        '  1. Download the bundled browser:',
+        '       npx puppeteer browsers install chrome',
+        '  2. Or point Puppeteer at an existing Chrome/Chromium:',
+        '       export PUPPETEER_EXECUTABLE_PATH=/path/to/chrome',
+        '  3. On Linux, you may also need system libraries. Debian/Ubuntu:',
+        '       sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 \\',
+        '         libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \\',
+        '         libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 \\',
+        '         libasound2',
+    ].join('\n');
+
+    // Puppeteer formats the exit status as either "Code: 127" or "Code 127"
+    // depending on version, so accept either.
+    if (/code:?\s*127\b/i.test(raw) || /ENOENT/i.test(raw)) {
+        return `${base} The browser binary is missing or cannot find its shared libraries (exit 127 / ENOENT).\n\nOriginal error: ${raw}${remediation}`;
+    }
+    if (/code:?\s*126\b/i.test(raw)) {
+        return `${base} The browser binary is not executable (exit 126). Check file permissions on the Chromium binary.\n\nOriginal error: ${raw}${remediation}`;
+    }
+    if (/Running as root without --no-sandbox/i.test(raw)) {
+        return `${base} Chromium refuses to run as root without --no-sandbox. This project already passes that flag, so something else is overriding it.\n\nOriginal error: ${raw}`;
+    }
+    return `${base}\n\nOriginal error: ${raw}${remediation}`;
+}
+
+export async function parseMermaid(definition: string, config?: MermaidConfig): Promise<GraphData> {
+    const log = (msg: string) => {
+        if (config?.verbose) console.error(`[parseMermaid] ${msg}`);
+    };
+
+    log(`input: ${definition.split('\n').length} lines, ${definition.length} chars`);
+
+    // --no-sandbox is required when running as root in CI containers;
+    // --disable-dev-shm-usage avoids /dev/shm size limits on small runners.
+    let browser;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+        });
+    } catch (err: any) {
+        throw new Error(explainLaunchFailure(err));
+    }
     const page = await browser.newPage();
+    if (config?.verbose) {
+        page.on('console', (m) => log(`[browser:${m.type()}] ${m.text()}`));
+        page.on('pageerror', (e) => log(`[browser:pageerror] ${e.message}`));
+    }
 
     // Inject Mermaid from node_modules
     const mermaidPath = path.resolve(__dirname, '../node_modules/mermaid/dist/mermaid.min.js');
     await page.addScriptTag({ path: mermaidPath });
 
+    // Prepare theme variables with defaults
+    const defaultThemeVars: Record<string, string> = {
+        primaryColor: '#e1f5fe',
+        primaryTextColor: '#000',
+        primaryBorderColor: '#01579b',
+        lineColor: '#01579b',
+        secondBkgColor: '#f0f0f0',
+        tertiaryColor: '#ffffff',
+        fontSize: '14px',
+        fontFamily: 'Segoe UI, sans-serif'
+    };
+
+    const themeVars = { ...defaultThemeVars, ...config?.themeVariables };
+    const theme = config?.theme || 'neutral';
+
+    // When the caller doesn't supply a layout, check the diagram's YAML frontmatter
+    // (between ---...--- delimiters) so that `layout: elk` in the diagram itself
+    // still triggers ELK adapter registration.  Without this, Mermaid's internal
+    // frontmatter parser overrides the initialize() layout at render time and tries
+    // to use ELK — but the adapter was never registered, causing a render failure.
+    let requestedLayout: MermaidConfig['layout'] = config?.layout ?? 'dagre';
+    let layoutSource = config?.layout ? 'config' : 'default';
+    if (!config?.layout) {
+        const frontmatter = /^---[\s\S]*?---/.exec(definition)?.[0] ?? '';
+        const fmLayout = /\blayout:\s*(\S+)/.exec(frontmatter)?.[1];
+        if (fmLayout) {
+            requestedLayout = fmLayout as MermaidConfig['layout'];
+            layoutSource = 'frontmatter';
+        }
+    }
+    log(`layout=${requestedLayout} (source=${layoutSource})`);
+
+    // Mermaid 11 moved non-dagre layouts into separate packages that must be
+    // registered before `initialize`. Serve the ELK bundle from node_modules
+    // via a short-lived localhost HTTP server so relative chunk imports
+    // resolve, ESM MIME type is correct, and no network is required.
+    let layoutEngine = requestedLayout;
+    let elkServer: http.Server | null = null;
+    if (requestedLayout === 'elk') {
+        const elkDistDir = path.resolve(__dirname, '../node_modules/@mermaid-js/layout-elk/dist');
+        let registered = false;
+        try {
+            if (!fs.existsSync(elkDistDir)) {
+                throw new Error(`@mermaid-js/layout-elk not installed at ${elkDistDir}`);
+            }
+            elkServer = http.createServer((req, res) => {
+                const rel = (req.url || '/').split('?')[0].replace(/^\/+/, '');
+                const abs = path.resolve(elkDistDir, rel);
+                if (!abs.startsWith(elkDistDir + path.sep) && abs !== elkDistDir) {
+                    res.writeHead(403); res.end(); return;
+                }
+                fs.readFile(abs, (err, buf) => {
+                    if (err) { res.writeHead(404); res.end(); return; }
+                    res.writeHead(200, {
+                        'Content-Type': 'application/javascript',
+                        'Access-Control-Allow-Origin': '*',
+                    });
+                    res.end(buf);
+                });
+            });
+            await new Promise<void>((resolve) => elkServer!.listen(0, '127.0.0.1', resolve));
+            const port = (elkServer.address() as any).port;
+            const elkUrl = `http://127.0.0.1:${port}/mermaid-layout-elk.esm.min.mjs`;
+            await page.addScriptTag({
+                content: `
+                    import elk from '${elkUrl}';
+                    window.__elkLoader = elk;
+                    window.__elkReady = true;
+                `,
+                type: 'module',
+            });
+            // Module scripts fire their load event before their top-level
+            // await chain resolves the sub-chunk imports, so poll briefly
+            // until the loader is actually on `window`.
+            await page.waitForFunction(() => (window as any).__elkReady === true, { timeout: 5000 });
+            registered = await page.evaluate(() => {
+                const loader = (window as any).__elkLoader;
+                if (!loader) return false;
+                (window as any).mermaid.registerLayoutLoaders(loader);
+                return true;
+            });
+        } catch (e) {
+            console.warn('ELK layout loader failed, falling back to dagre:', e);
+        }
+        if (!registered) layoutEngine = 'dagre';
+        log(registered ? 'ELK adapter registered' : 'ELK registration failed; falling back to dagre');
+    }
+
     await page.setContent(`
         <div id="graphDiv"></div>
         <script>
-            mermaid.initialize({ startOnLoad: false });
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: '${theme}',
+                layout: '${layoutEngine}',
+                themeVariables: ${JSON.stringify(themeVars)},
+                flowchart: {
+                    nodeSpacing: ${config?.flowchart?.nodeSpacing || 50},
+                    rankSpacing: ${config?.flowchart?.rankSpacing || 50},
+                    curve: '${config?.flowchart?.curve || 'basis'}',
+                    useMaxWidth: ${config?.flowchart?.useMaxWidth !== false}
+                },
+                securityLevel: 'loose'
+            });
         </script>
     `);
 
     try {
         const result = await page.evaluate(async (def) => {
-            // @ts-ignore
-            const { svg } = await mermaid.render('graphDiv', def);
-            document.body.innerHTML = svg;
+            try {
+                // @ts-ignore
+                const { svg } = await mermaid.render('graphDiv', def);
+                document.body.innerHTML = svg;
+            } catch (renderErr: any) {
+                // Re-throw as a tagged Error so parseMermaid can recognise this
+                // specifically as a Mermaid render failure (vs. e.g. a DOM bug
+                // in our extraction code) and apply formatMermaidError to it.
+                const msg = renderErr?.message ?? String(renderErr);
+                throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
+            }
             
             const svgElement = document.querySelector('svg');
             const viewBox = svgElement?.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
@@ -111,7 +372,6 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
             const graphHeight = viewBox[3] || parseFloat(svgElement?.getAttribute('height') || '0');
 
             const nodes = Array.from(document.querySelectorAll('.node'));
-            // Select paths that are direct children of .edgePaths or have the flowchart-link class
             const edges = Array.from(document.querySelectorAll('.edgePaths path')); 
             
             // Clusters (Subgraphs)
@@ -119,16 +379,33 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 const id = cluster.id;
                 const rect = cluster.querySelector('rect, polygon, path');
                 const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-                
-                // Adjust for transform if present on the group
-                const transform = cluster.getAttribute('transform');
-                const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                let x = match ? parseFloat(match[1]) : 0;
-                let y = match ? parseFloat(match[2]) : 0;
-                
-                // If the rect itself has x/y, add them (common in some renderers)
-                x += bbox.x;
-                y += bbox.y;
+
+                // Use the SVG current-transformation-matrix (CTM) to convert
+                // the rect's local top-left corner to SVG root coordinates.
+                // Simply parsing the `transform` attribute breaks for nested
+                // subgraphs (like QUAL inside INS) because that attribute is
+                // relative to the *parent* group, not the SVG root — so the
+                // inner cluster lands near (0,0) instead of its true position.
+                let x = 0;
+                let y = 0;
+                if (rect && svgElement) {
+                    const ctm = (rect as SVGGraphicsElement).getCTM();
+                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                    if (ctm && svgCTM) {
+                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                        pt.x = bbox.x;
+                        pt.y = bbox.y;
+                        const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                        x = abs.x;
+                        y = abs.y;
+                    } else {
+                        // Fallback for environments where getCTM is unavailable
+                        const transform = cluster.getAttribute('transform');
+                        const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                        x = (match ? parseFloat(match[1]) : 0) + bbox.x;
+                        y = (match ? parseFloat(match[2]) : 0) + bbox.y;
+                    }
+                }
 
                 const textEl = cluster.querySelector('.nodeLabel, text');
                 const text = textEl?.textContent?.trim();
@@ -155,26 +432,51 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
 
             // Edge Labels
             const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
-                // Mermaid puts labels in a div inside a foreignObject, or directly as text
-                // The .edgeLabel group usually has the transform
-                const transform = label.getAttribute('transform');
-                const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                const x = match ? parseFloat(match[1]) : 0;
-                const y = match ? parseFloat(match[2]) : 0;
-
                 const div = label.querySelector('div, foreignObject, text');
-                const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0 };
+                // getBBox on the inner element gives its position within the label group's
+                // local coord system (bbox.x/y = offset from group origin to content top-left).
+                const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+
+                // Use CTM to get the label centre in absolute SVG coordinates.
+                // The `.edgeLabel` element may be an HTML <div> inside a
+                // <foreignObject> (no getCTM), so walk up to the nearest SVG
+                // <g> ancestor which always has getCTM available.
+                let x = 0;
+                let y = 0;
+                let labelG: SVGGraphicsElement | null = null;
+                let el: Element | null = label;
+                while (el && el !== svgElement) {
+                    if (el.tagName === 'g' && typeof (el as any).getCTM === 'function') {
+                        labelG = el as SVGGraphicsElement; break;
+                    }
+                    el = el.parentElement;
+                }
+                if (labelG && svgElement) {
+                    const ctm = labelG.getCTM();
+                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                    if (ctm && svgCTM) {
+                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                        pt.x = 0; pt.y = 0;
+                        const center = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                        x = center.x + ((bbox as any).x || 0);
+                        y = center.y + ((bbox as any).y || 0);
+                    } else {
+                        const transform = labelG.getAttribute('transform');
+                        const m = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                        x = (m ? parseFloat(m[1]) : 0) + ((bbox as any).x || 0);
+                        y = (m ? parseFloat(m[2]) : 0) + ((bbox as any).y || 0);
+                    }
+                }
                 const text = label.textContent?.trim() || '';
                 
-                // Attempt to get background color if there's a label box
-                const bgRect = label.querySelector('.label-container rect'); // Sometimes mermaid wraps it
+                const bgRect = label.querySelector('.label-container rect');
                 const bgStyle = bgRect ? window.getComputedStyle(bgRect) : null;
                 const textStyle = window.getComputedStyle(div || label);
 
                 return {
                     x,
                     y,
-                    width: bbox.width || 10, // Fallback
+                    width: bbox.width || 10,
                     height: bbox.height || 10,
                     text,
                     style: {
@@ -186,23 +488,50 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         fontStyle: textStyle.fontStyle
                     }
                 };
-            }).filter(l => l.text); // Filter empty labels
+            }).filter(l => l.text);
 
             return {
                 width: graphWidth,
                 height: graphHeight,
                 nodes: nodes.map(node => {
-                    const id = node.id;
+                    const rawId = node.id;
+                    // Mermaid 11.x emits node ids as "flowchart-<USERID>-<IDX>"
+                    // (e.g. "flowchart-A-0"). Edges reference the user-facing
+                    // id ("A"), so strip the scaffold here so the generator's
+                    // nodeId -> pin lookup matches what the edge carries.
+                    const normIdMatch = /^flowchart-(.+)-\d+$/.exec(rawId);
+                    const id = normIdMatch ? normIdMatch[1] : rawId;
                     const nodeClasses = Array.from(node.classList).join(' ');
-                    const transform = node.getAttribute('transform');
-                    const match = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                    const x = match ? parseFloat(match[1]) : 0;
-                    const y = match ? parseFloat(match[2]) : 0;
-                    
+
                     const rect = node.querySelector('rect, circle, polygon, path, ellipse') as SVGGraphicsElement;
                     const bbox = rect ? rect.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+
+                    // Use CTM to convert the shape's local bbox top-left to SVG
+                    // root coordinates. Nodes inside a subgraph have a transform
+                    // attribute relative to the parent cluster <g>, not the SVG
+                    // root, so reading the attribute alone gives wrong absolute
+                    // positions for nested nodes. CTM accumulates all ancestor
+                    // transforms and gives the correct absolute result.
+                    let x = 0;
+                    let y = 0;
+                    if (rect && svgElement) {
+                        const ctm = (rect as SVGGraphicsElement).getCTM();
+                        const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                        if (ctm && svgCTM) {
+                            const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                            pt.x = bbox.x;
+                            pt.y = bbox.y;
+                            const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                            x = abs.x;
+                            y = abs.y;
+                        } else {
+                            const transform = node.getAttribute('transform');
+                            const m2 = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                            x = (m2 ? parseFloat(m2[1]) : 0) + bbox.x;
+                            y = (m2 ? parseFloat(m2[2]) : 0) + bbox.y;
+                        }
+                    }
                     
-                    // Infer shape type from classes and tags
                     let type = 'rectangle';
                     const shapeTag = rect ? rect.tagName.toLowerCase() : 'unknown';
                     const points = rect ? rect.getAttribute('points') || '' : '';
@@ -229,28 +558,22 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         type = 'ellipse';
                     }
 
-                    // Extract styles
                     const computedStyle = window.getComputedStyle(rect || node);
                     const textEl = node.querySelector('div, span, text');
                     const textStyle = textEl ? window.getComputedStyle(textEl) : null;
                     
-                    // Rounding (rx/ry)
                     let rounding = 0;
                     if (rect && rect.tagName.toLowerCase() === 'rect') {
                         const rx = parseFloat(rect.getAttribute('rx') || '0');
                         if (rx > 0) rounding = rx;
                     }
 
-                    // Hyperlink
                     const anchor = node.querySelector('a') || node.closest('a');
                     const url = anchor ? anchor.getAttribute('href') || anchor.getAttribute('xlink:href') : undefined;
 
-                    // Improved text extraction (preserve breaks)
                     let text = '';
                     if (textEl) {
-                        // Clone to not mess up DOM
                         const clone = textEl.cloneNode(true) as HTMLElement;
-                        // Replace <br> with newlines
                         const brs = clone.querySelectorAll('br');
                         brs.forEach(br => br.replaceWith('\n'));
                         text = clone.textContent?.trim() || '';
@@ -258,7 +581,6 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                         text = node.textContent?.trim() || '';
                     }
 
-                    // Text Alignment
                     let textAlign = 'center';
                     if (textStyle) {
                         const anchor = textStyle.getPropertyValue('text-anchor');
@@ -292,44 +614,51 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
                 }),
                 edges: edges.map(path => {
                    const computedStyle = window.getComputedStyle(path);
-                   
-                   // Arrow detection
-                   const markerStart = path.getAttribute('marker-start');
-                   const markerEnd = path.getAttribute('marker-end');
+                    
+                    const markerStart = path.getAttribute('marker-start');
+                    const markerEnd = path.getAttribute('marker-end');
 
-                   // ID Extraction (Start/End Nodes)
-                   // Mermaid v10+ puts classes on the group wrapping the path: <g class="edgePaths ... LS-startId LE-endId">
-                   let startId, endId;
-                   const parentGroup = path.parentElement;
-                   if (parentGroup) {
-                       const classes = Array.from(parentGroup.classList);
-                       // Look for LS-* and LE-*
-                       const ls = classes.find(c => c.startsWith('LS-'));
-                       const le = classes.find(c => c.startsWith('LE-'));
-                       if (ls) startId = ls.replace('LS-', '');
-                       if (le) endId = le.replace('LE-', '');
-                   }
+                    // Mermaid 11.x stopped emitting LS-<id>/LE-<id> classes on
+                    // the edge's parent <g>. Instead the edge <path> carries
+                    // id="L_<src>_<dst>_<idx>" (and data-id= the same thing).
+                    // Parse that to recover the endpoint user ids.
+                    let startId, endId;
+                    const edgeId = path.getAttribute('id') || path.getAttribute('data-id') || '';
+                    const edgeMatch = /^L_(.+)_(.+)_\d+$/.exec(edgeId);
+                    if (edgeMatch) {
+                        startId = edgeMatch[1];
+                        endId = edgeMatch[2];
+                    } else {
+                        // Legacy fallback for older Mermaid versions.
+                        const parentGroup = path.parentElement;
+                        if (parentGroup) {
+                            const classes = Array.from(parentGroup.classList);
+                            const ls = classes.find(c => c.startsWith('LS-'));
+                            const le = classes.find(c => c.startsWith('LE-'));
+                            if (ls) startId = ls.replace('LS-', '');
+                            if (le) endId = le.replace('LE-', '');
+                        }
+                    }
 
-                   return { 
-                       d: path.getAttribute('d') || '',
-                       startId,
-                       endId,
-                       arrowStart: !!markerStart, 
-                       arrowEnd: !!markerEnd,
-                       style: {
-                           stroke: computedStyle.stroke,
-                           strokeWidth: computedStyle.strokeWidth,
-                           strokeDasharray: computedStyle.strokeDasharray
-                       }
-                   };
+                    return { 
+                        d: path.getAttribute('d') || '',
+                        startId,
+                        endId,
+                        arrowStart: !!markerStart, 
+                        arrowEnd: !!markerEnd,
+                        style: {
+                            stroke: computedStyle.stroke,
+                            strokeWidth: computedStyle.strokeWidth,
+                            strokeDasharray: computedStyle.strokeDasharray
+                        }
+                    };
                 }),
                 clusters: clusters.map(c => {
-                    // Re-map cluster styles to include dasharray
                     return {
                         ...c,
                         style: {
                             ...c.style,
-                            strokeDasharray: c.style.strokeDasharray // Was missing in previous replacement
+                            strokeDasharray: c.style.strokeDasharray
                         }
                     };
                 }),
@@ -337,8 +666,71 @@ export async function parseMermaid(definition: string): Promise<GraphData> {
             };
         }, definition);
 
+        // Normalise all coordinates so the page origin is the top-left of the
+        // actual rendered content.  Mermaid+ELK place shapes in SVG user space
+        // whose origin doesn't match the viewBox top-left (e.g. ELK puts the
+        // Legend subgraph at y=-11 above viewBox y=4 in this fixture).  If we
+        // hand those raw SVG coordinates to the generator, shapes with x<0 or
+        // y<0 land off-page in Visio.  Compute the actual content bounds across
+        // every extracted shape and translate by (-minX, -minY) here, so the
+        // generator only sees non-negative coordinates that fit the page.
+        const xs: number[] = [];
+        const ys: number[] = [];
+        const maxXs: number[] = [];
+        const maxYs: number[] = [];
+        for (const n of result.nodes) {
+            xs.push(n.x); ys.push(n.y);
+            maxXs.push(n.x + n.width); maxYs.push(n.y + n.height);
+        }
+        for (const c of result.clusters) {
+            xs.push(c.x); ys.push(c.y);
+            maxXs.push(c.x + c.width); maxYs.push(c.y + c.height);
+        }
+        for (const l of result.labels) {
+            xs.push(l.x); ys.push(l.y);
+            maxXs.push(l.x + l.width); maxYs.push(l.y + l.height);
+        }
+        const minX = xs.length ? Math.min(...xs) : 0;
+        const minY = ys.length ? Math.min(...ys) : 0;
+        const maxX = maxXs.length ? Math.max(...maxXs) : result.width;
+        const maxY = maxYs.length ? Math.max(...maxYs) : result.height;
+
+        for (const n of result.nodes) { n.x -= minX; n.y -= minY; }
+        for (const c of result.clusters) { c.x -= minX; c.y -= minY; }
+        for (const l of result.labels) { l.x -= minX; l.y -= minY; }
+        // Edge `d` strings carry absolute SVG coordinates; the only safe
+        // translation in path syntax is rewriting the leading "M x y" of each
+        // subpath (only M/L/C/S/Q/T/A take absolute coordinate pairs in our
+        // input — Mermaid emits absolute commands).  Walk the tokens and
+        // subtract (minX, minY) from every absolute coordinate pair so the
+        // fallback path-drawing code lands shapes in the same space as nodes.
+        for (const e of result.edges) {
+            if (e.d) e.d = translatePathD(e.d, -minX, -minY);
+        }
+
+        result.width = maxX - minX;
+        result.height = maxY - minY;
+
+        log(`render OK: ${result.nodes.length} nodes, ${result.edges.length} edges, ` +
+            `${result.clusters.length} clusters, ${result.labels.length} labels`);
+        log(`content bounds: x=[${minX.toFixed(1)}, ${maxX.toFixed(1)}] ` +
+            `y=[${minY.toFixed(1)}, ${maxY.toFixed(1)}] ` +
+            `(translated by ${(-minX).toFixed(1)}, ${(-minY).toFixed(1)})`);
         return result;
+    } catch (e: any) {
+        const msg = e?.message ?? String(e);
+        const tagged = msg.match(/__MERMAID_RENDER_ERROR__:([\s\S]+)$/);
+        if (tagged) {
+            const formatted = formatMermaidError(tagged[1], definition);
+            log(`render FAILED: ${tagged[1].split('\n')[0]}`);
+            throw new Error(formatted);
+        }
+        log(`evaluate threw: ${msg.split('\n')[0]}`);
+        throw e;
     } finally {
         await browser.close();
+        if (elkServer) {
+            await new Promise<void>((resolve) => elkServer!.close(() => resolve()));
+        }
     }
 }

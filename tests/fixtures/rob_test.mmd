@@ -1,0 +1,125 @@
+---
+config:
+  layout: elk
+  themeVariables:
+    boxBorderRadius: 4
+---
+flowchart TB
+
+  %% ================================
+  %% Style Definitions
+  %% ================================
+  classDef user fill:#e6f7ff,stroke:#1890ff,stroke-width:1px,color:#000
+  classDef channel fill:#f6ffed,stroke:#52c41a,stroke-width:1px,color:#000
+  classDef cc fill:#fffbe6,stroke:#faad14,stroke-width:1px,color:#000
+  classDef core fill:#fff1f0,stroke:#f5222d,stroke-width:1px,color:#000
+  classDef exp fill:#f9f0ff,stroke:#722ed1,stroke-width:1px,color:#000
+  classDef ins fill:#f0f5ff,stroke:#2f54eb,stroke-width:1px,color:#000
+  classDef auto fill:#f0f5ff,stroke:#2f54eb,stroke-width:1px,color:#000
+
+  %% ================================
+  %% Updated Application Lifecycle Color Map
+  %% ================================
+  classDef existingNoChange fill:#b7eb8f,stroke:#237804,stroke-width:1px,color:#000
+  classDef existingChanging fill:#fff566,stroke:#ad8b00,stroke-width:1px,color:#000
+  classDef existingRetiring fill:#ffd591,stroke:#d46b08,stroke-width:1px,color:#000
+  classDef newImplementing fill:#ffa39e,stroke:#a8071a,stroke-width:1px,color:#000
+  classDef newNoProceed fill:#d9d9d9,stroke:#595959,stroke-width:1px,color:#000
+  classDef newProposed fill:#adc6ff,stroke:#2f54eb,stroke-width:1px,color:#000
+
+  %% ================================
+  %% Layers
+  %% ================================
+  U["End Users / Customers"]:::user
+
+  subgraph CH["User Channels"]
+    direction TB
+    Web["🟨 Web Platform (MyHydro)"]:::existingChanging
+    Mobile["🟨 Mobile App"]:::existingChanging
+    Apps["🟨 Custom Web Applications"]:::existingChanging
+    Chat["🟨 Genesys Web Chat"]:::existingChanging
+    IVR["🟨 Genesys IVR"]:::existingChanging
+    TRAN["🟥 Transmission Customer Self-Serve"]:::newImplementing
+  end
+  class CH channel
+
+  subgraph CC["Customer Service Platforms"]
+    direction TB
+    SAPC4["🟨 SAP Service Cloud<br>(SAP C/4)"]:::existingChanging
+    XRM["🟨 MS Dynamics (XRM)<br>Case Management"]:::existingChanging
+  end
+  class CC cc
+
+  subgraph SAP["Core Systems & Data Governance"]
+    direction TB
+    MDG["🟩 SAP Master Data Governance"]:::existingNoChange
+    S4["🟨 SAP S/4 HANA"]:::existingChanging
+    CDC["🟧 SAP CDC<br>(Removing)"]:::existingRetiring
+  end
+  class SAP core
+
+  subgraph EXP["Experience, Identity & Engagement"]
+    direction TB
+    Ping["🟨 PingOne AIC (Identity)"]:::existingChanging
+    AEM["🟨 Adobe Experience Manager (Web Content)"]:::existingChanging
+    RTCDP["🟥 Adobe Real-Time CDP (Customer Data)"]:::newImplementing
+    AJO["🟦 Adobe Journey Optimizer"]:::newProposed
+    Target["🟦 Adobe Target"]:::newProposed
+  end
+  class EXP exp
+
+  subgraph INS["Analytics & Insights"]
+    direction TB
+    Fabric["🟩 Microsoft Fabric"]:::existingNoChange
+    subgraph QUAL["Qualtrics Products"]
+      Survey["🟩 CoreXM<br>Customer Surveys"]:::existingNoChange
+      Tracking["⬜ Digital Experience Analytics<br>Customer Interaction Tracking"]:::newNoProceed
+    end
+  end
+  class INS ins
+
+  subgraph Automation["Increased Speed to Market"]
+    direction LR
+    BOAT["🟥 Business Orchestration and Automation Technologies"]:::newImplementing
+  end
+  class Automation auto
+
+  %% ================================
+  %% Flow Connections (reviewed and simplified)
+  %% ================================
+  U -->|Customer engagement| CH
+  CH -->|Automated workflows / requests| Automation
+  Automation -->|Operational processes & rebates| S4
+  CH -->|"Service requests / case creation"| CC
+  CH -->|"Customer feedback (survey triggers)"| Survey
+  CH -->|Behavioral & interaction data| Tracking
+  CH -->|"Identity verification (SSO)"| Ping
+  CH -->|Experience content requests| AEM
+
+  MDG -->|Governed master data| S4
+  S4 -->|Customer / account / billing data| Fabric
+  S4 -->|Customer records| CC
+  CC -->|Service / case data| RTCDP
+
+  Ping -->|Authentication / identity data| RTCDP
+  AEM -->|Web and app engagement| RTCDP
+  Fabric -->|Analytical insights| RTCDP
+  RTCDP -->|Audience & segment data| AJO
+  RTCDP -->|Personalization data| Target
+  RTCDP -->|Customer profile enrichment| Fabric
+
+  AJO -->|Journeys & campaigns| CH
+  Target -->|Personalized experiences| CH
+
+  %% ================================
+  %% Legend – Bottom Placement (Updated Colors)
+  %% ================================
+  subgraph Legend["Legend – Application Status"]
+    direction TB
+    L1["🟩 Existing - Not Changing"]:::existingNoChange
+    L2["🟨 Existing - Changing"]:::existingChanging
+    L3["🟧 Existing - Retiring"]:::existingRetiring
+    L4["🟥 Net New - Implementing"]:::newImplementing
+    L5["⬜ Net New - Will Not Proceed"]:::newNoProceed
+    L6["🟦 Net New - Proposed / Undecided"]:::newProposed
+  end
