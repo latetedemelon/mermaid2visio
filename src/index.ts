@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
 import { program } from 'commander';
@@ -39,7 +40,7 @@ program
         }
 
         if (options.verbose) console.log("Parsing Mermaid...");
-        const graph = await parseMermaid(definition);
+        const graph = await parseMermaid(definition, { verbose: !!options.verbose });
         
         if (options.verbose) {
             console.log(`Parsed graph:`);

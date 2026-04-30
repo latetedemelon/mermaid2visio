@@ -1,75 +1,156 @@
-import http from 'http';
+import http, { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { parseMermaid } from './parser.js';
+import { parseMermaid, MermaidConfig } from './parser.js';
 import { VsdxGenerator } from './vsdx.js';
 import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PORT = 3000;
 
-// Path to the HTML file (in dist/public/index.html after build, or src/public for dev?)
-// Since we compile ts to dist, we need to make sure public is copied or read correctly.
-// A simple way is to read from ../src/public/index.html relative to this file source, 
-// OR assume a build step copies it. 
-// Let's assume for now we read from the source tree if running locally, or handle distribution later.
-// Actually, `npm run build` (tsc) won't copy .html files.
-// So we should read it from the package root relative path.
+export const PORT = 3333;
+export const HOST = '127.0.0.1';
+export const MAX_BODY_BYTES = 1 * 1024 * 1024;
+export const DEFAULT_PUBLIC_DIR = path.join(__dirname, 'public');
 
-// In production (dist), the public folder is alongside the js files.
-// In dev (src), it is in ../src/public relative to __dirname (which is dist or src).
-// Let's rely on the copy step.
-const PUBLIC_DIR = path.join(__dirname, 'public');  
+// Serve vendored ESM bundles (currently the ELK layout loader) out of
+// node_modules so the browser preview works offline too.
+const VENDOR_MAP: Record<string, string> = {
+    '/vendor/mermaid-layout-elk/': path.resolve(__dirname, '../node_modules/@mermaid-js/layout-elk/dist'),
+};
 
-const server = http.createServer(async (req, res) => {
-    // Serve Index
-    if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
-        const htmlPath = path.join(PUBLIC_DIR, 'index.html');
-        if (fs.existsSync(htmlPath)) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            fs.createReadStream(htmlPath).pipe(res);
-        } else {
-            res.writeHead(404);
-            res.end('GUI HTML not found. Ensure src/public/index.html exists.');
+export interface HandlerOptions {
+    publicDir?: string;
+    maxBodyBytes?: number;
+    // When omitted, the default converter parses JSON `{mermaid, config}`
+    // bodies (falling back to plain text) and runs parseMermaid + VsdxGenerator.
+    // Tests inject a stub to avoid launching Puppeteer.
+    convert?: (body: string) => Promise<Buffer>;
+}
+
+function serveVendor(urlPath: string, res: ServerResponse): boolean {
+    for (const [prefix, dir] of Object.entries(VENDOR_MAP)) {
+        if (!urlPath.startsWith(prefix)) continue;
+        const rel = urlPath.slice(prefix.length);
+        const abs = path.resolve(dir, rel);
+        if (!abs.startsWith(dir + path.sep) && abs !== dir) {
+            res.writeHead(403); res.end(); return true;
         }
-        return;
+        if (!fs.existsSync(abs)) {
+            res.writeHead(404); res.end(); return true;
+        }
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript',
+            'Cache-Control': 'public, max-age=3600',
+        });
+        fs.createReadStream(abs).pipe(res);
+        return true;
     }
+    return false;
+}
 
-    // Convert API
-    if (req.method === 'POST' && req.url === '/convert') {
-        let body = '';
-        req.on('data', chunk => body += chunk.toString());
-        req.on('end', async () => {
+async function defaultConvert(body: string): Promise<Buffer> {
+    let mermaidCode = body;
+    let config: MermaidConfig | undefined;
+    try {
+        const json = JSON.parse(body);
+        if (json && typeof json.mermaid === 'string') {
+            mermaidCode = json.mermaid;
+            config = json.config;
+        }
+    } catch {
+        // Not JSON, treat as plain mermaid code.
+    }
+    const graph = await parseMermaid(mermaidCode, config);
+    return new VsdxGenerator().generate(graph);
+}
+
+function readBody(req: IncomingMessage, cap: number): Promise<Buffer | { oversize: true }> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        let oversize = false;
+        req.on('data', (chunk: Buffer) => {
+            if (oversize) return;
+            size += chunk.length;
+            if (size > cap) {
+                // Keep draining the request so the client can fully flush
+                // its body before we send 413. If we destroyed the socket
+                // here, the client would see a hang-up instead of our 413.
+                oversize = true;
+                return;
+            }
+            chunks.push(chunk);
+        });
+        req.on('end', () => resolve(oversize ? { oversize: true } : Buffer.concat(chunks)));
+        req.on('error', reject);
+    });
+}
+
+export function createHandler(opts: HandlerOptions = {}) {
+    const publicDir = opts.publicDir ?? DEFAULT_PUBLIC_DIR;
+    const cap = opts.maxBodyBytes ?? MAX_BODY_BYTES;
+    const convert = opts.convert ?? defaultConvert;
+
+    return async function handler(req: IncomingMessage, res: ServerResponse) {
+        const urlPath = (req.url || '/').split('?')[0];
+
+        if (req.method === 'GET' && (urlPath === '/' || urlPath === '/index.html')) {
+            const htmlPath = path.join(publicDir, 'index.html');
+            if (fs.existsSync(htmlPath)) {
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                fs.createReadStream(htmlPath).pipe(res);
+            } else {
+                res.writeHead(404);
+                res.end('GUI HTML not found. Ensure src/public/index.html exists.');
+            }
+            return;
+        }
+
+        if (req.method === 'GET' && serveVendor(urlPath, res)) return;
+
+        if (req.method === 'POST' && req.url === '/convert') {
+            const body = await readBody(req, cap);
+            if ((body as any).oversize) {
+                res.writeHead(413, { 'Content-Type': 'text/plain' });
+                res.end(`Request body exceeds ${cap} bytes`);
+                return;
+            }
             try {
-                console.log("Received conversion request...");
-                const graph = await parseMermaid(body);
-                const generator = new VsdxGenerator();
-                const buffer = await generator.generate(graph);
-
+                const buffer = await convert((body as Buffer).toString('utf-8'));
                 res.writeHead(200, {
                     'Content-Type': 'application/vnd.ms-visio.drawing',
-                    'Content-Disposition': 'attachment; filename="diagram.vsdx"'
+                    'Content-Disposition': 'attachment; filename="diagram.vsdx"',
                 });
                 res.end(buffer);
-                console.log("Sent VSDX.");
             } catch (e: any) {
-                console.error(e);
                 res.writeHead(500, { 'Content-Type': 'text/plain' });
-                res.end(e.message);
+                res.end(e?.message ?? String(e));
             }
-        });
-        return;
-    }
+            return;
+        }
 
-    res.writeHead(404);
-    res.end('Not Found');
-});
+        res.writeHead(404);
+        res.end('Not Found');
+    };
+}
 
-server.listen(PORT, () => {
-    console.log(`GUI Server running at http://localhost:${PORT}`);
-    // Try to open browser
-    const start = (process.platform == 'darwin'? 'open': process.platform == 'win32'? 'start': 'xdg-open');
-    exec(`${start} http://localhost:${PORT}`);
-});
+export function createServer(opts: HandlerOptions = {}) {
+    return http.createServer(createHandler(opts));
+}
+
+function main() {
+    const server = createServer();
+    server.listen(PORT, () => {
+        console.log(`GUI Server running at http://localhost:${PORT}`);
+        const start = process.platform === 'darwin' ? 'open'
+            : process.platform === 'win32' ? 'start'
+            : 'xdg-open';
+        exec(`${start} http://localhost:${PORT}`);
+    });
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+    main();
+}
