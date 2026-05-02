@@ -28,8 +28,35 @@ function findSoffice(): string | null {
     return null;
 }
 
+// Probe whether soffice can actually convert a VSDX file (requires
+// libreoffice-draw / libvisio, which may not be installed even when the
+// soffice binary is present). We use the reference fixture as the probe.
+function canConvertVsdx(bin: string): boolean {
+    try {
+        const fixtureVsdx = path.resolve(here, 'fixtures', 'diagram (5).vsdx');
+        if (!fs.existsSync(fixtureVsdx)) return false;
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vsdx-probe-'));
+        const profileDir = path.join(tmpDir, 'profile');
+        const outDir = path.join(tmpDir, 'out');
+        fs.mkdirSync(outDir);
+        const r = spawnSync(bin, [
+            '--headless',
+            `-env:UserInstallation=file://${profileDir}`,
+            '--convert-to', 'pdf',
+            '--outdir', outDir,
+            fixtureVsdx,
+        ], { timeout: 30_000, encoding: 'utf-8' });
+        const hasOutput = fs.readdirSync(outDir).some(f => f.endsWith('.pdf'));
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        return hasOutput && r.status === 0;
+    } catch {
+        return false;
+    }
+}
+
 const sofficePath = findSoffice();
-const describeIfSoffice = sofficePath ? describe : describe.skip;
+const sofficeCanVsdx = sofficePath ? canConvertVsdx(sofficePath) : false;
+const describeIfSoffice = sofficeCanVsdx ? describe : describe.skip;
 
 describeIfSoffice('VSDX round-trips through LibreOffice', () => {
     it.each(fixtures)('opens %s in LibreOffice and exports to a non-empty PDF', async (fixture) => {
