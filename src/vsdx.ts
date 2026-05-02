@@ -330,7 +330,7 @@ export class VsdxGenerator {
                     if (stroke) shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                     if (cluster.style.strokeWidth) {
                         const px = parseFloat(cluster.style.strokeWidth) || 1;
-                        shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
+                        shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
                     }
                     const lp = getLinePattern(cluster.style.strokeDasharray);
                     if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
@@ -620,7 +620,11 @@ export class VsdxGenerator {
                 }
 
                 shape.ele('Cell', { N: 'FillPattern', V: '0' }).up();
-                shape.ele('Cell', { N: 'EndArrow', V: '13' }).up();
+                // Arrow direction: default end-arrow on; suppress if the edge has no arrowhead.
+                shape.ele('Cell', { N: 'EndArrow',   V: edge.arrowEnd   !== false ? '13' : '0' }).up();
+                if (edge.arrowStart) {
+                    shape.ele('Cell', { N: 'BeginArrow', V: '13' }).up();
+                }
                 // ObjType=2 marks the shape as a connector so Visio routes it dynamically.
                 shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
 
