@@ -33,10 +33,11 @@ export interface GraphNode {
 
 export interface GraphEdge {
     d: string;
-    startId?: string; 
+    startId?: string;
     endId?: string;
     arrowStart?: boolean;
     arrowEnd?: boolean;
+    text?: string;
     style?: {
         stroke?: string;
         strokeWidth?: string;
@@ -430,54 +431,44 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 };
             });
 
-            // Edge Labels
-            const labels = Array.from(document.querySelectorAll('.edgeLabel')).map(label => {
-                const div = label.querySelector('div, foreignObject, text');
-                // getBBox on the inner element gives its position within the label group's
-                // local coord system (bbox.x/y = offset from group origin to content top-left).
-                const bbox = div ? (div as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
+            // Edge Labels: collect g.edgeLabel groups in DOM order so they can
+            // be matched to edge paths by index. Mermaid emits one g.edgeLabel
+            // per edge (even if the label is empty), in the same order as the
+            // .edgePaths path elements, so rawEdgeLabels[i] corresponds to edges[i].
+            const rawEdgeLabels = Array.from(document.querySelectorAll('g.edgeLabel')).map(labelG => {
+                // Select foreignObject (SVG element, has getBBox) or SVG text;
+                // avoid selecting the HTML <div> inside foreignObject (no getBBox).
+                const contentEl = labelG.querySelector('foreignObject, text') as SVGGraphicsElement | null;
+                const bbox = contentEl ? contentEl.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
 
-                // Use CTM to get the label centre in absolute SVG coordinates.
-                // The `.edgeLabel` element may be an HTML <div> inside a
-                // <foreignObject> (no getCTM), so walk up to the nearest SVG
-                // <g> ancestor which always has getCTM available.
                 let x = 0;
                 let y = 0;
-                let labelG: SVGGraphicsElement | null = null;
-                let el: Element | null = label;
-                while (el && el !== svgElement) {
-                    if (el.tagName === 'g' && typeof (el as any).getCTM === 'function') {
-                        labelG = el as SVGGraphicsElement; break;
-                    }
-                    el = el.parentElement;
+                const ctm = (labelG as SVGGraphicsElement).getCTM();
+                const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                if (ctm && svgCTM) {
+                    const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                    pt.x = 0; pt.y = 0;
+                    const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
+                    x = abs.x + ((bbox as any).x || 0);
+                    y = abs.y + ((bbox as any).y || 0);
+                } else {
+                    const transform = (labelG as Element).getAttribute('transform');
+                    const m = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
+                    x = (m ? parseFloat(m[1]) : 0) + ((bbox as any).x || 0);
+                    y = (m ? parseFloat(m[2]) : 0) + ((bbox as any).y || 0);
                 }
-                if (labelG && svgElement) {
-                    const ctm = labelG.getCTM();
-                    const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
-                    if (ctm && svgCTM) {
-                        const pt = (svgElement as SVGSVGElement).createSVGPoint();
-                        pt.x = 0; pt.y = 0;
-                        const center = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
-                        x = center.x + ((bbox as any).x || 0);
-                        y = center.y + ((bbox as any).y || 0);
-                    } else {
-                        const transform = labelG.getAttribute('transform');
-                        const m = /translate\(([^,]+),([^)]+)\)/.exec(transform || '');
-                        x = (m ? parseFloat(m[1]) : 0) + ((bbox as any).x || 0);
-                        y = (m ? parseFloat(m[2]) : 0) + ((bbox as any).y || 0);
-                    }
-                }
-                const text = label.textContent?.trim() || '';
-                
-                const bgRect = label.querySelector('.label-container rect');
+
+                const text = labelG.textContent?.trim() || '';
+                const bgRect = labelG.querySelector('.label-container rect');
                 const bgStyle = bgRect ? window.getComputedStyle(bgRect) : null;
-                const textStyle = window.getComputedStyle(div || label);
+                const textEl = (contentEl || labelG) as Element;
+                const textStyle = window.getComputedStyle(textEl);
 
                 return {
                     x,
                     y,
-                    width: bbox.width || 10,
-                    height: bbox.height || 10,
+                    width: (bbox as any).width || 10,
+                    height: (bbox as any).height || 10,
                     text,
                     style: {
                         color: textStyle.color,
@@ -488,7 +479,10 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         fontStyle: textStyle.fontStyle
                     }
                 };
-            }).filter(l => l.text);
+            });
+            // Standalone labels: any beyond the edge count (normally none for
+            // flowcharts since every g.edgeLabel maps to an edge).
+            const labels = rawEdgeLabels.slice(edges.length).filter(l => l.text);
 
             return {
                 width: graphWidth,
@@ -612,9 +606,9 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         }
                     };
                 }),
-                edges: edges.map(path => {
+                edges: edges.map((path, edgeIdx) => {
                    const computedStyle = window.getComputedStyle(path);
-                    
+
                     const markerStart = path.getAttribute('marker-start');
                     const markerEnd = path.getAttribute('marker-end');
 
@@ -640,12 +634,17 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         }
                     }
 
-                    return { 
+                    // Attach the edge label text by DOM index: rawEdgeLabels[i]
+                    // corresponds to the i-th edge path (same document order).
+                    const edgeLabelText = rawEdgeLabels[edgeIdx]?.text || undefined;
+
+                    return {
                         d: path.getAttribute('d') || '',
                         startId,
                         endId,
-                        arrowStart: !!markerStart, 
+                        arrowStart: !!markerStart,
                         arrowEnd: !!markerEnd,
+                        text: edgeLabelText,
                         style: {
                             stroke: computedStyle.stroke,
                             strokeWidth: computedStyle.strokeWidth,

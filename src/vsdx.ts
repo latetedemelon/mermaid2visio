@@ -683,11 +683,17 @@ export class VsdxGenerator {
                     geom.up();
                 }
 
-                // Routing Style (1 = Right Angle)
+                // Routing Style (2 = Curved, matching Mermaid's default curve:basis)
                 shape.ele('Section', { N: 'ShapeLayout', IX: '0' })
                     .ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'ConLineRouteExt', V: '1' }).up()
+                        .ele('Cell', { N: 'ConLineRouteExt', V: '2' }).up()
                     .up().up();
+
+                // Embed edge label text directly in the connector shape so
+                // the label follows the connector when nodes are moved.
+                if (edge.text) {
+                    shape.ele('Text').txt(edge.text).up();
+                }
 
                 shapeId++;
             }
