@@ -51,7 +51,7 @@ program
 
         console.log("Generating VSDX...");
         const generator = new VsdxGenerator();
-        const buffer = await generator.generate(graph);
+        const buffer = await generator.generate(graph, definition);
 
         fs.writeFileSync(outputFile, buffer);
         console.log(`✅ Success! Output saved to: ${outputFile}`);

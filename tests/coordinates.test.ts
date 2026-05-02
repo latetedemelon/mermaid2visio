@@ -46,8 +46,8 @@ describe('Coordinate conversion', () => {
 
     // Spot-check the math: top-left (96, 192) px at 96 dpi -> (1, 2) inches;
     // center offset (48, 24) px -> (0.5, 0.25) inches;
-    // expected center in SVG-space = (1.5, 2.25); Y is flipped against page height.
-    expect(node.pinX).toBeCloseTo(1.5, 6);
+    // SVG-space center = (1.5, 2.25); add 0.5" margin → PinX = 2.0".
+    expect(node.pinX).toBeCloseTo(2.0, 6);
   });
 
   it('wires BeginX/BeginY/EndX/EndY when both endpoints resolve', async () => {

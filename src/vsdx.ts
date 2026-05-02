@@ -7,9 +7,20 @@ export class VsdxGenerator {
     private pageHeight: number = 11; // inches
     private pageWidth: number = 8.5; // inches
     private dpi: number = 96;
+    private margin: number = 0.5; // inches — whitespace around diagram content on all four sides
 
     constructor() {
         this.zip = new JSZip();
+    }
+
+    // Convert SVG-space X (pixels, left-origin) to Visio page X (inches, left-origin + margin).
+    private toVisioX(svgPx: number): number {
+        return this.margin + svgPx / this.dpi;
+    }
+
+    // Convert SVG-space Y (pixels, top-origin, y-down) to Visio page Y (inches, bottom-origin, y-up).
+    private toVisioY(svgPx: number): number {
+        return this.pageHeight - this.margin - svgPx / this.dpi;
     }
 
     // Visio rejects CSS `rgb(r, g, b)` syntax (and named colors) in cell values;
@@ -32,13 +43,13 @@ export class VsdxGenerator {
         return undefined;
     }
 
-    public async generate(graph: GraphData): Promise<Buffer> {
-        // Adjust page size if graph is too big
-        const graphWidthIn = graph.width / this.dpi;
+    public async generate(graph: GraphData, mermaidSource?: string): Promise<Buffer> {
+        // Page must be large enough to hold content plus margin on all four sides.
+        // The plan formula: pageSize = max(default, contentSizeIn + 2*margin).
+        const graphWidthIn  = graph.width  / this.dpi;
         const graphHeightIn = graph.height / this.dpi;
-
-        if (graphWidthIn > this.pageWidth) this.pageWidth = graphWidthIn + 1;
-        if (graphHeightIn > this.pageHeight) this.pageHeight = graphHeightIn + 1;
+        this.pageWidth  = Math.max(this.pageWidth,  graphWidthIn  + 2 * this.margin);
+        this.pageHeight = Math.max(this.pageHeight, graphHeightIn + 2 * this.margin);
 
         this.addContentTypes();
         this.addRels();
@@ -47,6 +58,13 @@ export class VsdxGenerator {
         this.addWindowsXml();
         this.addPagesXml();
         this.addPageXml(graph);
+
+        // Store the original Mermaid source inside the VSDX package so the
+        // diagram can be round-tripped (re-opened and re-generated) without
+        // reverse-engineering geometry back into Mermaid syntax.
+        if (mermaidSource) {
+            this.zip.file('mermaid/source.mmd', mermaidSource);
+        }
 
         return await this.zip.generateAsync({ type: 'nodebuffer' });
     }
@@ -302,11 +320,9 @@ export class VsdxGenerator {
             for (const cluster of graph.clusters) {
                 const w = cluster.width / this.dpi;
                 const h = cluster.height / this.dpi;
-                const x = cluster.x / this.dpi;
-                const y = cluster.y / this.dpi;
 
-                const pinX = x + w/2;
-                const pinY = this.pageHeight - (y + h/2);
+                const pinX = this.toVisioX(cluster.x + cluster.width  / 2);
+                const pinY = this.toVisioY(cluster.y + cluster.height / 2);
 
                 // Clusters can be edge endpoints too (`CH -->|...| S4` in
                 // Mermaid is perfectly legal). Register them in the same
@@ -321,6 +337,8 @@ export class VsdxGenerator {
                 shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
                 shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
                 shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+                // DisplayLevel 0 = background band; clusters always render behind nodes.
+                shape.ele('Cell', { N: 'DisplayLevel', V: '0' }).up();
 
                 // Style
                 if (cluster.style) {
@@ -384,10 +402,8 @@ export class VsdxGenerator {
             // is the shape center in a bottom-left origin, so flip Y and add half-extents.
             const w = node.width / this.dpi;
             const h = node.height / this.dpi;
-            const xTopLeft = node.x / this.dpi;
-            const yTopLeft = node.y / this.dpi;
-            const pinX = xTopLeft + w / 2;
-            const pinY = this.pageHeight - (yTopLeft + h / 2);
+            const pinX = this.toVisioX(node.x + node.width  / 2);
+            const pinY = this.toVisioY(node.y + node.height / 2);
 
             nodeIdToPin.set(node.id, { pinX, pinY });
 
@@ -398,6 +414,8 @@ export class VsdxGenerator {
             shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
             shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
             shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+            // DisplayLevel 1 = mid band; nodes always render in front of cluster rectangles.
+            shape.ele('Cell', { N: 'DisplayLevel', V: '1' }).up();
 
             // Rounding
             if (node.rounding && node.rounding > 0) {
@@ -680,14 +698,9 @@ export class VsdxGenerator {
             for (const label of graph.labels) {
                 const w = (label.width || 10) / this.dpi;
                 const h = (label.height || 10) / this.dpi;
-                // Labels from Mermaid (transform translate) are usually Center or Top-Left
-                // Experimentation suggests they are often top-left of the text box.
-                const x = label.x / this.dpi;
-                const y = this.pageHeight - (label.y / this.dpi);
-                
-                // Center pin
-                const pinX = x + w/2;
-                const pinY = y - h/2; // If y is top-left, center is down
+                // label.x/y is the top-left of the text box in SVG-space.
+                const pinX = this.toVisioX(label.x + (label.width  || 10) / 2);
+                const pinY = this.toVisioY(label.y + (label.height || 10) / 2);
 
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
                 
@@ -695,6 +708,8 @@ export class VsdxGenerator {
                 shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
                 shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
                 shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+                // DisplayLevel 2 = foreground band; labels render in front of nodes.
+                shape.ele('Cell', { N: 'DisplayLevel', V: '2' }).up();
 
                 // Invisible line; FillPattern depends on whether a background is requested.
                 shape.ele('Cell', { N: 'LinePattern', V: '0' }).up();
