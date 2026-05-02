@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { VsdxGenerator } from '../src/vsdx';
-import { parseMermaid } from '../src/parser';
+import { parseMermaid, translatePathD } from '../src/parser';
 import type { GraphData } from '../src/parser';
 
 async function unzipPage(buffer: Buffer): Promise<string> {
@@ -142,6 +142,51 @@ describe('Coordinate conversion', () => {
     expect(xml).toMatch(/<Connect\b[^/]*FromCell="BeginX"[^/]*ToCell="PinX"/);
     expect(xml).toMatch(/<Connect\b[^/]*FromCell="EndX"[^/]*ToCell="PinX"/);
   }, 60000);
+
+  it('embeds edge label text in the connector Shape Text element', async () => {
+    // Regression guard: edge.text must appear in the connector's <Text> child,
+    // not as a separate floating label shape. This keeps the label attached to
+    // the connector so it moves when nodes are repositioned in Visio.
+    const graph: GraphData = {
+      width: 200,
+      height: 200,
+      nodes: [
+        { id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A' },
+        { id: 'b', x: 0, y: 100, width: 96, height: 48, text: 'B' },
+      ],
+      edges: [{ d: 'M0,0 L1,1', startId: 'a', endId: 'b', text: 'yes', arrowEnd: true }],
+      clusters: [],
+      labels: [],
+    };
+    const xml = await unzipPage(await new VsdxGenerator().generate(graph));
+    // Connector is shape 3 (after the two nodes). Its body must contain <Text>yes</Text>.
+    const connectorMatch = /<Shape\b[^>]*ID="3"[^>]*>([\s\S]*?)<\/Shape>/.exec(xml);
+    expect(connectorMatch).not.toBeNull();
+    expect(connectorMatch![1]).toMatch(/<Text>yes<\/Text>/);
+  });
+
+  it('Connects is a sibling of Shapes, not nested inside it', async () => {
+    // VSDX spec: PageContents contains <Shapes> and <Connects> as siblings.
+    // If <Connects> were a child of <Shapes>, Visio would silently ignore
+    // the connections and shapes would appear unglued.
+    const graph: GraphData = {
+      width: 200,
+      height: 200,
+      nodes: [
+        { id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A' },
+        { id: 'b', x: 0, y: 100, width: 96, height: 48, text: 'B' },
+      ],
+      edges: [{ d: 'M0,0 L1,1', startId: 'a', endId: 'b', arrowEnd: true }],
+      clusters: [],
+      labels: [],
+    };
+    const xml = await unzipPage(await new VsdxGenerator().generate(graph));
+    // <Connects> must appear AFTER </Shapes>, not before it.
+    const shapesEnd = xml.indexOf('</Shapes>');
+    const connectsStart = xml.indexOf('<Connects');
+    expect(shapesEnd).toBeGreaterThan(-1);
+    expect(connectsStart).toBeGreaterThan(shapesEnd);
+  });
 });
 
 describe('parsePathToVisio', () => {
@@ -187,5 +232,52 @@ describe('parsePathToVisio', () => {
     const lineTos = rows.filter(r => r.T === 'LineTo').length;
     // 4 flattened segments for Q + 1 fallback segment for A = 5
     expect(lineTos).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe('translatePathD', () => {
+  // translatePathD reconstructs commands without re-inserting inter-command
+  // spaces (the original whitespace is consumed by the regex). Tests match
+  // on individual command segments rather than exact string equality.
+
+  it('translates M and L absolute coordinates', () => {
+    const result = translatePathD('M 10 20 L 30 40', -10, -20);
+    expect(result).toContain('M 0 0');
+    expect(result).toContain('L 20 20');
+  });
+
+  it('translates C cubic bezier control and end points', () => {
+    const shifted = translatePathD('M 0 0 C 10 20 30 40 50 60', -10, -20);
+    expect(shifted).toContain('M -10 -20');
+    expect(shifted).toContain('C 0 0 20 20 40 40');
+  });
+
+  it('leaves relative commands (lowercase) untouched', () => {
+    const result = translatePathD('M 10 20 l 5 5 h 10 v 10', -10, -20);
+    // M is absolute → translated; l/h/v are relative → unchanged
+    expect(result).toContain('M 0 0');
+    expect(result).toContain('l 5 5');
+    expect(result).toContain('h 10');
+    expect(result).toContain('v 10');
+  });
+
+  it('translates H and V absolute commands correctly', () => {
+    const result = translatePathD('M 0 0 H 100 V 50', 5, 10);
+    expect(result).toContain('M 5 10');
+    expect(result).toContain('H 105');
+    expect(result).toContain('V 60');
+  });
+
+  it('handles A arc endpoint (last two values) only', () => {
+    // A rx ry x-rot large-arc sweep x y — only x,y are translated
+    const result = translatePathD('M 0 0 A 5 5 0 0 1 20 30', -5, -10);
+    expect(result).toContain('M -5 -10');
+    expect(result).toContain('A 5 5 0 0 1 15 20');
+  });
+
+  it('is a no-op when dx=0 and dy=0', () => {
+    const result = translatePathD('M 10 20 L 30 40', 0, 0);
+    expect(result).toContain('M 10 20');
+    expect(result).toContain('L 30 40');
   });
 });

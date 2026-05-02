@@ -97,6 +97,13 @@ describe.each(fixtures)('VSDX structural lint ($name)', ({ name, minShapes }) =>
         expect(pageXml).toContain('<Cell N="ObjType" V="2"/>');
     });
 
+    it('uses curved routing (ConLineRouteExt=2) on connector shapes', () => {
+        // ConLineRouteExt=2 matches Mermaid's default curve:basis rendering.
+        // =1 would produce straight lines, =0 would inherit the page default
+        // (orthogonal), neither of which matches Mermaid's visual output.
+        expect(pageXml).toContain('<Cell N="ConLineRouteExt" V="2"/>');
+    });
+
     it('emits Connection rows starting at IX="1" with DirX/DirY/Type cells', () => {
         // Visio's Connection section indexes rows from 1. A row at IX="0" is
         // silently skipped, which leaves the shape with no connection points

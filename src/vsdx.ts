@@ -292,7 +292,7 @@ export class VsdxGenerator {
         const evalDim = (expr: string, width: number, height: number): number => {
             const replaced = expr.replace(/Width/g, String(width)).replace(/Height/g, String(height));
             // Very small parser: strip whitespace, split on + and -, each term
-            // is a product. Safe because the inputs are hand-authored above.
+            // is a product. Only handles the patterns this generator produces.
             const s = replaced.replace(/\s+/g, '');
             let sign = 1;
             let i = 0;
@@ -312,6 +312,7 @@ export class VsdxGenerator {
                 }
                 i++;
             }
+            if (!isFinite(total)) throw new Error(`evalDim: expression "${expr}" evaluated to ${total}`);
             return total;
         };
 
@@ -435,9 +436,8 @@ export class VsdxGenerator {
                      shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                 }
                 if (node.style.strokeWidth) {
-                     // Approximate: 1px ~= 0.01 inch
                      const px = parseFloat(node.style.strokeWidth) || 1;
-                     shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
+                     shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
                 }
                 const lp = getLinePattern(node.style.strokeDasharray);
                 if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
@@ -749,23 +749,19 @@ export class VsdxGenerator {
             }
         }
         
-        root.up(); // Exit Shapes (Wait, I need to check xmlbuilder2 nesting. I think I need to go up from Shapes before Connects? NO. Connects is sibling of Shapes in PageContents)
-        // Shapes was created with root.ele('Shapes').
-        // So root is PageContents.
-        // We are inside Shapes right now? No, loop finished.
-        // root points to PageContents -> Shapes.
-        root.up(); // Now root points to PageContents.
-
         // 5. Add Connections
+        // xmlbuilder2's ele() returns the child node, not `this`, so `root`
+        // permanently points to <Shapes>. Use root.up() to obtain <PageContents>
+        // and emit <Connects> as its sibling, not as a child of <Shapes>.
         if (connects.length > 0) {
-            const connXml = root.ele('Connects');
+            const pageContents = root.up();
+            const connXml = pageContents.ele('Connects');
             for (const c of connects) {
                 connXml.ele('Connect', { FromSheet: c.fromSheet.toString(), FromCell: c.fromCell, ToSheet: c.toSheet.toString(), ToCell: c.toCell }).up();
             }
-            connXml.up();
         }
 
-        // root is still PageContents
+        // root.end() serializes from the document root regardless of cursor.
         this.zip.folder('visio')?.folder('pages')?.file('page1.xml', root.end({ prettyPrint: true }));
     }
 

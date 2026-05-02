@@ -95,6 +95,8 @@ toVisioY(svgPx) = pageHeight - margin - svgPx / dpi
 
 **Mermaid source round-trip**: If `mermaidSource` is passed to `generate()`, it is stored as `mermaid/source.mmd` inside the VSDX ZIP. This allows the source to be recovered without reverse-engineering the geometry.
 
+**`VsdxGenerator.normalizeColor`** is intentionally `public static` — `styling.test.ts` calls it directly to verify color normalization without full round-tripping through the generator. Treat it as a stable internal utility rather than a public API: it's `public` only for the testing seam.
+
 ### `src/index.ts`
 CLI using `commander`. Handles `.md` file Markdown extraction (strips the ` ```mermaid ``` ` fence). Passes source string to `generate()` for round-trip storage.
 

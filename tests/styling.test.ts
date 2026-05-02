@@ -25,8 +25,8 @@ describe('Styling cells', () => {
         expect(getCell(body, 'LineColor')).toBe('#333333');
         expect(getCell(body, 'LinePattern')).not.toBeNull();
 
-        // LineWeight = strokeWidth (4) * 0.01 = 0.04 in (legacy magic factor).
-        expect(parseFloat(getCell(body, 'LineWeight')!)).toBeCloseTo(0.04, 6);
+        // LineWeight = strokeWidth (4px) / 96 dpi = 0.04166... inches.
+        expect(parseFloat(getCell(body, 'LineWeight')!)).toBeCloseTo(4 / 96, 6);
 
         // Character section should contain the color, size, and bitwise style (bold|italic = 3).
         const charMatch = /<Section\b[^>]*N="Character"[\s\S]*?<\/Section>/.exec(body);

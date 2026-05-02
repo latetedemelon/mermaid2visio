@@ -339,13 +339,13 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
         <script>
             mermaid.initialize({
                 startOnLoad: false,
-                theme: '${theme}',
-                layout: '${layoutEngine}',
+                theme: ${JSON.stringify(theme)},
+                layout: ${JSON.stringify(layoutEngine)},
                 themeVariables: ${JSON.stringify(themeVars)},
                 flowchart: {
                     nodeSpacing: ${config?.flowchart?.nodeSpacing || 50},
                     rankSpacing: ${config?.flowchart?.rankSpacing || 50},
-                    curve: '${config?.flowchart?.curve || 'basis'}',
+                    curve: ${JSON.stringify(config?.flowchart?.curve || 'basis')},
                     useMaxWidth: ${config?.flowchart?.useMaxWidth !== false}
                 },
                 securityLevel: 'loose'
@@ -482,6 +482,9 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
             });
             // Standalone labels: any beyond the edge count (normally none for
             // flowcharts since every g.edgeLabel maps to an edge).
+            if (rawEdgeLabels.length !== edges.length) {
+                console.warn(`[parseMermaid] label/edge count mismatch: ${rawEdgeLabels.length} g.edgeLabel vs ${edges.length} edge paths — Mermaid version change?`);
+            }
             const labels = rawEdgeLabels.slice(edges.length).filter(l => l.text);
 
             return {
@@ -636,6 +639,8 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
                     // Attach the edge label text by DOM index: rawEdgeLabels[i]
                     // corresponds to the i-th edge path (same document order).
+                    // `|| undefined` converts the empty string ("") to undefined
+                    // so that edges with no label don't get an empty Text element.
                     const edgeLabelText = rawEdgeLabels[edgeIdx]?.text || undefined;
 
                     return {
@@ -729,7 +734,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
     } finally {
         await browser.close();
         if (elkServer) {
-            await new Promise<void>((resolve) => elkServer!.close(() => resolve()));
+            await new Promise<void>((resolve, reject) => elkServer!.close(err => err ? reject(err) : resolve()));
         }
     }
 }
