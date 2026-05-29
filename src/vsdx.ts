@@ -74,6 +74,10 @@ export class VsdxGenerator {
             .ele('Types', { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' })
                 .ele('Default', { Extension: 'rels', ContentType: 'application/vnd.openxmlformats-package.relationships+xml' }).up()
                 .ele('Default', { Extension: 'xml', ContentType: 'application/xml' }).up()
+                // The round-trip source (mermaid/source.mmd) is a package part too;
+                // OPC requires every part to have a content type or the package is
+                // invalid (a 1400015 trigger). Declare .mmd as plain text.
+                .ele('Default', { Extension: 'mmd', ContentType: 'text/plain' }).up()
                 .ele('Override', { PartName: '/docProps/app.xml', ContentType: 'application/vnd.openxmlformats-officedocument.extended-properties+xml' }).up()
                 .ele('Override', { PartName: '/docProps/core.xml', ContentType: 'application/vnd.openxmlformats-package.core-properties+xml' }).up()
                 .ele('Override', { PartName: '/visio/document.xml', ContentType: 'application/vnd.ms-visio.drawing.main+xml' }).up()
