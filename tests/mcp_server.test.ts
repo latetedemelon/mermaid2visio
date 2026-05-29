@@ -97,6 +97,31 @@ describe('handleConvertMermaidToVsdx', () => {
         expect(fakeGenerator.generate).toHaveBeenCalledWith(expect.anything(), 'graph TD\nA-->B');
     });
 
+    it('warns in the result when no shapes were extracted (blank output)', async () => {
+        // fakeParse returns an empty graph, so the warning should appear.
+        const files = fakeFs({});
+        const result = await handleConvertMermaidToVsdx(
+            { source: 'pie title X\n "a" : 1', outputPath: '/tmp/blank.vsdx' },
+            { fs: files.stub, parse: fakeParse, generator: fakeGenerator },
+        );
+        expect(result.isError).toBeUndefined();
+        expect(result.content[0].text).toMatch(/no shapes were extracted/i);
+    });
+
+    it('does not warn when shapes were extracted', async () => {
+        const files = fakeFs({});
+        const parseWithShapes = jest.fn(async () => ({
+            width: 100, height: 100,
+            nodes: [{ id: 'a', x: 0, y: 0, width: 10, height: 10, text: 'A' }],
+            edges: [], clusters: [], labels: [],
+        } as any));
+        const result = await handleConvertMermaidToVsdx(
+            { source: 'flowchart TD\n A', outputPath: '/tmp/ok.vsdx' },
+            { fs: files.stub, parse: parseWithShapes as any, generator: fakeGenerator },
+        );
+        expect(result.content[0].text).not.toMatch(/no shapes were extracted/i);
+    });
+
     it('wraps parser errors as isError results rather than throwing', async () => {
         const parseThatThrows = jest.fn(async () => { throw new Error('bad mermaid'); });
         const result = await handleConvertMermaidToVsdx(

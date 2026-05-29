@@ -161,7 +161,21 @@ via structural validation. Please open a few generated `.vsdx` in actual Visio a
 - **Font family** is parsed but not emitted (needs a `FaceNames` table; risky without a Visio
   oracle to confirm it doesn't re-trigger 1400015). Size/color/weight/italic ARE forwarded.
 
+### Phase I — Self code-review (3 correctness angles) ✅
+- Ran a high-effort review of the whole branch diff (line-by-line, removed-behavior,
+  cross-file). **No critical bugs found.** Refuted candidates: arcTo div-by-zero (guarded by
+  the coincident-endpoint check), Character Row IX=0 (the IX>=1 rule is Connection-only; node
+  Character sections have always used IX=0), Size leading-zero regex (matches "0.x"),
+  toVisio double-transform (cubic/quad call the corrected lineTo). The flagged margin-transform
+  and arc-flattening changes are the *intended* fixes, not regressions.
+- One real (minor) finding fixed: sequence message `labelStyle` was missing fontWeight/fontStyle.
+
+### Phase J — MCP empty-output warning in tool result ✅
+- The blank-output warning only went to stderr; MCP clients don't surface stderr, so an agent
+  converting an unsupported diagram type got a silent blank file. The MCP tool result now
+  appends the warning when zero shapes were extracted. Two tests added (warn / don't-warn).
+
 ### FINAL TEST STATUS
-- `npm test`: **117 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
-  is non-functional in this sandbox). `npm run build` clean. All work committed and pushed to
-  `claude/code-review-VUu3e`.
+- `npm test`: **120 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
+  is non-functional in this sandbox). `npm run build` clean (exit 0). All work committed and
+  pushed to `claude/code-review-VUu3e`. Test count over the session: 90 → 120.
