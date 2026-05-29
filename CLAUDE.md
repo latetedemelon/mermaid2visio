@@ -52,6 +52,8 @@ Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry 
 
 **ELK layout**: When `layout: elk` appears in the diagram's YAML frontmatter, the parser spins up a localhost HTTP server to serve `@mermaid-js/layout-elk/dist/` so Puppeteer can import it as an ES module. Falls back to dagre if registration fails.
 
+**Empty-output warning**: The extractor is flowchart-oriented. If it finds zero geometry (sequence/pie/gantt/etc.), `parseMermaid` emits a `console.warn` to stderr naming the detected diagram type (`detectDiagramType()`) and the support matrix, so a blank-but-valid VSDX is never a silent surprise. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
+
 **GraphData interfaces** (the Intermediate Representation):
 ```typescript
 GraphNode   { id, x, y, width, height, text, type, rounding, url, style }
@@ -85,9 +87,9 @@ toVisioY(svgPx) = pageHeight - margin - svgPx / dpi
 - Two `<Connect>` rows link Begin/End to their target shape's PinX
 - `ObjType = 2` marks the shape as a Visio connector (dynamic routing)
 - `ConLineRouteExt = 2` (curved routing, matching Mermaid's `curve: basis` default)
-- If `edge.text` is present, a `<Text>` element is embedded in the connector shape
+- If `edge.text` is present, a `<Text>` element is embedded in the connector shape; if `edge.labelStyle` is present, a `Character` section (emitted before `<Text>`) forwards the label's color/size/weight so the caption matches the Mermaid theme
 
-**Connectors** (unglued fallback): Raw SVG path geometry is transcribed via `parsePathToVisio()`. Cubic Béziers are approximated with 4 Casteljau steps. Quadratics likewise. Arcs fall back to straight lines.
+**Connectors** (unglued fallback): Raw SVG path geometry is transcribed via `parsePathToVisio()`, using the same margin-aware `toVisioX/Y` transforms as every other shape (so unglued edges share the node coordinate space). Cubic Béziers are approximated with 4 Casteljau steps; quadratics likewise. Elliptical arcs (`A`) are flattened via the SVG endpoint-to-center parameterization (~1 segment / 15°), with a straight-line fallback only for degenerate (zero-radius / coincident-endpoint) arcs.
 
 **Arrow direction**: `EndArrow: 13` when `edge.arrowEnd` is true; `BeginArrow: 13` when `edge.arrowStart` is true. `13` = standard Visio open arrowhead.
 
@@ -97,8 +99,11 @@ toVisioY(svgPx) = pageHeight - margin - svgPx / dpi
 
 **`VsdxGenerator.normalizeColor`** is intentionally `public static` — `styling.test.ts` calls it directly to verify color normalization without full round-tripping through the generator. Treat it as a stable internal utility rather than a public API: it's `public` only for the testing seam.
 
+### `src/validate.ts`
+`validateVsdx(buffer)` — a structural validator that serves as the regression oracle in the absence of a working Visio/LibreOffice importer. Checks OPC package integrity (required parts present, every part has a content type, every relationship `Target` resolves, root `.rels` declares a document relationship) plus the ShapeSheet rules Visio enforces (colors `#RRGGBB`; no formula token in a `V=` without `F=`; `Character.Size` has no `U="PT"` and is a plain number; `Connection` rows start at `IX>=1`; `<Connects>` reference real shapes and sit as a sibling of `<Shapes>`; shape child order `Cells→Sections→Text`). Conservative by design: every rule maps to a documented constraint, so a failure means a real problem.
+
 ### `src/index.ts`
-CLI using `commander`. Handles `.md` file Markdown extraction (strips the ` ```mermaid ``` ` fence). Passes source string to `generate()` for round-trip storage.
+CLI using `commander`. Handles `.md` file Markdown extraction (strips the ` ```mermaid ``` ` fence). Passes source string to `generate()` for round-trip storage. Options: `-o/--output`, `-l/--layout` (dagre|elk), `-t/--theme`, `-v/--verbose`.
 
 ### `src/gui.ts`
 Express server with a single-page HTML editor. Accepts Mermaid source + config (layout, theme, spacing, curve type) via JSON POST, returns the VSDX as a download.
@@ -127,6 +132,8 @@ Tests live in `tests/`. All use Jest with `--experimental-vm-modules` for ESM.
 | `mcp_server.test.ts` | MCP tool call → VSDX buffer |
 | `package_structure.test.ts` | `dist/` artefacts exist after build |
 | `render_libreoffice.test.ts` | Round-trip through LibreOffice (skipped unless `soffice` + `libreoffice-draw` present) |
+| `validate.test.ts` | Runs `validateVsdx` over fixtures + a synthetic all-node-types graph; negative tests corrupt a package to prove the validator fires |
+| `diagram_types.test.ts` | `detectDiagramType` unit tests + parse→generate→validate across flowchart/class/state/ER (expect shapes) and sequence/pie (expect blank-but-valid), pinning the support matrix |
 
 Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tests/fixtures/diagram (5).vsdx` (reference VSDX for LibreOffice probe).
 
@@ -134,8 +141,16 @@ Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tes
 
 ## Known Limitations / Future Work
 
-- **Sequence diagrams**: Rendered as a flat SVG raster approximation; no actor-column × message-row Visio layout. A dedicated serialiser would dramatically improve fidelity.
-- **Elliptical arcs in path fallback**: `A` commands fall back to a straight line segment (acceptable for diagram-scale connectors, but lossy for shapes that are actually arcs).
-- **Label style on embedded connector text**: `edge.text` is embedded without a Character section (inherits connector defaults). Label font/color from the Mermaid theme is not yet forwarded.
-- **Non-flowchart diagram types**: The README claims support for sequence, class, ER, etc. In practice these rely on Mermaid rendering a valid SVG and the parser treating everything as nodes/edges; quality varies significantly.
+- **Diagram-type support is flowchart-centric.** Empirically (see `diagram_types.test.ts`): flowchart/graph are full; classDiagram/stateDiagram/erDiagram are partial; sequence/pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey extract **zero** geometry and produce a blank-but-valid VSDX (the parser now warns when this happens). The README support matrix reflects this honestly.
+- **Sequence diagrams** are the highest-value gap: they need a dedicated serialiser (actor-column × message-row layout) rather than the flowchart extractor. Nothing comes across today.
+- **Font family is not emitted.** `style.fontFamily` is parsed but never written to Visio — emitting it safely requires a populated `FaceNames` table in `document.xml`, and an empty/malformed one is a known 1400015 trigger, so it was left out pending verification in real Visio. Text currently renders in Visio's default face (size/color/weight/italic *are* forwarded).
 - **Fidelity mode**: The architectural plan envisions a second `fidelity` output mode that transcribes fixed SVG geometry rather than creating dynamic Visio shapes. Not yet implemented.
+
+### Resolved (this session)
+- Elliptical arcs in the path fallback are now flattened to polylines (was a straight chord).
+- Edge-label color/size/weight is now forwarded to a connector `Character` section.
+- Unglued fallback edges now share the margin-aware coordinate transform (were offset 0.5").
+- The round-trip `mermaid/source.mmd` part now has a declared content type (was an OPC violation / 1400015 candidate), caught by the new `validateVsdx`.
+
+### Verification note
+No Microsoft Visio is available in the dev sandbox, and LibreOffice's VSDX importer is non-functional there, so all checks run through `validateVsdx` + the Jest suite. Changes affecting *visual* fidelity should still be opened in real Visio to confirm — see `PROGRESS_LOG.md` for items tagged `[VERIFY-IN-VISIO]`.
