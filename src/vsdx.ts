@@ -7,9 +7,20 @@ export class VsdxGenerator {
     private pageHeight: number = 11; // inches
     private pageWidth: number = 8.5; // inches
     private dpi: number = 96;
+    private margin: number = 0.5; // inches — whitespace around diagram content on all four sides
 
     constructor() {
         this.zip = new JSZip();
+    }
+
+    // Convert SVG-space X (pixels, left-origin) to Visio page X (inches, left-origin + margin).
+    private toVisioX(svgPx: number): number {
+        return this.margin + svgPx / this.dpi;
+    }
+
+    // Convert SVG-space Y (pixels, top-origin, y-down) to Visio page Y (inches, bottom-origin, y-up).
+    private toVisioY(svgPx: number): number {
+        return this.pageHeight - this.margin - svgPx / this.dpi;
     }
 
     // Visio rejects CSS `rgb(r, g, b)` syntax (and named colors) in cell values;
@@ -32,13 +43,13 @@ export class VsdxGenerator {
         return undefined;
     }
 
-    public async generate(graph: GraphData): Promise<Buffer> {
-        // Adjust page size if graph is too big
-        const graphWidthIn = graph.width / this.dpi;
+    public async generate(graph: GraphData, mermaidSource?: string): Promise<Buffer> {
+        // Page must be large enough to hold content plus margin on all four sides.
+        // The plan formula: pageSize = max(default, contentSizeIn + 2*margin).
+        const graphWidthIn  = graph.width  / this.dpi;
         const graphHeightIn = graph.height / this.dpi;
-
-        if (graphWidthIn > this.pageWidth) this.pageWidth = graphWidthIn + 1;
-        if (graphHeightIn > this.pageHeight) this.pageHeight = graphHeightIn + 1;
+        this.pageWidth  = Math.max(this.pageWidth,  graphWidthIn  + 2 * this.margin);
+        this.pageHeight = Math.max(this.pageHeight, graphHeightIn + 2 * this.margin);
 
         this.addContentTypes();
         this.addRels();
@@ -47,6 +58,13 @@ export class VsdxGenerator {
         this.addWindowsXml();
         this.addPagesXml();
         this.addPageXml(graph);
+
+        // Store the original Mermaid source inside the VSDX package so the
+        // diagram can be round-tripped (re-opened and re-generated) without
+        // reverse-engineering geometry back into Mermaid syntax.
+        if (mermaidSource) {
+            this.zip.file('mermaid/source.mmd', mermaidSource);
+        }
 
         return await this.zip.generateAsync({ type: 'nodebuffer' });
     }
@@ -274,7 +292,7 @@ export class VsdxGenerator {
         const evalDim = (expr: string, width: number, height: number): number => {
             const replaced = expr.replace(/Width/g, String(width)).replace(/Height/g, String(height));
             // Very small parser: strip whitespace, split on + and -, each term
-            // is a product. Safe because the inputs are hand-authored above.
+            // is a product. Only handles the patterns this generator produces.
             const s = replaced.replace(/\s+/g, '');
             let sign = 1;
             let i = 0;
@@ -294,6 +312,7 @@ export class VsdxGenerator {
                 }
                 i++;
             }
+            if (!isFinite(total)) throw new Error(`evalDim: expression "${expr}" evaluated to ${total}`);
             return total;
         };
 
@@ -302,11 +321,9 @@ export class VsdxGenerator {
             for (const cluster of graph.clusters) {
                 const w = cluster.width / this.dpi;
                 const h = cluster.height / this.dpi;
-                const x = cluster.x / this.dpi;
-                const y = cluster.y / this.dpi;
 
-                const pinX = x + w/2;
-                const pinY = this.pageHeight - (y + h/2);
+                const pinX = this.toVisioX(cluster.x + cluster.width  / 2);
+                const pinY = this.toVisioY(cluster.y + cluster.height / 2);
 
                 // Clusters can be edge endpoints too (`CH -->|...| S4` in
                 // Mermaid is perfectly legal). Register them in the same
@@ -321,6 +338,8 @@ export class VsdxGenerator {
                 shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
                 shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
                 shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+                // DisplayLevel 0 = background band; clusters always render behind nodes.
+                shape.ele('Cell', { N: 'DisplayLevel', V: '0' }).up();
 
                 // Style
                 if (cluster.style) {
@@ -330,7 +349,7 @@ export class VsdxGenerator {
                     if (stroke) shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                     if (cluster.style.strokeWidth) {
                         const px = parseFloat(cluster.style.strokeWidth) || 1;
-                        shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
+                        shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
                     }
                     const lp = getLinePattern(cluster.style.strokeDasharray);
                     if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
@@ -384,10 +403,8 @@ export class VsdxGenerator {
             // is the shape center in a bottom-left origin, so flip Y and add half-extents.
             const w = node.width / this.dpi;
             const h = node.height / this.dpi;
-            const xTopLeft = node.x / this.dpi;
-            const yTopLeft = node.y / this.dpi;
-            const pinX = xTopLeft + w / 2;
-            const pinY = this.pageHeight - (yTopLeft + h / 2);
+            const pinX = this.toVisioX(node.x + node.width  / 2);
+            const pinY = this.toVisioY(node.y + node.height / 2);
 
             nodeIdToPin.set(node.id, { pinX, pinY });
 
@@ -398,6 +415,8 @@ export class VsdxGenerator {
             shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
             shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
             shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+            // DisplayLevel 1 = mid band; nodes always render in front of cluster rectangles.
+            shape.ele('Cell', { N: 'DisplayLevel', V: '1' }).up();
 
             // Rounding
             if (node.rounding && node.rounding > 0) {
@@ -417,9 +436,8 @@ export class VsdxGenerator {
                      shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
                 }
                 if (node.style.strokeWidth) {
-                     // Approximate: 1px ~= 0.01 inch
                      const px = parseFloat(node.style.strokeWidth) || 1;
-                     shape.ele('Cell', { N: 'LineWeight', V: (px * 0.01).toString() }).up();
+                     shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
                 }
                 const lp = getLinePattern(node.style.strokeDasharray);
                 if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
@@ -620,7 +638,11 @@ export class VsdxGenerator {
                 }
 
                 shape.ele('Cell', { N: 'FillPattern', V: '0' }).up();
-                shape.ele('Cell', { N: 'EndArrow', V: '13' }).up();
+                // Arrow direction: default end-arrow on; suppress if the edge has no arrowhead.
+                shape.ele('Cell', { N: 'EndArrow',   V: edge.arrowEnd   !== false ? '13' : '0' }).up();
+                if (edge.arrowStart) {
+                    shape.ele('Cell', { N: 'BeginArrow', V: '13' }).up();
+                }
                 // ObjType=2 marks the shape as a connector so Visio routes it dynamically.
                 shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
 
@@ -661,11 +683,17 @@ export class VsdxGenerator {
                     geom.up();
                 }
 
-                // Routing Style (1 = Right Angle)
+                // Routing Style (2 = Curved, matching Mermaid's default curve:basis)
                 shape.ele('Section', { N: 'ShapeLayout', IX: '0' })
                     .ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'ConLineRouteExt', V: '1' }).up()
+                        .ele('Cell', { N: 'ConLineRouteExt', V: '2' }).up()
                     .up().up();
+
+                // Embed edge label text directly in the connector shape so
+                // the label follows the connector when nodes are moved.
+                if (edge.text) {
+                    shape.ele('Text').txt(edge.text).up();
+                }
 
                 shapeId++;
             }
@@ -676,14 +704,9 @@ export class VsdxGenerator {
             for (const label of graph.labels) {
                 const w = (label.width || 10) / this.dpi;
                 const h = (label.height || 10) / this.dpi;
-                // Labels from Mermaid (transform translate) are usually Center or Top-Left
-                // Experimentation suggests they are often top-left of the text box.
-                const x = label.x / this.dpi;
-                const y = this.pageHeight - (label.y / this.dpi);
-                
-                // Center pin
-                const pinX = x + w/2;
-                const pinY = y - h/2; // If y is top-left, center is down
+                // label.x/y is the top-left of the text box in SVG-space.
+                const pinX = this.toVisioX(label.x + (label.width  || 10) / 2);
+                const pinY = this.toVisioY(label.y + (label.height || 10) / 2);
 
                 const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
                 
@@ -691,6 +714,8 @@ export class VsdxGenerator {
                 shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
                 shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
                 shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
+                // DisplayLevel 2 = foreground band; labels render in front of nodes.
+                shape.ele('Cell', { N: 'DisplayLevel', V: '2' }).up();
 
                 // Invisible line; FillPattern depends on whether a background is requested.
                 shape.ele('Cell', { N: 'LinePattern', V: '0' }).up();
@@ -724,23 +749,19 @@ export class VsdxGenerator {
             }
         }
         
-        root.up(); // Exit Shapes (Wait, I need to check xmlbuilder2 nesting. I think I need to go up from Shapes before Connects? NO. Connects is sibling of Shapes in PageContents)
-        // Shapes was created with root.ele('Shapes').
-        // So root is PageContents.
-        // We are inside Shapes right now? No, loop finished.
-        // root points to PageContents -> Shapes.
-        root.up(); // Now root points to PageContents.
-
         // 5. Add Connections
+        // xmlbuilder2's ele() returns the child node, not `this`, so `root`
+        // permanently points to <Shapes>. Use root.up() to obtain <PageContents>
+        // and emit <Connects> as its sibling, not as a child of <Shapes>.
         if (connects.length > 0) {
-            const connXml = root.ele('Connects');
+            const pageContents = root.up();
+            const connXml = pageContents.ele('Connects');
             for (const c of connects) {
                 connXml.ele('Connect', { FromSheet: c.fromSheet.toString(), FromCell: c.fromCell, ToSheet: c.toSheet.toString(), ToCell: c.toCell }).up();
             }
-            connXml.up();
         }
 
-        // root is still PageContents
+        // root.end() serializes from the document root regardless of cursor.
         this.zip.folder('visio')?.folder('pages')?.file('page1.xml', root.end({ prettyPrint: true }));
     }
 

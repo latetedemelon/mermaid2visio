@@ -14,7 +14,10 @@ const fixtures = ['1_Metrological_Foundation.mmd', '2_Antigen_Library.mmd', '3_P
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examplesDir = path.resolve(here, '..', 'examples');
 
-describe('examples/ fixture pipeline', () => {
+const examplesExist = fs.existsSync(examplesDir);
+const describeIfExamples = examplesExist ? describe : describe.skip;
+
+describeIfExamples('examples/ fixture pipeline', () => {
     for (const name of fixtures) {
         it(`parses and generates VSDX for ${name}`, async () => {
             const source = fs.readFileSync(path.join(examplesDir, name), 'utf-8');
