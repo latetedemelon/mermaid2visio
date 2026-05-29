@@ -3,7 +3,7 @@ import { VsdxGenerator } from '../src/vsdx';
 import { parseMermaid, translatePathD } from '../src/parser';
 import type { GraphData } from '../src/parser';
 
-async function unzipPage(buffer: Buffer): Promise<string> {
+async function unzipPage(buffer: Uint8Array): Promise<string> {
   const zip = await JSZip.loadAsync(buffer);
   const file = zip.file('visio/pages/page1.xml');
   if (!file) throw new Error('page1.xml not found');

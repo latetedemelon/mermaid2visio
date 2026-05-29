@@ -22,7 +22,7 @@ export interface ConvertDeps {
     now?: () => Date;
     fs?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'mkdirSync' | 'writeFileSync'>;
     parse?: typeof parseMermaid;
-    generator?: { generate(graph: any, mermaidSource?: string): Promise<Buffer> };
+    generator?: { generate(graph: any, mermaidSource?: string): Promise<Uint8Array> };
 }
 
 export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: ConvertDeps = {}): Promise<ConvertResult> {

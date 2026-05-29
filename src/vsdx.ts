@@ -43,7 +43,7 @@ export class VsdxGenerator {
         return undefined;
     }
 
-    public async generate(graph: GraphData, mermaidSource?: string): Promise<Buffer> {
+    public async generate(graph: GraphData, mermaidSource?: string): Promise<Uint8Array> {
         // Page must be large enough to hold content plus margin on all four sides.
         // The plan formula: pageSize = max(default, contentSizeIn + 2*margin).
         const graphWidthIn  = graph.width  / this.dpi;
@@ -66,7 +66,10 @@ export class VsdxGenerator {
             this.zip.file('mermaid/source.mmd', mermaidSource);
         }
 
-        return await this.zip.generateAsync({ type: 'nodebuffer' });
+        // 'uint8array' (vs 'nodebuffer') so the output is browser-safe; in
+        // Node, Buffer IS-A Uint8Array, so all existing callers — fs.writeFileSync,
+        // JSZip.loadAsync, HTTP res.end — accept it without changes.
+        return await this.zip.generateAsync({ type: 'uint8array' });
     }
 
     private addContentTypes() {

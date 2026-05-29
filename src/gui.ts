@@ -26,7 +26,7 @@ export interface HandlerOptions {
     // When omitted, the default converter parses JSON `{mermaid, config}`
     // bodies (falling back to plain text) and runs parseMermaid + VsdxGenerator.
     // Tests inject a stub to avoid launching Puppeteer.
-    convert?: (body: string) => Promise<Buffer>;
+    convert?: (body: string) => Promise<Uint8Array>;
 }
 
 function serveVendor(urlPath: string, res: ServerResponse): boolean {
@@ -50,7 +50,7 @@ function serveVendor(urlPath: string, res: ServerResponse): boolean {
     return false;
 }
 
-async function defaultConvert(body: string): Promise<Buffer> {
+async function defaultConvert(body: string): Promise<Uint8Array> {
     let mermaidCode = body;
     let config: MermaidConfig | undefined;
     try {

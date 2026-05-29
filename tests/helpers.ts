@@ -1,13 +1,13 @@
 import JSZip from 'jszip';
 
-export async function unzipPage(buffer: Buffer): Promise<string> {
+export async function unzipPage(buffer: Uint8Array): Promise<string> {
     const zip = await JSZip.loadAsync(buffer);
     const file = zip.file('visio/pages/page1.xml');
     if (!file) throw new Error('page1.xml not found');
     return file.async('string');
 }
 
-export async function unzipAll(buffer: Buffer): Promise<Record<string, string>> {
+export async function unzipAll(buffer: Uint8Array): Promise<Record<string, string>> {
     const zip = await JSZip.loadAsync(buffer);
     const out: Record<string, string> = {};
     for (const [name, entry] of Object.entries(zip.files)) {
