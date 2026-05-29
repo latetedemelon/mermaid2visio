@@ -14,6 +14,8 @@ program
   .version(packageJson.version)
   .argument('<input>', 'Path to the input .mmd or .md file')
   .option('-o, --output <path>', 'Path to the output .vsdx file')
+  .option('-l, --layout <engine>', 'Layout engine: dagre (default) or elk')
+  .option('-t, --theme <name>', 'Mermaid theme: default, forest, dark, or neutral')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (inputFile, options) => {
     try {
@@ -40,7 +42,11 @@ program
         }
 
         if (options.verbose) console.log("Parsing Mermaid...");
-        const graph = await parseMermaid(definition, { verbose: !!options.verbose });
+        const graph = await parseMermaid(definition, {
+            verbose: !!options.verbose,
+            layout: options.layout,
+            theme: options.theme,
+        });
         
         if (options.verbose) {
             console.log(`Parsed graph:`);

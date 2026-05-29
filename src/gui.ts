@@ -63,7 +63,8 @@ async function defaultConvert(body: string): Promise<Buffer> {
         // Not JSON, treat as plain mermaid code.
     }
     const graph = await parseMermaid(mermaidCode, config);
-    return new VsdxGenerator().generate(graph);
+    // Store the source for round-trip parity with the CLI and MCP server.
+    return new VsdxGenerator().generate(graph, mermaidCode);
 }
 
 function readBody(req: IncomingMessage, cap: number): Promise<Buffer | { oversize: true }> {

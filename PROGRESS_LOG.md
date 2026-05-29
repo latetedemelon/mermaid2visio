@@ -80,3 +80,12 @@ confirm visual fidelity.**
   the Character section precedes the Text.
 - Closes "Known Limitation: Label style on embedded connector text".
 - Full suite green: 98 passed, 2 skipped.
+
+### Phase D — Cross-entry-point parity + CLI options ✅
+- MCP server and GUI now pass the Mermaid source to `generate()` so all three entry points
+  (CLI/GUI/MCP) embed `mermaid/source.mmd` for round-trip. Added an MCP test asserting the
+  source reaches the generator.
+- CLI gained `-l/--layout <engine>` and `-t/--theme <name>`, forwarded to `parseMermaid`.
+- End-to-end smoke test: `node dist/index.js /tmp/smoke.mmd --theme forest` produced a
+  package that passes `validateVsdx` (7 shapes, 6 connects, source.mmd embedded).
+- Full suite green: 99 passed, 2 skipped.

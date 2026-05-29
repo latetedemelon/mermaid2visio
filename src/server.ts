@@ -22,7 +22,7 @@ export interface ConvertDeps {
     now?: () => Date;
     fs?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'mkdirSync' | 'writeFileSync'>;
     parse?: typeof parseMermaid;
-    generator?: { generate(graph: any): Promise<Buffer> };
+    generator?: { generate(graph: any, mermaidSource?: string): Promise<Buffer> };
 }
 
 export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: ConvertDeps = {}): Promise<ConvertResult> {
@@ -59,7 +59,9 @@ export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: Conver
         }
 
         const graph = await _parse(mermaidCode);
-        const buffer = await _generator.generate(graph);
+        // Pass the source so the VSDX stores mermaid/source.mmd for round-trip,
+        // matching the CLI's behaviour.
+        const buffer = await _generator.generate(graph, mermaidCode);
         _fs.writeFileSync(outFile, buffer);
 
         return {

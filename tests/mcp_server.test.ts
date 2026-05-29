@@ -86,6 +86,17 @@ describe('handleConvertMermaidToVsdx', () => {
         expect(result.isError).toBeUndefined();
     });
 
+    it('passes the mermaid source to the generator for round-trip storage', async () => {
+        const files = fakeFs({});
+        await handleConvertMermaidToVsdx(
+            { source: 'graph TD\nA-->B', outputPath: '/tmp/rt.vsdx' },
+            { fs: files.stub, parse: fakeParse, generator: fakeGenerator },
+        );
+        // 2nd arg to generate() must be the mermaid source so the VSDX embeds
+        // mermaid/source.mmd, matching the CLI behaviour.
+        expect(fakeGenerator.generate).toHaveBeenCalledWith(expect.anything(), 'graph TD\nA-->B');
+    });
+
     it('wraps parser errors as isError results rather than throwing', async () => {
         const parseThatThrows = jest.fn(async () => { throw new Error('bad mermaid'); });
         const result = await handleConvertMermaidToVsdx(
