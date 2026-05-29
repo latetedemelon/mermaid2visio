@@ -502,7 +502,10 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         d,
                         arrowStart: false, arrowEnd: true,
                         text: tEl?.textContent?.trim() || undefined,
-                        labelStyle: tEl ? { color: ts?.color, fontSize: ts?.fontSize } : undefined,
+                        labelStyle: tEl ? {
+                            color: ts?.color, fontSize: ts?.fontSize,
+                            fontWeight: ts?.fontWeight, fontStyle: ts?.fontStyle,
+                        } : undefined,
                         style: {
                             stroke: cs.stroke || '#333333',
                             strokeWidth: cs.strokeWidth || '1px',
