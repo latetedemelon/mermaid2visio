@@ -47,6 +47,26 @@ describe('sequence diagram extraction', () => {
         }
     }, 60000);
 
+    it('extracts activation bars and notes as nodes', async () => {
+        const src = `sequenceDiagram
+    participant A as Alice
+    participant B as Bob
+    A->>+B: Request
+    Note right of B: thinking
+    B-->>-A: Response
+    Note over A,B: done`;
+        const g = await parseMermaid(src);
+        // 4 actor boxes + >=1 activation + 2 notes.
+        const noteNodes = g.nodes.filter(n => n.text === 'thinking' || n.text === 'done');
+        expect(noteNodes.length).toBe(2);
+        // Activation bars are narrow, empty-text rectangles.
+        const activations = g.nodes.filter(n => n.id.includes('activation'));
+        expect(activations.length).toBeGreaterThanOrEqual(1);
+        // Whole thing still validates.
+        const buf = await new VsdxGenerator().generate(g, src);
+        expect((await validateVsdx(buf)).ok).toBe(true);
+    }, 60000);
+
     it('produces a structurally valid VSDX with no empty-output warning path', async () => {
         const g = await parseMermaid(SRC);
         const buf = await new VsdxGenerator().generate(g, SRC);

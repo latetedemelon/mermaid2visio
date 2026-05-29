@@ -422,7 +422,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     }
                     return null;
                 };
-                const seqNodes = actorRects.map((r, i) => {
+                const seqNodes: any[] = actorRects.map((r, i) => {
                     const x = num(r, 'x'), y = num(r, 'y'), width = num(r, 'width'), height = num(r, 'height');
                     const tEl = textInside(x, y, width, height);
                     const cs = window.getComputedStyle(r);
@@ -440,6 +440,42 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         },
                     };
                 });
+
+                // Activation bars: thin rectangles on a lifeline, no label.
+                for (const a of Array.from(document.querySelectorAll('rect[class*="activation"]')) as SVGGraphicsElement[]) {
+                    const x = num(a, 'x'), y = num(a, 'y'), width = num(a, 'width'), height = num(a, 'height');
+                    const cs = window.getComputedStyle(a);
+                    seqNodes.push({
+                        id: `seq-activation-${seqNodes.length}`, x, y, width, height,
+                        text: '', type: 'rectangle', rounding: 0,
+                        style: { fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth, color: '#000000' },
+                    });
+                }
+                // Notes: boxes with text, paired with their noteText by containment.
+                const noteTexts = Array.from(document.querySelectorAll('text.noteText')) as SVGGraphicsElement[];
+                for (const n of Array.from(document.querySelectorAll('rect.note')) as SVGGraphicsElement[]) {
+                    const x = num(n, 'x'), y = num(n, 'y'), width = num(n, 'width'), height = num(n, 'height');
+                    let txt = '';
+                    let ts: CSSStyleDeclaration | null = null;
+                    for (const t of noteTexts) {
+                        const b = t.getBBox();
+                        const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+                        if (cx >= x && cx <= x + width && cy >= y && cy <= y + height) {
+                            txt = t.textContent?.trim() || ''; ts = window.getComputedStyle(t); break;
+                        }
+                    }
+                    const cs = window.getComputedStyle(n);
+                    seqNodes.push({
+                        id: `seq-note-${seqNodes.length}`, x, y, width, height,
+                        text: txt, type: 'rectangle', rounding: 0,
+                        style: {
+                            fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth,
+                            color: ts ? ts.color : '#000000',
+                            fontSize: ts ? ts.fontSize : undefined,
+                            textAlign: 'center',
+                        },
+                    });
+                }
 
                 const seqEdges: any[] = [];
                 // Lifelines: dashed vertical lines, no arrowhead.
