@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { create } from 'xmlbuilder2';
-import { GraphData } from './parser.js';
+import { GraphData } from './core/types.js';
 
 export class VsdxGenerator {
     private zip: JSZip;
