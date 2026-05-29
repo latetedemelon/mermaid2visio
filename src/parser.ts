@@ -43,6 +43,15 @@ export interface GraphEdge {
         strokeWidth?: string;
         strokeDasharray?: string;
     };
+    // Styling for the edge's label, forwarded to the connector's embedded
+    // text so the caption matches the Mermaid theme rather than inheriting
+    // Visio's default font/color.
+    labelStyle?: {
+        color?: string;
+        fontSize?: string;
+        fontWeight?: string;
+        fontStyle?: string;
+    };
 }
 
 export interface GraphCluster {
@@ -148,6 +157,26 @@ export function formatMermaidError(rawMsg: string, definition: string): string {
     return `Mermaid syntax error:\n  ${rawMsg.trim().replace(/\n/g, '\n  ')}\n\n` +
            `Diagram (line ${actualLine}):\n${ctx}${hint}`;
 }
+
+// Detect the Mermaid diagram type from its source: strip YAML frontmatter and
+// full-line %% comments, then read the first token. Used to give a precise
+// warning when the (flowchart-oriented) geometry extractor finds nothing.
+export function detectDiagramType(definition: string): string {
+    let body = definition.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+    const firstMeaningful = body
+        .split('\n')
+        .map(l => l.trim())
+        .find(l => l.length > 0 && !l.startsWith('%%'));
+    if (!firstMeaningful) return 'unknown';
+    // First word, e.g. "sequenceDiagram", "flowchart", "stateDiagram-v2".
+    return (/^([A-Za-z][\w-]*)/.exec(firstMeaningful)?.[1]) ?? 'unknown';
+}
+
+// Diagram types whose SVG structure the extractor understands. Flowchart/graph
+// are fully supported; class/state/ER are partial (boxes + relationships, but
+// not every embellishment). Everything else renders to an empty page today.
+const FULLY_SUPPORTED = new Set(['flowchart', 'graph']);
+const PARTIALLY_SUPPORTED = new Set(['classDiagram', 'stateDiagram', 'stateDiagram-v2', 'erDiagram', 'sequenceDiagram']);
 
 // Translate every absolute coordinate pair in an SVG path `d` string by (dx, dy).
 // Mermaid's edge paths use absolute commands (M, L, C, S, Q, T, A); we don't
@@ -353,8 +382,10 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
         </script>
     `);
 
+    const diagramType = detectDiagramType(definition);
+
     try {
-        const result = await page.evaluate(async (def) => {
+        const result = await page.evaluate(async (def, dtype) => {
             try {
                 // @ts-ignore
                 const { svg } = await mermaid.render('graphDiv', def);
@@ -366,11 +397,128 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 const msg = renderErr?.message ?? String(renderErr);
                 throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
             }
-            
+
             const svgElement = document.querySelector('svg');
             const viewBox = svgElement?.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
             const graphWidth = viewBox[2] || parseFloat(svgElement?.getAttribute('width') || '0');
             const graphHeight = viewBox[3] || parseFloat(svgElement?.getAttribute('height') || '0');
+
+            // Sequence diagrams have a wholly different SVG structure than
+            // flowcharts (actor boxes + lifelines + message lines, not
+            // .node/.edgePaths). Extract them into the same IR: actor boxes
+            // become rectangle nodes; lifelines and messages become unglued
+            // edges with a synthesized `d` (the generator's path fallback then
+            // draws them in the shared coordinate space).
+            if (dtype === 'sequenceDiagram') {
+                const num = (el: Element | null, attr: string) => parseFloat(el?.getAttribute(attr) || '0');
+                const actorRects = Array.from(document.querySelectorAll('rect.actor-top, rect.actor-bottom')) as SVGGraphicsElement[];
+                const allText = Array.from(document.querySelectorAll('text')) as SVGGraphicsElement[];
+                // Pair an actor box with the text whose centre falls inside it.
+                const textInside = (x: number, y: number, w: number, h: number) => {
+                    for (const t of allText) {
+                        const b = t.getBBox();
+                        const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+                        if (cx >= x && cx <= x + w && cy >= y && cy <= y + h) return t;
+                    }
+                    return null;
+                };
+                const seqNodes: any[] = actorRects.map((r, i) => {
+                    const x = num(r, 'x'), y = num(r, 'y'), width = num(r, 'width'), height = num(r, 'height');
+                    const tEl = textInside(x, y, width, height);
+                    const cs = window.getComputedStyle(r);
+                    const ts = tEl ? window.getComputedStyle(tEl) : null;
+                    return {
+                        id: `seq-actor-${i}`, x, y, width, height,
+                        text: tEl?.textContent?.trim() || '',
+                        type: 'rectangle', rounding: 0,
+                        style: {
+                            fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth,
+                            color: ts ? ts.color : '#000000',
+                            fontSize: ts ? ts.fontSize : undefined,
+                            fontFamily: ts ? ts.fontFamily : undefined,
+                            textAlign: 'center',
+                        },
+                    };
+                });
+
+                // Activation bars: thin rectangles on a lifeline, no label.
+                for (const a of Array.from(document.querySelectorAll('rect[class*="activation"]')) as SVGGraphicsElement[]) {
+                    const x = num(a, 'x'), y = num(a, 'y'), width = num(a, 'width'), height = num(a, 'height');
+                    const cs = window.getComputedStyle(a);
+                    seqNodes.push({
+                        id: `seq-activation-${seqNodes.length}`, x, y, width, height,
+                        text: '', type: 'rectangle', rounding: 0,
+                        style: { fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth, color: '#000000' },
+                    });
+                }
+                // Notes: boxes with text, paired with their noteText by containment.
+                const noteTexts = Array.from(document.querySelectorAll('text.noteText')) as SVGGraphicsElement[];
+                for (const n of Array.from(document.querySelectorAll('rect.note')) as SVGGraphicsElement[]) {
+                    const x = num(n, 'x'), y = num(n, 'y'), width = num(n, 'width'), height = num(n, 'height');
+                    let txt = '';
+                    let ts: CSSStyleDeclaration | null = null;
+                    for (const t of noteTexts) {
+                        const b = t.getBBox();
+                        const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+                        if (cx >= x && cx <= x + width && cy >= y && cy <= y + height) {
+                            txt = t.textContent?.trim() || ''; ts = window.getComputedStyle(t); break;
+                        }
+                    }
+                    const cs = window.getComputedStyle(n);
+                    seqNodes.push({
+                        id: `seq-note-${seqNodes.length}`, x, y, width, height,
+                        text: txt, type: 'rectangle', rounding: 0,
+                        style: {
+                            fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth,
+                            color: ts ? ts.color : '#000000',
+                            fontSize: ts ? ts.fontSize : undefined,
+                            textAlign: 'center',
+                        },
+                    });
+                }
+
+                const seqEdges: any[] = [];
+                // Lifelines: dashed vertical lines, no arrowhead.
+                for (const ll of Array.from(document.querySelectorAll('line.actor-line')) as Element[]) {
+                    const x1 = num(ll, 'x1'), y1 = num(ll, 'y1'), x2 = num(ll, 'x2'), y2 = num(ll, 'y2');
+                    seqEdges.push({
+                        d: `M ${x1} ${y1} L ${x2} ${y2}`,
+                        arrowStart: false, arrowEnd: false,
+                        style: { stroke: '#999999', strokeWidth: '1px', strokeDasharray: '3,3' },
+                    });
+                }
+                // Messages: solid (messageLine0) or dashed (messageLine1) lines
+                // with an arrowhead at the end; labels matched by DOM order.
+                const msgLines = Array.from(document.querySelectorAll('line.messageLine0, line.messageLine1, path.messageLine0, path.messageLine1')) as Element[];
+                const msgTexts = Array.from(document.querySelectorAll('text.messageText')) as SVGGraphicsElement[];
+                msgLines.forEach((ml, i) => {
+                    const dashed = (ml.getAttribute('class') || '').includes('messageLine1');
+                    const x1 = num(ml, 'x1'), y1 = num(ml, 'y1'), x2 = num(ml, 'x2'), y2 = num(ml, 'y2');
+                    const d = ml.getAttribute('d') || `M ${x1} ${y1} L ${x2} ${y2}`;
+                    const cs = window.getComputedStyle(ml);
+                    const tEl = msgTexts[i];
+                    const ts = tEl ? window.getComputedStyle(tEl) : null;
+                    seqEdges.push({
+                        d,
+                        arrowStart: false, arrowEnd: true,
+                        text: tEl?.textContent?.trim() || undefined,
+                        labelStyle: tEl ? {
+                            color: ts?.color, fontSize: ts?.fontSize,
+                            fontWeight: ts?.fontWeight, fontStyle: ts?.fontStyle,
+                        } : undefined,
+                        style: {
+                            stroke: cs.stroke || '#333333',
+                            strokeWidth: cs.strokeWidth || '1px',
+                            strokeDasharray: dashed ? '3,3' : undefined,
+                        },
+                    });
+                });
+
+                return {
+                    width: graphWidth, height: graphHeight,
+                    nodes: seqNodes, edges: seqEdges, clusters: [], labels: [],
+                };
+            }
 
             const nodes = Array.from(document.querySelectorAll('.node'));
             const edges = Array.from(document.querySelectorAll('.edgePaths path')); 
@@ -641,7 +789,16 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     // corresponds to the i-th edge path (same document order).
                     // `|| undefined` converts the empty string ("") to undefined
                     // so that edges with no label don't get an empty Text element.
-                    const edgeLabelText = rawEdgeLabels[edgeIdx]?.text || undefined;
+                    const edgeLabel = rawEdgeLabels[edgeIdx];
+                    const edgeLabelText = edgeLabel?.text || undefined;
+                    // Forward label font styling alongside the text so the
+                    // generator can emit a matching Character section.
+                    const labelStyle = edgeLabelText && edgeLabel ? {
+                        color: edgeLabel.style?.color,
+                        fontSize: edgeLabel.style?.fontSize,
+                        fontWeight: edgeLabel.style?.fontWeight,
+                        fontStyle: edgeLabel.style?.fontStyle,
+                    } : undefined;
 
                     return {
                         d: path.getAttribute('d') || '',
@@ -650,6 +807,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         arrowStart: !!markerStart,
                         arrowEnd: !!markerEnd,
                         text: edgeLabelText,
+                        labelStyle,
                         style: {
                             stroke: computedStyle.stroke,
                             strokeWidth: computedStyle.strokeWidth,
@@ -668,7 +826,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 }),
                 labels
             };
-        }, definition);
+        }, definition, diagramType);
 
         // Normalise all coordinates so the page origin is the top-left of the
         // actual rendered content.  Mermaid+ELK place shapes in SVG user space
@@ -714,6 +872,24 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
         result.width = maxX - minX;
         result.height = maxY - minY;
+
+        // If the extractor found no geometry at all, the output VSDX will open
+        // but be blank. That's a silent failure for diagram types this
+        // flowchart-oriented extractor doesn't understand (sequence, pie,
+        // gantt, journey, ...), so warn loudly with the detected type. The
+        // warning goes to stderr, which is safe for the CLI, GUI, and the MCP
+        // server (whose JSON-RPC channel is stdout).
+        const totalShapes = result.nodes.length + result.edges.length +
+            result.clusters.length + result.labels.length;
+        if (totalShapes === 0) {
+            const type = detectDiagramType(definition);
+            const support = FULLY_SUPPORTED.has(type) || PARTIALLY_SUPPORTED.has(type)
+                ? `Expected shapes for "${type}" but found none — the diagram may be empty or use unsupported syntax.`
+                : `Diagram type "${type}" is not supported by the geometry extractor ` +
+                  `(supported: flowchart/graph fully; sequence/class/state/ER partially). ` +
+                  `The generated VSDX will open but be blank.`;
+            console.warn(`[mermaid2visio] Warning: no shapes extracted. ${support}`);
+        }
 
         log(`render OK: ${result.nodes.length} nodes, ${result.edges.length} edges, ` +
             `${result.clusters.length} clusters, ${result.labels.length} labels`);

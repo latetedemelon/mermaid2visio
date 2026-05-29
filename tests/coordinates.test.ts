@@ -165,6 +165,34 @@ describe('Coordinate conversion', () => {
     expect(connectorMatch![1]).toMatch(/<Text>yes<\/Text>/);
   });
 
+  it('forwards edge label style to a connector Character section before the text', async () => {
+    // The label's color/size must ride along as a Character section so the
+    // caption renders in the Mermaid theme colour, not Visio's default.
+    const graph: GraphData = {
+      width: 200,
+      height: 200,
+      nodes: [
+        { id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A' },
+        { id: 'b', x: 0, y: 100, width: 96, height: 48, text: 'B' },
+      ],
+      edges: [{
+        d: 'M0,0 L1,1', startId: 'a', endId: 'b', text: 'yes', arrowEnd: true,
+        labelStyle: { color: 'rgb(255, 0, 0)', fontSize: '14px', fontWeight: 'bold' },
+      }],
+      clusters: [],
+      labels: [],
+    };
+    const xml = await unzipPage(await new VsdxGenerator().generate(graph));
+    const body = /<Shape\b[^>]*ID="3"[^>]*>([\s\S]*?)<\/Shape>/.exec(xml)![1];
+    // Character section present with normalised colour and inch-based size.
+    expect(body).toMatch(/<Section N="Character"/);
+    expect(body).toMatch(/<Cell N="Color" V="#ff0000"/);
+    expect(body).toMatch(/<Cell N="Size" V="0\.1458"/); // 14/96
+    expect(body).toMatch(/<Cell N="Style" V="1"/);      // bold
+    // Order: the Character section must precede the <Text> element.
+    expect(body.indexOf('N="Character"')).toBeLessThan(body.indexOf('<Text>'));
+  });
+
   it('Connects is a sibling of Shapes, not nested inside it', async () => {
     // VSDX spec: PageContents contains <Shapes> and <Connects> as siblings.
     // If <Connects> were a child of <Shapes>, Visio would silently ignore
@@ -230,8 +258,44 @@ describe('parsePathToVisio', () => {
     const { geom, rows } = mockGeom();
     g.parsePathToVisio('M 0 0 Q 10 10 20 0 A 5 5 0 0 1 30 0', geom);
     const lineTos = rows.filter(r => r.T === 'LineTo').length;
-    // 4 flattened segments for Q + 1 fallback segment for A = 5
+    // 4 flattened segments for Q + arc segments for A
     expect(lineTos).toBeGreaterThanOrEqual(5);
+  });
+
+  it('flattens an elliptical arc into a curved polyline ending at the endpoint', () => {
+    // A quarter-circle arc from (0,0) to (10,10), r=10. The flattened polyline
+    // must (a) contain several segments (not one straight line), (b) end at the
+    // commanded endpoint, and (c) actually bow away from the chord midpoint.
+    const g = new VsdxGenerator();
+    const { geom, rows } = mockGeom();
+    g.parsePathToVisio('M 0 0 A 10 10 0 0 1 10 10', geom);
+    const lineTos = rows.filter(r => r.T === 'LineTo');
+    expect(lineTos.length).toBeGreaterThanOrEqual(4); // curved, not a single chord
+    // Endpoint (10 px) -> X = 0.5 + 10/96; Y = 11 - 0.5 - 10/96.
+    const last = lineTos[lineTos.length - 1];
+    expect(parseFloat(last.X)).toBeCloseTo(0.5 + 10 / 96, 4);
+    expect(parseFloat(last.Y)).toBeCloseTo(11 - 0.5 - 10 / 96, 4);
+    // A straight chord would keep all points colinear; an arc must deviate.
+    // Check a midpoint segment is off the straight chord line y = -x (in SVG).
+    const mid = lineTos[Math.floor(lineTos.length / 2)];
+    const chordX = parseFloat(mid.X);
+    const chordYon = 11 - 0.5 - (parseFloat((mid as any).X) - 0.5); // y if colinear
+    expect(Math.abs(parseFloat(mid.Y) - chordYon)).toBeGreaterThan(0.01);
+    expect(chordX).toBeGreaterThan(0); // sanity
+  });
+
+  it('applies the margin-aware transform so fallback edges align with nodes', () => {
+    // Regression for the margin bug: the fallback path transform must match
+    // the one nodes use (margin + px/dpi for X; pageHeight - margin - px/dpi
+    // for Y). A default generator is 8.5x11" with a 0.5" margin at 96 dpi.
+    const g = new VsdxGenerator();
+    const { geom, rows } = mockGeom();
+    g.parsePathToVisio('M 96 96 L 192 96', geom);
+    // (96 px = 1") -> X = 0.5 + 1 = 1.5"; Y = 11 - 0.5 - 1 = 9.5".
+    expect(parseFloat(rows[0].X)).toBeCloseTo(1.5, 6);
+    expect(parseFloat(rows[0].Y)).toBeCloseTo(9.5, 6);
+    // (192 px = 2") -> X = 0.5 + 2 = 2.5".
+    expect(parseFloat(rows[1].X)).toBeCloseTo(2.5, 6);
   });
 });
 

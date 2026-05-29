@@ -74,6 +74,10 @@ export class VsdxGenerator {
             .ele('Types', { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' })
                 .ele('Default', { Extension: 'rels', ContentType: 'application/vnd.openxmlformats-package.relationships+xml' }).up()
                 .ele('Default', { Extension: 'xml', ContentType: 'application/xml' }).up()
+                // The round-trip source (mermaid/source.mmd) is a package part too;
+                // OPC requires every part to have a content type or the package is
+                // invalid (a 1400015 trigger). Declare .mmd as plain text.
+                .ele('Default', { Extension: 'mmd', ContentType: 'text/plain' }).up()
                 .ele('Override', { PartName: '/docProps/app.xml', ContentType: 'application/vnd.openxmlformats-officedocument.extended-properties+xml' }).up()
                 .ele('Override', { PartName: '/docProps/core.xml', ContentType: 'application/vnd.openxmlformats-package.core-properties+xml' }).up()
                 .ele('Override', { PartName: '/visio/document.xml', ContentType: 'application/vnd.ms-visio.drawing.main+xml' }).up()
@@ -689,6 +693,22 @@ export class VsdxGenerator {
                         .ele('Cell', { N: 'ConLineRouteExt', V: '2' }).up()
                     .up().up();
 
+                // Edge label styling: a Character section (before <Text>, per
+                // Visio's Cells->Sections->Text order) carries the Mermaid
+                // label's color/size/weight so the caption matches the diagram
+                // instead of inheriting Visio's default font.
+                if (edge.text && edge.labelStyle) {
+                    const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
+                    const charRow = charSec.ele('Row', { IX: '0' });
+                    const color = VsdxGenerator.normalizeColor(edge.labelStyle.color);
+                    if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
+                    const fs = getFontSize(edge.labelStyle.fontSize);
+                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
+                    const st = getFontStyle(edge.labelStyle.fontWeight, edge.labelStyle.fontStyle);
+                    if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
+                    charRow.up().up();
+                }
+
                 // Embed edge label text directly in the connector shape so
                 // the label follows the connector when nodes are moved.
                 if (edge.text) {
@@ -775,8 +795,13 @@ export class VsdxGenerator {
         let startY = 0;
         let rowIx = 1;
 
-        const toVisioY = (y: number) => this.pageHeight - (y / this.dpi);
-        const toVisioX = (x: number) => x / this.dpi;
+        // Use the same margin-aware transforms as every other shape. The raw
+        // SVG `d` coordinates are in the parser's translated SVG space (the
+        // same space node x/y live in), so the fallback path must apply the
+        // identical mapping or unglued edges land offset by the page margin
+        // (0.5") and a half-page in Y relative to the nodes they connect.
+        const toVisioY = (y: number) => this.toVisioY(y);
+        const toVisioX = (x: number) => this.toVisioX(x);
 
         const moveTo = (x: number, y: number) => {
             geomXml.ele('Row', { T: 'MoveTo', IX: rowIx.toString() })
@@ -820,6 +845,58 @@ export class VsdxGenerator {
                 const bx = mt*mt*currentX + 2*mt*t*x1 + t*t*x;
                 const by = mt*mt*currentY + 2*mt*t*y1 + t*t*y;
                 lineTo(bx, by);
+            }
+        };
+        // Flatten an SVG elliptical-arc command (A rx ry rot largeArc sweep x y)
+        // into a polyline using the endpoint-to-center parameterization from the
+        // SVG spec (Implementation Notes F.6). Start point is (currentX, currentY);
+        // (x, y) is the absolute endpoint. Emits ~one segment per 15 degrees so the
+        // curve reads as smooth at diagram scale. Replaces the old straight-line
+        // fallback, which visibly cut the corner on cylinder/looped edges.
+        const arcTo = (
+            rx: number, ry: number, rotDeg: number,
+            largeArc: number, sweep: number, x: number, y: number,
+        ) => {
+            const x1 = currentX, y1 = currentY, x2 = x, y2 = y;
+            // Degenerate radii or coincident endpoints: SVG says draw a straight line.
+            if (rx === 0 || ry === 0 || (x1 === x2 && y1 === y2)) { lineTo(x2, y2); return; }
+            rx = Math.abs(rx); ry = Math.abs(ry);
+            const phi = (rotDeg % 360) * Math.PI / 180;
+            const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
+            const dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
+            const x1p = cosPhi * dx + sinPhi * dy;
+            const y1p = -sinPhi * dx + cosPhi * dy;
+            let rx2 = rx * rx, ry2 = ry * ry;
+            // Scale radii up if they're too small to span the endpoints.
+            const lambda = (x1p * x1p) / rx2 + (y1p * y1p) / ry2;
+            if (lambda > 1) { const s = Math.sqrt(lambda); rx *= s; ry *= s; rx2 = rx * rx; ry2 = ry * ry; }
+            const sign = largeArc !== sweep ? 1 : -1;
+            const num = Math.max(0, rx2 * ry2 - rx2 * y1p * y1p - ry2 * x1p * x1p);
+            const denom = rx2 * y1p * y1p + ry2 * x1p * x1p;
+            const coef = sign * Math.sqrt(num / denom);
+            const cxp = coef * (rx * y1p / ry);
+            const cyp = coef * (-ry * x1p / rx);
+            const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+            const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+            const angleBetween = (ux: number, uy: number, vx: number, vy: number) => {
+                const dot = ux * vx + uy * vy;
+                const len = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy)) || 1;
+                let a = Math.acos(Math.min(1, Math.max(-1, dot / len)));
+                if (ux * vy - uy * vx < 0) a = -a;
+                return a;
+            };
+            const ux = (x1p - cxp) / rx, uy = (y1p - cyp) / ry;
+            const vx = (-x1p - cxp) / rx, vy = (-y1p - cyp) / ry;
+            const theta1 = angleBetween(1, 0, ux, uy);
+            let dTheta = angleBetween(ux, uy, vx, vy);
+            if (!sweep && dTheta > 0) dTheta -= 2 * Math.PI;
+            else if (sweep && dTheta < 0) dTheta += 2 * Math.PI;
+            const segs = Math.max(2, Math.ceil(Math.abs(dTheta) / (Math.PI / 12)));
+            for (let i = 1; i <= segs; i++) {
+                const t = theta1 + dTheta * (i / segs);
+                const ex = cx + rx * Math.cos(t) * cosPhi - ry * Math.sin(t) * sinPhi;
+                const ey = cy + rx * Math.cos(t) * sinPhi + ry * Math.sin(t) * cosPhi;
+                lineTo(ex, ey);
             }
         };
 
@@ -933,12 +1010,15 @@ export class VsdxGenerator {
                 currentY = startY;
                 prevControlX = prevControlY = null;
             } else if (upper === 'A') {
-                // Elliptical arc: fall back to a straight line to the endpoint so the
-                // connector stays continuous rather than silently dropping segments.
+                // Elliptical arc: flatten to a polyline via arcTo. Only the final
+                // x/y pair is a coordinate (and may be relative); rx/ry/rotation
+                // and the two flags are scalars regardless of case.
                 for (let i = 0; i < args.length; i += 7) {
+                    const rx = args[i], ry = args[i + 1], rot = args[i + 2];
+                    const largeArc = args[i + 3], sweep = args[i + 4];
                     const x = relative ? currentX + args[i + 5] : args[i + 5];
                     const y = relative ? currentY + args[i + 6] : args[i + 6];
-                    lineTo(x, y);
+                    arcTo(rx, ry, rot, largeArc, sweep, x, y);
                     currentX = x;
                     currentY = y;
                 }

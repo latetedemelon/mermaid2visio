@@ -57,8 +57,15 @@ The web UI now includes:
 ### 2. Command Line (CLI)
 Convert files in bulk or via scripts.
 ```bash
-node dist/index.js input.mmd [output.vsdx]
+node dist/index.js input.mmd -o output.vsdx
 ```
+Options:
+- `-o, --output <path>` — output file (defaults to the input name with a `.vsdx` extension)
+- `-l, --layout <engine>` — `dagre` (default) or `elk`
+- `-t, --theme <name>` — `default`, `forest`, `dark`, or `neutral`
+- `-v, --verbose` — diagnostic logging (layout selection, parsed graph summary, render errors)
+
+Accepts a `.mmd` file or a `.md` file containing a ```` ```mermaid ```` fenced block.
 
 ### 3. AI Agent Integration (MCP)
 Add this tool to your AI assistant (e.g., Claude Desktop) to give it "Visio Skills".
@@ -85,23 +92,26 @@ Right-click any `.mmd` or `.md` file to convert.
 
 ## Supported Diagram Types
 
-All MermaidJS diagram types are now supported with enhanced layout and theming:
+This tool converts Mermaid's rendered SVG geometry into native, editable Visio
+shapes. The extractor is **flowchart-oriented**, so support varies by diagram
+type. Any Mermaid diagram will at least produce a valid `.vsdx` that opens in
+Visio; the table below describes how much of it comes across as editable shapes.
 
-- **Flowcharts** (`graph TD`, `LR`, `RL`, `BT`)
-- **Sequence Diagrams**
-- **Class Diagrams**
-- **State Diagrams**
-- **Entity Relationship (ER) Diagrams**
-- **User Journey**
-- **Gantt Charts**
-- **Pie Charts**
-- **Git Graph**
-- **C4 Diagrams**
-- **Mindmaps**
-- **XY Charts**
-- **Sankey Diagrams**
+| Diagram type | Support | Notes |
+|---|---|---|
+| **Flowcharts** (`flowchart`, `graph` TD/LR/RL/BT) | ✅ Full | Nodes, edges, subgraphs, shape types, styling, hyperlinks, glued connectors |
+| **Sequence diagrams** | 🟡 Partial | Actor boxes, lifelines, and messages (with labels, dashed/solid, arrowheads) map to shapes/connectors. Activations, notes, loops/alt boxes are not yet extracted. |
+| **Class diagrams** | 🟡 Partial | Class boxes and relationships map; member/method detail is limited |
+| **State diagrams** (`stateDiagram-v2`) | 🟡 Partial | States and transitions map |
+| **ER diagrams** | 🟡 Partial | Entities and relationships map |
+| **Pie, Gantt, Journey, Git graph, Mindmap, C4, XY, Sankey** | ❌ Not yet | Currently produce a **blank** (but valid) `.vsdx`. The CLI prints a warning when no shapes are extracted. |
 
-All with:
+> If you convert an unsupported type, you'll see a
+> `Warning: no shapes extracted` message naming the detected diagram type.
+> Native serializers for these types (especially sequence diagrams) are the
+> main item on the roadmap.
+
+Flowcharts support:
 - **Subgraphs** (mapped to Containers)
 - **Multiple shape types** (Rectangle, Rounded, Cylinder, Rhombus, Stadium, Subroutine, Circle)
 - **Styling** (`fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`)

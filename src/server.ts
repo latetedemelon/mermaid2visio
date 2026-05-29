@@ -22,7 +22,7 @@ export interface ConvertDeps {
     now?: () => Date;
     fs?: Pick<typeof fs, 'existsSync' | 'readFileSync' | 'mkdirSync' | 'writeFileSync'>;
     parse?: typeof parseMermaid;
-    generator?: { generate(graph: any): Promise<Buffer> };
+    generator?: { generate(graph: any, mermaidSource?: string): Promise<Buffer> };
 }
 
 export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: ConvertDeps = {}): Promise<ConvertResult> {
@@ -59,11 +59,27 @@ export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: Conver
         }
 
         const graph = await _parse(mermaidCode);
-        const buffer = await _generator.generate(graph);
+        // Pass the source so the VSDX stores mermaid/source.mmd for round-trip,
+        // matching the CLI's behaviour.
+        const buffer = await _generator.generate(graph, mermaidCode);
         _fs.writeFileSync(outFile, buffer);
 
+        // Surface the empty-output condition in the tool result. The parser
+        // warns on stderr, but MCP clients don't show stderr to the agent, so
+        // without this an agent converting an unsupported diagram type gets a
+        // silent blank file.
+        const totalShapes = (graph?.nodes?.length ?? 0) + (graph?.edges?.length ?? 0) +
+            (graph?.clusters?.length ?? 0) + (graph?.labels?.length ?? 0);
+        let text = `Successfully generated Visio diagram at: ${outFile}`;
+        if (totalShapes === 0) {
+            text += `\n\nWarning: no shapes were extracted, so the .vsdx will be blank. ` +
+                `The converter fully supports flowchart/graph and partially supports ` +
+                `sequence/class/state/ER diagrams; other types (pie, gantt, journey, etc.) ` +
+                `are not yet supported.`;
+        }
+
         return {
-            content: [{ type: "text", text: `Successfully generated Visio diagram at: ${outFile}` }],
+            content: [{ type: "text", text }],
         };
     } catch (error: any) {
         return {
