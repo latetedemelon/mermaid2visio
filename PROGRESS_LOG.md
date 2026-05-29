@@ -137,9 +137,31 @@ via structural validation. Please open a few generated `.vsdx` in actual Visio a
 5. Generated files still **open without error 1400015** (the `.mmd` content-type fix should
    only help here, but confirm).
 
-### BIGGEST REMAINING OPPORTUNITY
-- **Sequence diagrams** (and pie/gantt/journey/etc.) produce a blank VSDX. The flowchart
-  extractor can't see their SVG structure. A dedicated sequence-diagram serialiser (actor
-  columns × message rows → Visio shapes/connectors) is the highest-value next feature.
+### Phase H — Sequence diagram extractor ✅ (NEW capability)
+- Added a dedicated sequence-diagram branch in `parseMermaid` (keyed on `detectDiagramType`).
+  Built against the real Mermaid SVG (inspected first): actor boxes (`rect.actor-top/-bottom`)
+  → rectangle nodes (text paired by geometric containment); lifelines (`line.actor-line`) and
+  messages (`line.messageLine0` solid / `messageLine1` dashed, with `marker-end` arrowheads)
+  → unglued edges with a synthesized `d`; message labels (`text.messageText`) matched by DOM
+  order and embedded (with a Character section) on the message connector.
+- Verified: a 2-actor / 3-message diagram yields 4 boxes + 5 edges (2 lifelines + 3 messages),
+  correct labels, dashed return message, horizontal messages, and a VALID package.
+- `tests/sequence.test.ts` added; `diagram_types.test.ts` updated (sequence now expects
+  shapes); README/CLAUDE.md support matrix updated (sequence: ❌ → 🟡 partial).
+- **[VERIFY-IN-VISIO]** Sequence layout is geometry-faithful to Mermaid but I could not see it
+  rendered. Confirm actor boxes sit at top & bottom, lifelines run vertically between them,
+  and messages are horizontal arrows at the right heights with labels above the lines.
+- Still not extracted for sequence: activations, notes, loop/alt/opt frames.
+
+### BIGGEST REMAINING OPPORTUNITY (updated)
+- **Sequence diagram polish**: activations (the thin rectangles on lifelines), notes, and
+  loop/alt/opt frames. The scaffolding (type-branched extractor) is now in place to add them.
+- **pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey** still produce blank output — each needs
+  its own extractor branch (same pattern as the sequence one).
 - **Font family** is parsed but not emitted (needs a `FaceNames` table; risky without a Visio
   oracle to confirm it doesn't re-trigger 1400015). Size/color/weight/italic ARE forwarded.
+
+### FINAL TEST STATUS
+- `npm test`: **117 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
+  is non-functional in this sandbox). `npm run build` clean. All work committed and pushed to
+  `claude/code-review-VUu3e`.

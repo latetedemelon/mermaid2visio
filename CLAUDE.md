@@ -52,7 +52,9 @@ Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry 
 
 **ELK layout**: When `layout: elk` appears in the diagram's YAML frontmatter, the parser spins up a localhost HTTP server to serve `@mermaid-js/layout-elk/dist/` so Puppeteer can import it as an ES module. Falls back to dagre if registration fails.
 
-**Empty-output warning**: The extractor is flowchart-oriented. If it finds zero geometry (sequence/pie/gantt/etc.), `parseMermaid` emits a `console.warn` to stderr naming the detected diagram type (`detectDiagramType()`) and the support matrix, so a blank-but-valid VSDX is never a silent surprise. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
+**Sequence diagrams**: `parseMermaid` branches on `detectDiagramType`. For `sequenceDiagram` it runs a dedicated extractor (inside the page.evaluate) that maps actor boxes (`rect.actor-top`/`rect.actor-bottom`) to rectangle nodes — pairing each box with the `<text>` whose centre falls inside it — and lifelines (`line.actor-line`) plus messages (`line.messageLine0` solid / `line.messageLine1` dashed) to unglued edges with a synthesized `d`. Message labels (`text.messageText`) are matched to message lines by DOM order. The generator's margin-aware path fallback then draws them. Not yet handled: activations, notes, loop/alt/opt boxes.
+
+**Empty-output warning**: The extractor is flowchart-oriented. If it finds zero geometry (pie/gantt/etc.), `parseMermaid` emits a `console.warn` to stderr naming the detected diagram type (`detectDiagramType()`) and the support matrix, so a blank-but-valid VSDX is never a silent surprise. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
 
 **GraphData interfaces** (the Intermediate Representation):
 ```typescript
@@ -141,12 +143,13 @@ Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tes
 
 ## Known Limitations / Future Work
 
-- **Diagram-type support is flowchart-centric.** Empirically (see `diagram_types.test.ts`): flowchart/graph are full; classDiagram/stateDiagram/erDiagram are partial; sequence/pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey extract **zero** geometry and produce a blank-but-valid VSDX (the parser now warns when this happens). The README support matrix reflects this honestly.
-- **Sequence diagrams** are the highest-value gap: they need a dedicated serialiser (actor-column × message-row layout) rather than the flowchart extractor. Nothing comes across today.
+- **Diagram-type support varies.** Empirically (see `diagram_types.test.ts`): flowchart/graph are full; sequence/classDiagram/stateDiagram/erDiagram are partial; pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey extract **zero** geometry and produce a blank-but-valid VSDX (the parser now warns when this happens). The README support matrix reflects this honestly.
+- **Sequence diagrams are partial:** actor boxes, lifelines, and labelled messages map (see the sequence extractor), but activations, notes, and loop/alt/opt frames are not yet extracted.
 - **Font family is not emitted.** `style.fontFamily` is parsed but never written to Visio — emitting it safely requires a populated `FaceNames` table in `document.xml`, and an empty/malformed one is a known 1400015 trigger, so it was left out pending verification in real Visio. Text currently renders in Visio's default face (size/color/weight/italic *are* forwarded).
 - **Fidelity mode**: The architectural plan envisions a second `fidelity` output mode that transcribes fixed SVG geometry rather than creating dynamic Visio shapes. Not yet implemented.
 
 ### Resolved (this session)
+- Sequence diagrams now extract actor boxes, lifelines, and labelled messages (were blank).
 - Elliptical arcs in the path fallback are now flattened to polylines (was a straight chord).
 - Edge-label color/size/weight is now forwarded to a connector `Character` section.
 - Unglued fallback edges now share the margin-aware coordinate transform (were offset 0.5").

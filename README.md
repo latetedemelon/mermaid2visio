@@ -100,10 +100,11 @@ Visio; the table below describes how much of it comes across as editable shapes.
 | Diagram type | Support | Notes |
 |---|---|---|
 | **Flowcharts** (`flowchart`, `graph` TD/LR/RL/BT) | ✅ Full | Nodes, edges, subgraphs, shape types, styling, hyperlinks, glued connectors |
+| **Sequence diagrams** | 🟡 Partial | Actor boxes, lifelines, and messages (with labels, dashed/solid, arrowheads) map to shapes/connectors. Activations, notes, loops/alt boxes are not yet extracted. |
 | **Class diagrams** | 🟡 Partial | Class boxes and relationships map; member/method detail is limited |
 | **State diagrams** (`stateDiagram-v2`) | 🟡 Partial | States and transitions map |
 | **ER diagrams** | 🟡 Partial | Entities and relationships map |
-| **Sequence, Pie, Gantt, Journey, Git graph, Mindmap, C4, XY, Sankey** | ❌ Not yet | Currently produce a **blank** (but valid) `.vsdx`. The CLI prints a warning when no shapes are extracted. |
+| **Pie, Gantt, Journey, Git graph, Mindmap, C4, XY, Sankey** | ❌ Not yet | Currently produce a **blank** (but valid) `.vsdx`. The CLI prints a warning when no shapes are extracted. |
 
 > If you convert an unsupported type, you'll see a
 > `Warning: no shapes extracted` message naming the detected diagram type.

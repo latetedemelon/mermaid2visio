@@ -30,7 +30,7 @@ describe('diagram type coverage (parse -> generate -> validate)', () => {
         [`classDiagram\n Animal <|-- Duck\n Animal : +int age\n class Duck{ +swim() }`, 'class', true],
         [`stateDiagram-v2\n [*] --> Still\n Still --> Moving\n Moving --> [*]`, 'state', true],
         [`erDiagram\n CUSTOMER ||--o{ ORDER : places\n ORDER ||--|{ LINE : contains`, 'er', true],
-        [`sequenceDiagram\n Alice->>John: Hello\n John-->>Alice: Hi`, 'sequence', false],
+        [`sequenceDiagram\n Alice->>John: Hello\n John-->>Alice: Hi`, 'sequence', true],
         [`pie title Pets\n "Dogs" : 386\n "Cats" : 85`, 'pie', false],
     ];
 
