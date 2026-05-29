@@ -230,8 +230,22 @@ describe('parsePathToVisio', () => {
     const { geom, rows } = mockGeom();
     g.parsePathToVisio('M 0 0 Q 10 10 20 0 A 5 5 0 0 1 30 0', geom);
     const lineTos = rows.filter(r => r.T === 'LineTo').length;
-    // 4 flattened segments for Q + 1 fallback segment for A = 5
+    // 4 flattened segments for Q + arc segments for A
     expect(lineTos).toBeGreaterThanOrEqual(5);
+  });
+
+  it('applies the margin-aware transform so fallback edges align with nodes', () => {
+    // Regression for the margin bug: the fallback path transform must match
+    // the one nodes use (margin + px/dpi for X; pageHeight - margin - px/dpi
+    // for Y). A default generator is 8.5x11" with a 0.5" margin at 96 dpi.
+    const g = new VsdxGenerator();
+    const { geom, rows } = mockGeom();
+    g.parsePathToVisio('M 96 96 L 192 96', geom);
+    // (96 px = 1") -> X = 0.5 + 1 = 1.5"; Y = 11 - 0.5 - 1 = 9.5".
+    expect(parseFloat(rows[0].X)).toBeCloseTo(1.5, 6);
+    expect(parseFloat(rows[0].Y)).toBeCloseTo(9.5, 6);
+    // (192 px = 2") -> X = 0.5 + 2 = 2.5".
+    expect(parseFloat(rows[1].X)).toBeCloseTo(2.5, 6);
   });
 });
 

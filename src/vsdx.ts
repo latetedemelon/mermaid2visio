@@ -779,8 +779,13 @@ export class VsdxGenerator {
         let startY = 0;
         let rowIx = 1;
 
-        const toVisioY = (y: number) => this.pageHeight - (y / this.dpi);
-        const toVisioX = (x: number) => x / this.dpi;
+        // Use the same margin-aware transforms as every other shape. The raw
+        // SVG `d` coordinates are in the parser's translated SVG space (the
+        // same space node x/y live in), so the fallback path must apply the
+        // identical mapping or unglued edges land offset by the page margin
+        // (0.5") and a half-page in Y relative to the nodes they connect.
+        const toVisioY = (y: number) => this.toVisioY(y);
+        const toVisioX = (x: number) => this.toVisioX(x);
 
         const moveTo = (x: number, y: number) => {
             geomXml.ele('Row', { T: 'MoveTo', IX: rowIx.toString() })
