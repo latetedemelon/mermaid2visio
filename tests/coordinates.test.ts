@@ -234,6 +234,28 @@ describe('parsePathToVisio', () => {
     expect(lineTos).toBeGreaterThanOrEqual(5);
   });
 
+  it('flattens an elliptical arc into a curved polyline ending at the endpoint', () => {
+    // A quarter-circle arc from (0,0) to (10,10), r=10. The flattened polyline
+    // must (a) contain several segments (not one straight line), (b) end at the
+    // commanded endpoint, and (c) actually bow away from the chord midpoint.
+    const g = new VsdxGenerator();
+    const { geom, rows } = mockGeom();
+    g.parsePathToVisio('M 0 0 A 10 10 0 0 1 10 10', geom);
+    const lineTos = rows.filter(r => r.T === 'LineTo');
+    expect(lineTos.length).toBeGreaterThanOrEqual(4); // curved, not a single chord
+    // Endpoint (10 px) -> X = 0.5 + 10/96; Y = 11 - 0.5 - 10/96.
+    const last = lineTos[lineTos.length - 1];
+    expect(parseFloat(last.X)).toBeCloseTo(0.5 + 10 / 96, 4);
+    expect(parseFloat(last.Y)).toBeCloseTo(11 - 0.5 - 10 / 96, 4);
+    // A straight chord would keep all points colinear; an arc must deviate.
+    // Check a midpoint segment is off the straight chord line y = -x (in SVG).
+    const mid = lineTos[Math.floor(lineTos.length / 2)];
+    const chordX = parseFloat(mid.X);
+    const chordYon = 11 - 0.5 - (parseFloat((mid as any).X) - 0.5); // y if colinear
+    expect(Math.abs(parseFloat(mid.Y) - chordYon)).toBeGreaterThan(0.01);
+    expect(chordX).toBeGreaterThan(0); // sanity
+  });
+
   it('applies the margin-aware transform so fallback edges align with nodes', () => {
     // Regression for the margin bug: the fallback path transform must match
     // the one nodes use (margin + px/dpi for X; pageHeight - margin - px/dpi
