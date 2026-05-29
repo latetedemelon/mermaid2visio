@@ -158,6 +158,26 @@ export function formatMermaidError(rawMsg: string, definition: string): string {
            `Diagram (line ${actualLine}):\n${ctx}${hint}`;
 }
 
+// Detect the Mermaid diagram type from its source: strip YAML frontmatter and
+// full-line %% comments, then read the first token. Used to give a precise
+// warning when the (flowchart-oriented) geometry extractor finds nothing.
+export function detectDiagramType(definition: string): string {
+    let body = definition.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+    const firstMeaningful = body
+        .split('\n')
+        .map(l => l.trim())
+        .find(l => l.length > 0 && !l.startsWith('%%'));
+    if (!firstMeaningful) return 'unknown';
+    // First word, e.g. "sequenceDiagram", "flowchart", "stateDiagram-v2".
+    return (/^([A-Za-z][\w-]*)/.exec(firstMeaningful)?.[1]) ?? 'unknown';
+}
+
+// Diagram types whose SVG structure the extractor understands. Flowchart/graph
+// are fully supported; class/state/ER are partial (boxes + relationships, but
+// not every embellishment). Everything else renders to an empty page today.
+const FULLY_SUPPORTED = new Set(['flowchart', 'graph']);
+const PARTIALLY_SUPPORTED = new Set(['classDiagram', 'stateDiagram', 'stateDiagram-v2', 'erDiagram']);
+
 // Translate every absolute coordinate pair in an SVG path `d` string by (dx, dy).
 // Mermaid's edge paths use absolute commands (M, L, C, S, Q, T, A); we don't
 // see relative commands in practice, but if any appear we leave them alone
@@ -733,6 +753,24 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
         result.width = maxX - minX;
         result.height = maxY - minY;
+
+        // If the extractor found no geometry at all, the output VSDX will open
+        // but be blank. That's a silent failure for diagram types this
+        // flowchart-oriented extractor doesn't understand (sequence, pie,
+        // gantt, journey, ...), so warn loudly with the detected type. The
+        // warning goes to stderr, which is safe for the CLI, GUI, and the MCP
+        // server (whose JSON-RPC channel is stdout).
+        const totalShapes = result.nodes.length + result.edges.length +
+            result.clusters.length + result.labels.length;
+        if (totalShapes === 0) {
+            const type = detectDiagramType(definition);
+            const support = FULLY_SUPPORTED.has(type) || PARTIALLY_SUPPORTED.has(type)
+                ? `Expected shapes for "${type}" but found none — the diagram may be empty or use unsupported syntax.`
+                : `Diagram type "${type}" is not supported by the geometry extractor ` +
+                  `(supported: flowchart/graph fully; classDiagram/stateDiagram/erDiagram partially). ` +
+                  `The generated VSDX will open but be blank.`;
+            console.warn(`[mermaid2visio] Warning: no shapes extracted. ${support}`);
+        }
 
         log(`render OK: ${result.nodes.length} nodes, ${result.edges.length} edges, ` +
             `${result.clusters.length} clusters, ${result.labels.length} labels`);
