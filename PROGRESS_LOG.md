@@ -89,3 +89,57 @@ confirm visual fidelity.**
 - End-to-end smoke test: `node dist/index.js /tmp/smoke.mmd --theme forest` produced a
   package that passes `validateVsdx` (7 shapes, 6 connects, source.mmd embedded).
 - Full suite green: 99 passed, 2 skipped.
+
+### Phase F — Diagram-type honesty (warning + coverage + docs) ✅
+- Empirically mapped diagram-type support: flowchart/graph full; class/state/ER partial;
+  sequence/pie/gantt produce a blank-but-valid VSDX.
+- Parser now `console.warn`s (stderr) when zero geometry is extracted, naming the detected
+  diagram type and the support matrix — blank output is no longer silent. Verified via CLI.
+- Added `detectDiagramType()` (unit-tested) + `tests/diagram_types.test.ts` pinning the matrix.
+- Rewrote the README "Supported Diagram Types" section (was the false "all types supported")
+  into an honest support table; documented CLI flags. Updated CLAUDE.md throughout.
+
+### Phase G — Defensive validator + user-facing validation ✅
+- Validator now flags any `NaN`/`undefined`/`null`/`Infinity` attribute value across all XML
+  parts (Visio silently drops such cells, collapsing geometry/transform invisibly). Negative
+  test corrupts a PinX to NaN to prove it fires.
+- Added CLI `--validate` flag: runs `validateVsdx` on the generated package and reports issues.
+- Full suite green: **113 passed, 2 skipped (LibreOffice)**.
+
+---
+
+## SESSION SUMMARY — for the user
+
+**Branch:** `claude/code-review-VUu3e` (based on freshly-merged `master`). All commits pushed.
+
+**What I did, in order:**
+1. Merged `claude/fix-flowchart-diagram-PKvF1` into `master` (6 commits), verified, pushed master.
+2. Built a structural validator (`src/validate.ts`) as a regression oracle — it immediately
+   caught a real OPC bug (round-trip `.mmd` part had no content type; a 1400015 candidate).
+3. Fixed a coordinate bug: unglued fallback edges were offset 0.5" from their nodes.
+4. Flattened elliptical arcs in the path fallback (were straight chords).
+5. Forwarded edge-label color/size/weight to a connector Character section.
+6. Round-trip source parity across CLI/GUI/MCP; added CLI `--layout`/`--theme`/`--validate`.
+7. Made blank output for unsupported diagram types loud (warning) instead of silent; pinned
+   the real support matrix with tests; rewrote the README/CLAUDE.md to be honest.
+8. Added a NaN/undefined guard to the validator.
+
+Test count went 90 → **113 passing** (2 LibreOffice render tests skip in this sandbox).
+
+### THINGS TO CHECK IN REAL VISIO  [VERIFY-IN-VISIO]
+The sandbox has no working Visio or LibreOffice importer, so visual fidelity was verified only
+via structural validation. Please open a few generated `.vsdx` in actual Visio and confirm:
+1. **Fallback (unglued) edges** now sit on their nodes (margin fix). Hard to trigger from
+   flowcharts since those glue; most relevant if you hit a diagram where endpoints don't resolve.
+2. **Edge labels** render in the right color/size (Character-section forwarding).
+3. **Curved/looped connectors and cylinder outlines** look smooth (arc flattening).
+4. **Connectors still glue and reroute** when you drag nodes (unchanged, but worth a sanity check).
+5. Generated files still **open without error 1400015** (the `.mmd` content-type fix should
+   only help here, but confirm).
+
+### BIGGEST REMAINING OPPORTUNITY
+- **Sequence diagrams** (and pie/gantt/journey/etc.) produce a blank VSDX. The flowchart
+  extractor can't see their SVG structure. A dedicated sequence-diagram serialiser (actor
+  columns × message rows → Visio shapes/connectors) is the highest-value next feature.
+- **Font family** is parsed but not emitted (needs a `FaceNames` table; risky without a Visio
+  oracle to confirm it doesn't re-trigger 1400015). Size/color/weight/italic ARE forwarded.

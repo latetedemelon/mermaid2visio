@@ -4,6 +4,7 @@ import path from 'path';
 import { program } from 'commander';
 import { parseMermaid } from './parser.js';
 import { VsdxGenerator } from './vsdx.js';
+import { validateVsdx } from './validate.js';
 
 // Read package.json for version
 const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
@@ -16,6 +17,7 @@ program
   .option('-o, --output <path>', 'Path to the output .vsdx file')
   .option('-l, --layout <engine>', 'Layout engine: dagre (default) or elk')
   .option('-t, --theme <name>', 'Mermaid theme: default, forest, dark, or neutral')
+  .option('--validate', 'Run a structural check on the generated .vsdx and report any issues')
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (inputFile, options) => {
     try {
@@ -58,6 +60,16 @@ program
         console.log("Generating VSDX...");
         const generator = new VsdxGenerator();
         const buffer = await generator.generate(graph, definition);
+
+        if (options.validate) {
+            const result = await validateVsdx(buffer);
+            if (result.ok) {
+                console.log('✓ Structural validation passed.');
+            } else {
+                console.warn('⚠ Structural validation found issues:');
+                for (const err of result.errors) console.warn(`  - ${err}`);
+            }
+        }
 
         fs.writeFileSync(outputFile, buffer);
         console.log(`✅ Success! Output saved to: ${outputFile}`);

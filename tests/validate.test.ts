@@ -81,6 +81,26 @@ describe('validateVsdx — generated packages are structurally sound', () => {
         expect(result.errors.some(e => e.includes('page999.xml'))).toBe(true);
     });
 
+    it('detects a NaN value left in a cell', async () => {
+        const JSZip = (await import('jszip')).default;
+        const graph: GraphData = {
+            width: 200, height: 200,
+            nodes: [{ id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A' }],
+            edges: [], clusters: [], labels: [],
+        };
+        const buf = await new VsdxGenerator().generate(graph);
+        const zip = await JSZip.loadAsync(buf);
+        const page = await zip.file('visio/pages/page1.xml')!.async('string');
+        // Corrupt a PinX into NaN, as a bad coordinate computation would.
+        const broken = page.replace(/<Cell N="PinX" V="[^"]*"/, '<Cell N="PinX" V="NaN"');
+        zip.file('visio/pages/page1.xml', broken);
+        const corrupted = await zip.generateAsync({ type: 'nodebuffer' });
+
+        const result = await validateVsdx(corrupted);
+        expect(result.ok).toBe(false);
+        expect(result.errors.some(e => /NaN/.test(e))).toBe(true);
+    });
+
     it('detects a formula left in a V attribute', async () => {
         const JSZip = (await import('jszip')).default;
         const graph: GraphData = {

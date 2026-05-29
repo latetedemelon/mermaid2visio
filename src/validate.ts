@@ -158,6 +158,20 @@ export async function validateVsdx(buffer: Buffer): Promise<ValidationResult> {
         if (!hasDoc) errors.push('_rels/.rels: no document relationship');
     }
 
+    // 3b. No NaN / undefined / Infinity anywhere in any XML attribute. These
+    //     leak in when a coordinate is computed from a missing value; Visio
+    //     silently drops the offending cell (collapsing geometry or transform)
+    //     rather than erroring, so they're invisible without a check like this.
+    for (const p of [...parts].filter(p => p.endsWith('.xml'))) {
+        const txt = await readText(p);
+        if (txt === null) continue;
+        const bad = txt.match(/="(NaN|undefined|null|Infinity|-Infinity)"/g);
+        if (bad) {
+            const uniq = [...new Set(bad)].join(', ');
+            errors.push(`${p}: contains non-finite/invalid attribute value(s): ${uniq}`);
+        }
+    }
+
     // 4. Page-level ShapeSheet checks.
     const pageObj = await readObj('visio/pages/page1.xml');
     const pageText = (await readText('visio/pages/page1.xml')) ?? '';
