@@ -5,11 +5,19 @@
 Converts Mermaid diagram source (`.mmd` / `.md`) into native editable Microsoft Visio (`.vsdx`) files. No Visio installation required. Runs on Windows, macOS, Linux.
 
 Entry points:
+- **Fully-browser app**: `src/browser/app.ts` + `src/browser/index.html` → `dist/browser/` (bundled by esbuild via `npm run build:browser`). Runs the entire pipeline client-side — no Node, no Puppeteer, nothing leaves the user's machine.
 - **CLI**: `src/index.ts` → `dist/index.js`
-- **Web GUI**: `src/gui.ts` → `dist/gui.js`
+- **Web GUI** (Node-backed): `src/gui.ts` → `dist/gui.js`
 - **MCP server**: `src/server.ts` → `dist/server.js`
 
-All three share the same two-stage pipeline: `parseMermaid` → `VsdxGenerator`.
+All four share the environment-agnostic core in **`src/core/`** (`extract`, `normalize`, `detect`, `types`) plus `src/vsdx.ts` and `src/validate.ts` (also browser-safe). The Node entries (`parser.ts`, the three servers) wrap that core with Puppeteer + ELK + I/O; the browser entry calls it directly against the live `document`.
+
+Pipeline:
+1. **Render**: Mermaid SVG into a DOM (Puppeteer page for Node; `document` directly in browser).
+2. **Extract**: `extractGraphFromDom(diagramType)` → raw `GraphData` (DOM-only, env-agnostic).
+3. **Normalize**: `normalizeContentBounds(graph)` shifts content to origin (pure).
+4. **Generate**: `VsdxGenerator.generate(graph, source?)` → `Uint8Array` VSDX (JSZip + xmlbuilder2).
+5. **Validate** (optional): `validateVsdx(bytes)` — structural oracle.
 
 ---
 

@@ -22,5 +22,5 @@
     "esModuleInterop": true,
     "isolatedModules": true
   },
-  "exclude": ["src/public", "tests"]
+  "exclude": ["src/public", "src/browser", "tests"]
 }

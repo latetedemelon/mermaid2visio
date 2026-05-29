@@ -198,7 +198,29 @@ via structural validation. Please open a few generated `.vsdx` in actual Visio a
   functions + pure helpers into `src/core/`, swap Buffer→Uint8Array, add a bundler + browser
   entry) are mechanical and carry no further serialization risk.
 
+### Phase L — Full browser port ✅ (NEW capability)
+- Split the source into a Node-only orchestrator (`src/parser.ts`) and an environment-agnostic
+  core (`src/core/types.ts`, `detect.ts`, `normalize.ts`, `extract.ts`). `parser.ts` re-exports
+  everything tests/CLI/etc. used from the old path, so no caller changed.
+- `src/vsdx.ts` and `src/validate.ts` swapped `Buffer` → `Uint8Array` (JSZip output type
+  `'uint8array'`). In Node, `Buffer extends Uint8Array`, so `fs.writeFileSync`,
+  `JSZip.loadAsync`, and HTTP `res.end` keep accepting it; in the browser, the same bytes flow
+  into a `Blob` for download.
+- Added `src/browser/app.ts` + `src/browser/index.html` — a real client-side web app
+  (textarea, theme picker, preview, Ctrl/⌘+Enter to convert, Blob download). Bundled with
+  esbuild: `npm run build:browser` → `dist/browser/app.js` (~7 MB; mermaid + ELK + JSZip +
+  xmlbuilder2 + the core). Installed `events` and `url` browser shims so xmlbuilder2's
+  top-level requires resolve cleanly in the browser bundle.
+- `tests/browser_bundle.test.ts` — real end-to-end smoke test: boots a local file server,
+  loads the bundle in headless Chromium, drives the UI, intercepts the Blob bytes via a
+  patched `URL.createObjectURL`, and round-trips them through `validateVsdx`. **PASSES.**
+  Skips when the bundle isn't built (so `npm test` without `build:browser` stays fast).
+- The browser entry imports `renderMermaidToDom`/`extractGraphFromDom`/`normalizeContentBounds`/
+  `detectDiagramType`/`VsdxGenerator`/`validateVsdx` directly — the same modules the Node path
+  uses via `page.evaluate`. Single source of truth for extraction.
+
 ### FINAL TEST STATUS
-- `npm test`: **120 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
-  is non-functional in this sandbox). `npm run build` clean (exit 0). All work committed and
-  pushed to `claude/code-review-VUu3e`. Test count over the session: 90 → 120.
+- `npm test`: **121 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
+  is non-functional in this sandbox). `npm run build` clean (exit 0); `npm run build:browser`
+  clean (exit 0). All work committed and pushed to `claude/code-review-VUu3e`. Test count
+  over the session: 90 → 121.

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mermaid2visio — browser</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+    :root {
+        --bg: #fafafa;
+        --panel: #ffffff;
+        --border: #d0d7de;
+        --text: #24292f;
+        --muted: #57606a;
+        --accent: #0969da;
+        --ok: #1a7f37;
+        --err: #cf222e;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+    }
+    header {
+        padding: 12px 20px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        gap: 16px;
+    }
+    header h1 { font-size: 16px; margin: 0; }
+    header .note { color: var(--muted); font-size: 12px; }
+    main {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        height: calc(100vh - 95px);
+    }
+    section {
+        padding: 16px 20px;
+        overflow: auto;
+        background: var(--panel);
+    }
+    section.left { border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+    textarea {
+        flex: 1;
+        font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        resize: none;
+        background: var(--bg);
+    }
+    .controls { display: flex; align-items: center; gap: 10px; }
+    button {
+        padding: 6px 14px;
+        font-size: 14px;
+        background: var(--accent);
+        color: white;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: white; }
+    label { color: var(--muted); font-size: 12px; }
+    #mermaid-host { overflow: auto; min-height: 100px; }
+    #mermaid-host svg { max-width: 100%; height: auto; }
+    footer {
+        padding: 10px 20px;
+        border-top: 1px solid var(--border);
+        background: var(--panel);
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 12px;
+        min-height: 38px;
+    }
+    #status[data-kind="ok"] { color: var(--ok); }
+    #status[data-kind="err"] { color: var(--err); }
+    .hint { color: var(--muted); }
+    kbd {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font: 11px ui-monospace, monospace;
+    }
+</style>
+</head>
+<body>
+<header>
+    <h1>mermaid2visio</h1>
+    <span class="note">Runs entirely in your browser — nothing leaves your machine.</span>
+</header>
+<main>
+    <section class="left">
+        <div class="controls">
+            <button id="convert">Convert to .vsdx</button>
+            <label>Theme: <select id="theme">
+                <option value="neutral">neutral</option>
+                <option value="default">default</option>
+                <option value="forest">forest</option>
+                <option value="dark">dark</option>
+            </select></label>
+            <span class="hint">(<kbd>Ctrl/⌘ + Enter</kbd> to convert)</span>
+        </div>
+        <textarea id="src" spellcheck="false">flowchart TD
+    A[Start] --> B{Choice}
+    B -->|yes| C[(Database)]
+    B -->|no| D([Done])
+    C --> D</textarea>
+    </section>
+    <section class="right">
+        <div id="mermaid-host" aria-label="Diagram preview"></div>
+    </section>
+</main>
+<footer>
+    <div id="status" data-kind="info" class="hint">Ready. Edit the diagram on the left and click Convert.</div>
+</footer>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
