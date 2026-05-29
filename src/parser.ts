@@ -43,6 +43,15 @@ export interface GraphEdge {
         strokeWidth?: string;
         strokeDasharray?: string;
     };
+    // Styling for the edge's label, forwarded to the connector's embedded
+    // text so the caption matches the Mermaid theme rather than inheriting
+    // Visio's default font/color.
+    labelStyle?: {
+        color?: string;
+        fontSize?: string;
+        fontWeight?: string;
+        fontStyle?: string;
+    };
 }
 
 export interface GraphCluster {
@@ -641,7 +650,16 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                     // corresponds to the i-th edge path (same document order).
                     // `|| undefined` converts the empty string ("") to undefined
                     // so that edges with no label don't get an empty Text element.
-                    const edgeLabelText = rawEdgeLabels[edgeIdx]?.text || undefined;
+                    const edgeLabel = rawEdgeLabels[edgeIdx];
+                    const edgeLabelText = edgeLabel?.text || undefined;
+                    // Forward label font styling alongside the text so the
+                    // generator can emit a matching Character section.
+                    const labelStyle = edgeLabelText && edgeLabel ? {
+                        color: edgeLabel.style?.color,
+                        fontSize: edgeLabel.style?.fontSize,
+                        fontWeight: edgeLabel.style?.fontWeight,
+                        fontStyle: edgeLabel.style?.fontStyle,
+                    } : undefined;
 
                     return {
                         d: path.getAttribute('d') || '',
@@ -650,6 +668,7 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                         arrowStart: !!markerStart,
                         arrowEnd: !!markerEnd,
                         text: edgeLabelText,
+                        labelStyle,
                         style: {
                             stroke: computedStyle.stroke,
                             strokeWidth: computedStyle.strokeWidth,

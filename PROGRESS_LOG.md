@@ -58,3 +58,25 @@ confirm visual fidelity.**
   declared content type — an OPC violation and a candidate Visio-1400015 trigger. Added a
   `Default Extension="mmd" ContentType="text/plain"` to `addContentTypes()`.
 - Full suite green: 95 passed, 2 skipped (LibreOffice).
+
+### Phase B1 — Fallback-edge coordinate/margin bug ✅
+- `parsePathToVisio` had its own `toVisioX/Y` that omitted the 0.5" margin and used
+  `pageHeight` instead of `pageHeight - margin`. Unglued fallback edges therefore rendered
+  offset by (-0.5", +0.5") from the nodes they connect. Now delegates to the class helpers.
+- Regression test asserts the fallback transform matches the node transform exactly.
+- [VERIFY-IN-VISIO] Open a diagram whose edges *can't* glue (e.g. a diagram type where the
+  parser can't resolve endpoint ids) and confirm the lines now sit on the nodes.
+
+### Phase C2 — Elliptical arc flattening ✅
+- Path fallback `A` command now flattens via SVG endpoint-to-center parameterization
+  (~1 segment / 15°) instead of a single straight chord. Degenerate arcs still draw a line.
+- Tests assert the polyline is multi-segment, bows off the chord, and ends at the endpoint.
+
+### Phase C1 — Edge-label style on connectors ✅
+- Parser now forwards each edge label's color/fontSize/fontWeight/fontStyle as
+  `GraphEdge.labelStyle`; generator emits a Character section on the connector (before the
+  embedded `<Text>`, preserving Cells->Sections->Text order).
+- Test asserts normalized color (#ff0000), inch size (14/96 = 0.1458), bold style, and that
+  the Character section precedes the Text.
+- Closes "Known Limitation: Label style on embedded connector text".
+- Full suite green: 98 passed, 2 skipped.

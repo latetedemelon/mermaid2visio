@@ -693,6 +693,22 @@ export class VsdxGenerator {
                         .ele('Cell', { N: 'ConLineRouteExt', V: '2' }).up()
                     .up().up();
 
+                // Edge label styling: a Character section (before <Text>, per
+                // Visio's Cells->Sections->Text order) carries the Mermaid
+                // label's color/size/weight so the caption matches the diagram
+                // instead of inheriting Visio's default font.
+                if (edge.text && edge.labelStyle) {
+                    const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
+                    const charRow = charSec.ele('Row', { IX: '0' });
+                    const color = VsdxGenerator.normalizeColor(edge.labelStyle.color);
+                    if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
+                    const fs = getFontSize(edge.labelStyle.fontSize);
+                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
+                    const st = getFontStyle(edge.labelStyle.fontWeight, edge.labelStyle.fontStyle);
+                    if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
+                    charRow.up().up();
+                }
+
                 // Embed edge label text directly in the connector shape so
                 // the label follows the connector when nodes are moved.
                 if (edge.text) {

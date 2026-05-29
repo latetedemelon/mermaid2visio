@@ -165,6 +165,34 @@ describe('Coordinate conversion', () => {
     expect(connectorMatch![1]).toMatch(/<Text>yes<\/Text>/);
   });
 
+  it('forwards edge label style to a connector Character section before the text', async () => {
+    // The label's color/size must ride along as a Character section so the
+    // caption renders in the Mermaid theme colour, not Visio's default.
+    const graph: GraphData = {
+      width: 200,
+      height: 200,
+      nodes: [
+        { id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A' },
+        { id: 'b', x: 0, y: 100, width: 96, height: 48, text: 'B' },
+      ],
+      edges: [{
+        d: 'M0,0 L1,1', startId: 'a', endId: 'b', text: 'yes', arrowEnd: true,
+        labelStyle: { color: 'rgb(255, 0, 0)', fontSize: '14px', fontWeight: 'bold' },
+      }],
+      clusters: [],
+      labels: [],
+    };
+    const xml = await unzipPage(await new VsdxGenerator().generate(graph));
+    const body = /<Shape\b[^>]*ID="3"[^>]*>([\s\S]*?)<\/Shape>/.exec(xml)![1];
+    // Character section present with normalised colour and inch-based size.
+    expect(body).toMatch(/<Section N="Character"/);
+    expect(body).toMatch(/<Cell N="Color" V="#ff0000"/);
+    expect(body).toMatch(/<Cell N="Size" V="0\.1458"/); // 14/96
+    expect(body).toMatch(/<Cell N="Style" V="1"/);      // bold
+    // Order: the Character section must precede the <Text> element.
+    expect(body.indexOf('N="Character"')).toBeLessThan(body.indexOf('<Text>'));
+  });
+
   it('Connects is a sibling of Shapes, not nested inside it', async () => {
     // VSDX spec: PageContents contains <Shapes> and <Connects> as siblings.
     // If <Connects> were a child of <Shapes>, Visio would silently ignore
