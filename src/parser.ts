@@ -384,20 +384,25 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
 
     const diagramType = detectDiagramType(definition);
 
-    try {
-        const result = await page.evaluate(async (def, dtype) => {
-            try {
-                // @ts-ignore
-                const { svg } = await mermaid.render('graphDiv', def);
-                document.body.innerHTML = svg;
-            } catch (renderErr: any) {
-                // Re-throw as a tagged Error so parseMermaid can recognise this
-                // specifically as a Mermaid render failure (vs. e.g. a DOM bug
-                // in our extraction code) and apply formatMermaidError to it.
-                const msg = renderErr?.message ?? String(renderErr);
-                throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
-            }
+    // Render and extraction are lifted out of inline closures into standalone
+    // named functions. Neither closes over any Node-side local (only their
+    // params + browser globals), so Puppeteer serializes them for
+    // page.evaluate — and a browser build can import the same functions and
+    // call them against the real document. (Spike to de-risk the browser port.)
+    const renderMermaidToDom = async (def: string) => {
+        try {
+            // @ts-ignore - `mermaid` is a global injected into the page
+            const { svg } = await mermaid.render('graphDiv', def);
+            document.body.innerHTML = svg;
+        } catch (renderErr: any) {
+            // Tagged so parseMermaid can recognise a Mermaid render failure
+            // (vs. a DOM bug in our extraction code) and apply formatMermaidError.
+            const msg = renderErr?.message ?? String(renderErr);
+            throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
+        }
+    };
 
+    const extractGraphFromDom = (dtype: string) => {
             const svgElement = document.querySelector('svg');
             const viewBox = svgElement?.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
             const graphWidth = viewBox[2] || parseFloat(svgElement?.getAttribute('width') || '0');
@@ -826,7 +831,11 @@ export async function parseMermaid(definition: string, config?: MermaidConfig): 
                 }),
                 labels
             };
-        }, definition, diagramType);
+    };
+
+    try {
+        await page.evaluate(renderMermaidToDom, definition);
+        const result = await page.evaluate(extractGraphFromDom, diagramType);
 
         // Normalise all coordinates so the page origin is the top-left of the
         // actual rendered content.  Mermaid+ELK place shapes in SVG user space

@@ -175,6 +175,29 @@ via structural validation. Please open a few generated `.vsdx` in actual Visio a
   converting an unsupported diagram type got a silent blank file. The MCP tool result now
   appends the warning when zero shapes were extracted. Two tests added (warn / don't-warn).
 
+### Phase K — Browser-port spike (serialization de-risk) ✅
+- Goal: prove the load-bearing assumption of a future full-browser port — that the geometry
+  extractor can be a standalone named function passed by reference to `page.evaluate` (rather
+  than an inline closure), which is the prerequisite for sharing ONE extractor between the
+  Puppeteer/Node path and a real-browser build.
+- Split the single inline `page.evaluate(async (def, dtype) => {...})` in `src/parser.ts` into
+  two standalone named functions:
+  - `renderMermaidToDom(def)` — renders Mermaid into the page DOM (relies on the page `mermaid`
+    global); throws the tagged render error.
+  - `extractGraphFromDom(dtype)` — pure DOM reader, returns the raw graph. References ONLY its
+    param + browser globals (verified: no `def`, no `await`, no module imports, no parseMermaid
+    locals), so it serializes cleanly via `page.evaluate` AND could be imported as-is by a
+    browser build.
+  Node path is now two calls: `await page.evaluate(renderMermaidToDom, definition)` then
+  `const result = await page.evaluate(extractGraphFromDom, diagramType)`. No behavior change.
+- RESULT — spike PASSED on every axis: build clean (exit 0); full suite 120 passed / 2 skipped;
+  **and the coverage run passed too** (76.55% stmts), which is the path that historically broke
+  with `page.evaluate` (Istanbul instrumentation injecting `cov_*` globals; mitigated earlier via
+  the v8 coverage provider — this confirms the named-function lift doesn't reintroduce it).
+- Conclusion: the browser-port refactor is sound. Remaining steps from the sketch (move the two
+  functions + pure helpers into `src/core/`, swap Buffer→Uint8Array, add a bundler + browser
+  entry) are mechanical and carry no further serialization risk.
+
 ### FINAL TEST STATUS
 - `npm test`: **120 passed, 2 skipped** (the 2 skips are LibreOffice render tests; LibreOffice
   is non-functional in this sandbox). `npm run build` clean (exit 0). All work committed and
