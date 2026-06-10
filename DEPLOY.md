@@ -39,6 +39,30 @@ different port.)
 
 ---
 
+## Fastest path — one command from your workstation
+
+```bash
+# defaults to root@192.168.2.83 and HOST_PORT=3333
+./scripts/deploy.sh
+
+# pick a different port if 3333 is taken
+HOST_PORT=8080 ./scripts/deploy.sh
+
+# password auth (recommended: switch to a key after first login)
+SSHPASS='your-password' sshpass -e ./scripts/deploy.sh
+```
+
+The script does everything in this runbook automatically: preflight checks
+local + remote, builds the image, streams it over SSH (no registry needed),
+stages compose + .env on the target, starts the container, waits for the
+healthcheck, and runs a full end-to-end smoke test (`/`, `/browser`,
+`/browser/app.js`, plus a real `POST /convert` round-trip). Exits non-zero on
+the first failure with the next command to run.
+
+If you'd rather step through it manually, read on.
+
+---
+
 ## Prereqs on the target (192.168.2.83)
 
 SSH in once and confirm:
