@@ -9,10 +9,14 @@ import { exec } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const PORT = 3333;
-export const HOST = '127.0.0.1';
+export const PORT = parseInt(process.env.PORT || '3333', 10);
+export const HOST = process.env.HOST || '127.0.0.1';
 export const MAX_BODY_BYTES = 1 * 1024 * 1024;
 export const DEFAULT_PUBLIC_DIR = path.join(__dirname, 'public');
+// dist/browser/ holds the fully-client-side bundle (built by `npm run build:browser`).
+// We serve it at /browser/* when present, so the same container offers both the
+// server-backed editor and the static client-side app.
+export const DEFAULT_BROWSER_DIR = path.join(__dirname, 'browser');
 
 // Serve vendored ESM bundles (currently the ELK layout loader) out of
 // node_modules so the browser preview works offline too.
@@ -26,7 +30,29 @@ export interface HandlerOptions {
     // When omitted, the default converter parses JSON `{mermaid, config}`
     // bodies (falling back to plain text) and runs parseMermaid + VsdxGenerator.
     // Tests inject a stub to avoid launching Puppeteer.
-    convert?: (body: string) => Promise<Buffer>;
+    convert?: (body: string) => Promise<Uint8Array>;
+}
+
+// Serve the static fully-client-side bundle under /browser/*. Falls through
+// (returns false) if the bundle wasn't built, so the rest of the handler can
+// produce its own 404.
+function serveBrowserBundle(urlPath: string, res: ServerResponse): boolean {
+    if (urlPath !== '/browser' && urlPath !== '/browser/' && !urlPath.startsWith('/browser/')) return false;
+    if (!fs.existsSync(DEFAULT_BROWSER_DIR)) return false;
+    const rel = urlPath.replace(/^\/browser\/?/, '') || 'index.html';
+    const abs = path.resolve(DEFAULT_BROWSER_DIR, rel);
+    if (!abs.startsWith(DEFAULT_BROWSER_DIR + path.sep) && abs !== DEFAULT_BROWSER_DIR) {
+        res.writeHead(403); res.end(); return true;
+    }
+    if (!fs.existsSync(abs)) { res.writeHead(404); res.end(); return true; }
+    const ext = path.extname(abs).toLowerCase();
+    const type = ext === '.html' ? 'text/html'
+        : ext === '.js' ? 'application/javascript'
+        : ext === '.css' ? 'text/css'
+        : 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=300' });
+    fs.createReadStream(abs).pipe(res);
+    return true;
 }
 
 function serveVendor(urlPath: string, res: ServerResponse): boolean {
@@ -50,7 +76,7 @@ function serveVendor(urlPath: string, res: ServerResponse): boolean {
     return false;
 }
 
-async function defaultConvert(body: string): Promise<Buffer> {
+async function defaultConvert(body: string): Promise<Uint8Array> {
     let mermaidCode = body;
     let config: MermaidConfig | undefined;
     try {
@@ -110,6 +136,7 @@ export function createHandler(opts: HandlerOptions = {}) {
         }
 
         if (req.method === 'GET' && serveVendor(urlPath, res)) return;
+        if (req.method === 'GET' && serveBrowserBundle(urlPath, res)) return;
 
         if (req.method === 'POST' && req.url === '/convert') {
             const body = await readBody(req, cap);
@@ -143,8 +170,15 @@ export function createServer(opts: HandlerOptions = {}) {
 
 function main() {
     const server = createServer();
-    server.listen(PORT, () => {
-        console.log(`GUI Server running at http://localhost:${PORT}`);
+    // Bind to HOST (env-overridable; defaults to 127.0.0.1 for local-only). In
+    // a container set HOST=0.0.0.0 to accept connections from outside the
+    // container's network namespace.
+    server.listen(PORT, HOST, () => {
+        console.log(`GUI Server running at http://${HOST}:${PORT}`);
+        // Skip the open-in-browser auto-launch when running headless (no DISPLAY
+        // and not on Windows). The exec() spawns a child that can pollute logs
+        // with "command not found" in container environments.
+        if (process.env.NODE_ENV === 'production' || (!process.env.DISPLAY && process.platform !== 'win32')) return;
         const start = process.platform === 'darwin' ? 'open'
             : process.platform === 'win32' ? 'start'
             : 'xdg-open';

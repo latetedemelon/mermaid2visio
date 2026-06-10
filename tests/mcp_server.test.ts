@@ -14,7 +14,7 @@ function fakeFs(files: Record<string, string>) {
                 return files[p];
             },
             mkdirSync: (p: string, _opts?: any) => { dirs.add(p); return p; },
-            writeFileSync: (p: string, b: Buffer) => { writes[p] = b; },
+            writeFileSync: (p: string, b: Uint8Array) => { writes[p] = b as Buffer; },
         },
     };
 }

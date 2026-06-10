@@ -1,0 +1,41 @@
+# Production-style compose for deploying mermaid2visio on a single host.
+#
+# `docker compose up -d --build` brings up the GUI on http://<host>:${HOST_PORT}
+# (server-backed editor) and http://<host>:${HOST_PORT}/browser (fully-client-side).
+#
+# All ports/resources are env-overridable so this can coexist with other
+# services on the same box. Copy .env.example to .env and edit, OR pass values
+# inline: `HOST_PORT=8080 docker compose up -d`.
+#
+# The container runs Puppeteer's headless Chromium inside; --no-sandbox is
+# already passed by the parser, so a non-root user is fine. If your kernel
+# refuses anyway (uncommon), uncomment the cap_add lines below.
+
+services:
+  mermaid2visio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mermaid2visio:latest
+    container_name: mermaid2visio
+    restart: unless-stopped
+    ports:
+      # HOST_PORT is what users hit; PORT is what the container binds to.
+      # Both default to 3333; change HOST_PORT alone when 3333 is taken on
+      # the host but you don't care about the container-internal port.
+      - "${HOST_PORT:-3333}:${PORT:-3333}"
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "${PORT:-3333}"
+    # Chromium can use noticeable shared memory; bump the default 64MB.
+    shm_size: "${SHM_SIZE:-512m}"
+    # cap_add:
+    #   - SYS_ADMIN
+    healthcheck:
+      # Probes the container-internal PORT (whatever it was set to).
+      test: ["CMD-SHELL", "node -e \"require('net').createConnection({host:'127.0.0.1',port:Number(process.env.PORT)||3333}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

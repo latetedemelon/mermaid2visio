@@ -57,7 +57,7 @@ function baseDirForRels(relsPath: string): string {
     return m[1].replace(/\/$/, '');
 }
 
-export async function validateVsdx(buffer: Buffer): Promise<ValidationResult> {
+export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 

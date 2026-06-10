@@ -20,7 +20,7 @@ describe('Mermaid to Visio Conversion', () => {
     const generator = new VsdxGenerator();
     const buffer = await generator.generate(graph);
 
-    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer).toBeInstanceOf(Uint8Array);
     expect(buffer.length).toBeGreaterThan(0);
 
     // Check for PK zip header (VSDX is a zip file)
@@ -44,7 +44,7 @@ describe('Mermaid to Visio Conversion', () => {
     const generator = new VsdxGenerator();
     const buffer = await generator.generate(graph);
 
-    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer).toBeInstanceOf(Uint8Array);
     expect(buffer.length).toBeGreaterThan(0);
   }, TEST_TIMEOUT_MS);
 });

@@ -32,7 +32,19 @@ npm run build
 ```
 ## Usage
 
-### 1. Web GUI (Recommended)
+### 0. Fully-browser app (no server, no install)
+Build once, then open `dist/browser/index.html` in any modern browser. The
+entire pipeline — Mermaid render → geometry extraction → VSDX assembly —
+runs client-side. Nothing leaves your machine.
+```bash
+npm run build:browser
+# open dist/browser/index.html
+```
+Or serve it any way you like (`npx http-server dist/browser`). The bundle is
+self-contained (mermaid + ELK + JSZip + xmlbuilder2 + the core extractor and
+generator, ~7 MB).
+
+### 1. Web GUI (Recommended for the Node-backed editor)
 Visual editor with live preview and configuration panel.
 ```bash
 node dist/gui.js
