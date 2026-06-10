@@ -1,0 +1,32 @@
+# Build the image from sources only; don't bloat the context with these.
+.git
+.gitignore
+.github
+
+# Local Node artefacts (we run npm ci inside the image).
+node_modules
+npm-debug.log
+.npm
+
+# Anything tsc/esbuild already produced locally — rebuild inside the image.
+dist
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+
+# Tests + fixtures (the runtime image doesn't run them).
+tests
+coverage
+*.log
+
+# Local helper scripts and intermediate VSDX outputs not needed in the image.
+output
+*.vsdx
+/tmp
+PROGRESS_LOG.md
+DEPLOY.md
+docker-compose.yml
+Dockerfile
+.dockerignore

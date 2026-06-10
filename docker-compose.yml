@@ -1,0 +1,33 @@
+# Production-style compose for deploying mermaid2visio on a single host.
+#
+# `docker compose up -d --build` brings up the GUI on http://<host>:3333
+# (server-backed editor) and http://<host>:3333/browser (fully-client-side app).
+#
+# The container runs Puppeteer's headless Chromium inside; --no-sandbox is
+# already passed by the parser, so a non-root user is fine. If your kernel
+# refuses anyway (uncommon), uncomment the cap_add lines below.
+
+services:
+  mermaid2visio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mermaid2visio:latest
+    container_name: mermaid2visio
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "3333"
+    # Chromium can use noticeable shared memory; bump the default 64MB.
+    shm_size: "512m"
+    # cap_add:
+    #   - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').createConnection({host:'127.0.0.1',port:3333}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
