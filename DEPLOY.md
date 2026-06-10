@@ -6,11 +6,36 @@ port:
 
 | URL | What it is |
 |---|---|
-| `http://192.168.2.83:3333/` | Server-backed editor (Node + Puppeteer renders Mermaid server-side) |
-| `http://192.168.2.83:3333/browser` | Fully-client-side app (renders/converts entirely in the user's browser; nothing leaves their machine) |
+| `http://192.168.2.83:${HOST_PORT}/` | Server-backed editor (Node + Puppeteer renders Mermaid server-side) |
+| `http://192.168.2.83:${HOST_PORT}/browser` | Fully-client-side app (renders/converts entirely in the user's browser; nothing leaves their machine) |
 
 Both share the same shapes/extractor/generator code — they're two front-ends
 on one container.
+
+## Picking a port (avoid conflicts)
+
+Default is `3333`. The compose file reads three env vars (with safe defaults),
+so collisions on the host are a `HOST_PORT=…` away:
+
+| Var | Default | What it controls |
+|---|---|---|
+| `HOST_PORT` | `3333` | Port published to the host. Change this when 3333 is taken on `192.168.2.83`. |
+| `PORT` | `3333` | Port the container binds to internally. Usually leave alone. |
+| `SHM_SIZE` | `512m` | Shared memory for Chromium (bump for heavier load). |
+
+Copy `.env.example` → `.env` next to `docker-compose.yml` and edit, **or** pass
+inline:
+
+```bash
+# One-off override:
+HOST_PORT=8080 docker compose up -d
+# Persistent — on the target:
+cp .env.example .env && sed -i 's/^HOST_PORT=.*/HOST_PORT=8080/' .env
+docker compose up -d
+```
+
+(Throughout the runbook below, swap `:3333` for `:$HOST_PORT` if you picked a
+different port.)
 
 ---
 
@@ -51,22 +76,18 @@ docker build -t mermaid2visio:latest .
 docker save mermaid2visio:latest | ssh root@192.168.2.83 'docker load'
 
 # 3. SSH in and start it.
+# Copy the compose file + the env template across in one go so users can
+# tweak HOST_PORT etc. without retyping the YAML.
+scp docker-compose.yml .env.example root@192.168.2.83:/tmp/
 ssh root@192.168.2.83 <<'EOF'
 mkdir -p /opt/mermaid2visio
-cat > /opt/mermaid2visio/docker-compose.yml <<'COMPOSE'
-services:
-  mermaid2visio:
-    image: mermaid2visio:latest
-    container_name: mermaid2visio
-    restart: unless-stopped
-    ports: ["3333:3333"]
-    environment:
-      NODE_ENV: production
-      HOST: "0.0.0.0"
-      PORT: "3333"
-    shm_size: "512m"
-COMPOSE
-cd /opt/mermaid2visio && docker compose up -d
+mv /tmp/docker-compose.yml /opt/mermaid2visio/
+mv /tmp/.env.example /opt/mermaid2visio/
+cd /opt/mermaid2visio
+# Pick a free port if the default 3333 is taken. Edit /opt/mermaid2visio/.env
+# (copied from .env.example) to set HOST_PORT before starting.
+[ -f .env ] || cp .env.example .env
+docker compose up -d
 docker compose ps
 EOF
 
