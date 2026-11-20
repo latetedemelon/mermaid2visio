@@ -131,4 +131,85 @@ describe('handleConvertMermaidToVsdx', () => {
         expect(result.isError).toBe(true);
         expect(result.content[0].text).toContain('bad mermaid');
     });
+
+    describe('file safety', () => {
+        const deps = (files: ReturnType<typeof fakeFs>, extra: object = {}) =>
+            ({ cwd: '/work', fs: files.stub, parse: fakeParse, generator: fakeGenerator, ...extra });
+
+        it('does not read an existing file that is not a diagram file', async () => {
+            const files = fakeFs({ '/etc/passwd': 'root:x:0:0' });
+            await handleConvertMermaidToVsdx({ source: '/etc/passwd', outputPath: '/tmp/a.vsdx' }, deps(files));
+            // Treated as (invalid) inline source, never opened.
+            expect(fakeParse).toHaveBeenCalledWith('/etc/passwd');
+        });
+
+        it('rejects sourcePath with a non-diagram extension', async () => {
+            const files = fakeFs({ '/home/u/.ssh/id_rsa': 'KEY' });
+            const result = await handleConvertMermaidToVsdx({ sourcePath: '/home/u/.ssh/id_rsa' }, deps(files));
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).not.toContain('KEY');
+            expect(fakeParse).not.toHaveBeenCalled();
+        });
+
+        it('reads sourcePath for a diagram file', async () => {
+            const files = fakeFs({ '/work/d.mmd': 'graph TD\nA-->B' });
+            const result = await handleConvertMermaidToVsdx({ sourcePath: 'd.mmd', outputPath: 'out.vsdx' }, deps(files));
+            expect(result.isError).toBeUndefined();
+            expect(fakeParse).toHaveBeenCalledWith('graph TD\nA-->B');
+            // Relative paths resolve against the working directory and the
+            // reported path is absolute.
+            expect(files.writes['/work/out.vsdx']).toEqual(fakeBuffer);
+            expect(result.content[0].text).toContain('/work/out.vsdx');
+        });
+
+        it('only writes .vsdx files', async () => {
+            const files = fakeFs({});
+            const result = await handleConvertMermaidToVsdx({ source: 'graph TD\nA-->B', outputPath: '/home/u/.bashrc' }, deps(files));
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toMatch(/must end in \.vsdx/);
+            expect(Object.keys(files.writes)).toEqual([]);
+        });
+
+        it('refuses to overwrite an existing file unless asked to', async () => {
+            const files = fakeFs({ '/work/keep.vsdx': 'old' });
+            const refused = await handleConvertMermaidToVsdx({ source: 'graph TD\nA-->B', outputPath: 'keep.vsdx' }, deps(files));
+            expect(refused.isError).toBe(true);
+            expect(refused.content[0].text).toMatch(/already exists/);
+            expect(Object.keys(files.writes)).toEqual([]);
+
+            const allowed = await handleConvertMermaidToVsdx({ source: 'graph TD\nA-->B', outputPath: 'keep.vsdx', overwrite: true }, deps(files));
+            expect(allowed.isError).toBeUndefined();
+            expect(files.writes['/work/keep.vsdx']).toEqual(fakeBuffer);
+        });
+
+        it('confines reads and writes to the configured root', async () => {
+            const files = fakeFs({ '/elsewhere/d.mmd': 'graph TD\nA-->B' });
+            const read = await handleConvertMermaidToVsdx({ sourcePath: '/elsewhere/d.mmd' }, deps(files, { root: '/work' }));
+            expect(read.isError).toBe(true);
+            expect(read.content[0].text).toMatch(/must be inside \/work/);
+
+            const write = await handleConvertMermaidToVsdx({ source: 'graph TD\nA-->B', outputPath: '/work/../etc/x.vsdx' }, deps(files, { root: '/work' }));
+            expect(write.isError).toBe(true);
+            expect(Object.keys(files.writes)).toEqual([]);
+
+            const ok = await handleConvertMermaidToVsdx({ source: 'graph TD\nA-->B', outputPath: 'sub/x.vsdx' }, deps(files, { root: '/work' }));
+            expect(ok.isError).toBeUndefined();
+            expect(files.writes['/work/sub/x.vsdx']).toEqual(fakeBuffer);
+        });
+
+        it('does not echo file contents from a syntax error in a file', async () => {
+            const files = fakeFs({ '/work/notes.md': '```mermaid\nSECRET TOKEN abc123\n```' });
+            const syntaxError = jest.fn(async () => {
+                throw new Error('Mermaid syntax error:\n  Parse error on line 1:\n  SECRET TOKEN abc123\n\nDiagram (line 1):\n>    1 | SECRET TOKEN abc123');
+            });
+            const fromFile = await handleConvertMermaidToVsdx({ sourcePath: 'notes.md' }, deps(files, { parse: syntaxError as any }));
+            expect(fromFile.isError).toBe(true);
+            expect(fromFile.content[0].text).not.toContain('SECRET');
+            expect(fromFile.content[0].text).toMatch(/syntax error on line 1/);
+
+            // Inline source is the caller's own text: keep the helpful context.
+            const inline = await handleConvertMermaidToVsdx({ source: 'SECRET TOKEN abc123' }, deps(files, { parse: syntaxError as any }));
+            expect(inline.content[0].text).toContain('Diagram (line 1)');
+        });
+    });
 });

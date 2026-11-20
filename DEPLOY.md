@@ -201,3 +201,19 @@ unzip -l out.vsdx | head      # should list visio/ + docProps/ + ...
 Built locally without the target's network reach, so I couldn't run the
 `docker build` / `docker compose up` myself. Both Option A and Option B above
 are end-to-end commands; either is ready to run.
+
+### Chromium sandbox in the container
+
+The converter keeps Chromium's sandbox on when it can. Inside a default Docker
+container it usually cannot start (no unprivileged user namespaces), so the
+server logs `Chromium sandbox is unavailable here; running without it` once and
+carries on. Diagram rendering is still locked down (Mermaid strict mode, no
+network access from the page), but if you want the sandbox as well, run the
+container with a seccomp profile that permits it, for example
+`--security-opt seccomp=chrome.json` using the profile published by the
+Chromium/Puppeteer projects. Set `M2V_NO_SANDBOX=1` to skip the attempt and
+silence the warning.
+
+The GUI has no authentication. Keep it on a network you trust, or put it behind
+a reverse proxy that adds access control.
+

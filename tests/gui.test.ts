@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import { createServer, MAX_BODY_BYTES } from '../src/gui';
+import { RendererBusyError } from '../src/parser';
 
 async function startServer(opts: Parameters<typeof createServer>[0] = {}) {
     const server = createServer(opts);
@@ -23,15 +24,15 @@ interface FetchResult {
     body: Buffer;
 }
 
-function request(url: string, init: { method?: string, body?: Buffer | string } = {}): Promise<FetchResult> {
+function request(url: string, init: { method?: string, body?: Buffer | string, headers?: Record<string, string>, rawPath?: string } = {}): Promise<FetchResult> {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const req = http.request({
             hostname: u.hostname,
             port: u.port,
-            path: u.pathname + u.search,
+            path: init.rawPath ?? (u.pathname + u.search),
             method: init.method ?? 'GET',
-            headers: init.body ? { 'Content-Length': Buffer.byteLength(init.body as any) } : {},
+            headers: { ...(init.body ? { 'Content-Length': Buffer.byteLength(init.body as any) } : {}), ...init.headers },
         }, (res) => {
             const chunks: Buffer[] = [];
             res.on('data', c => chunks.push(c));
@@ -142,6 +143,71 @@ describe('GUI HTTP server', () => {
             }
         } finally {
             await stop();
+        }
+    });
+
+    it('routes POST /convert by path, ignoring any query string', async () => {
+        const convert = jest.fn(async () => Buffer.from('PK-fake'));
+        const { base, stop } = await startServer({ convert });
+        try {
+            const res = await request(`${base}/convert?source=test`, { method: 'POST', body: 'graph TD\nA-->B' });
+            expect(res.status).toBe(200);
+            expect(convert).toHaveBeenCalledTimes(1);
+        } finally {
+            await stop();
+        }
+    });
+
+    // Any website the user visits can make their browser POST to this
+    // server. Browsers label such requests with Origin; refuse them.
+    it('refuses cross-origin POST /convert but allows same-origin and non-browser clients', async () => {
+        const convert = jest.fn(async () => Buffer.from('PK-fake'));
+        const { base, stop } = await startServer({ convert });
+        try {
+            const cross = await request(`${base}/convert`, { method: 'POST', body: 'graph TD', headers: { Origin: 'https://evil.example' } });
+            expect(cross.status).toBe(403);
+            const fetchMeta = await request(`${base}/convert`, { method: 'POST', body: 'graph TD', headers: { 'Sec-Fetch-Site': 'cross-site' } });
+            expect(fetchMeta.status).toBe(403);
+            expect(convert).not.toHaveBeenCalled();
+
+            const same = await request(`${base}/convert`, { method: 'POST', body: 'graph TD', headers: { Origin: base } });
+            expect(same.status).toBe(200);
+            const curl = await request(`${base}/convert`, { method: 'POST', body: 'graph TD' });
+            expect(curl.status).toBe(200);
+        } finally {
+            await stop();
+        }
+    });
+
+    it('answers 503 with Retry-After when the renderer is saturated', async () => {
+        const convert = jest.fn(async () => { throw new RendererBusyError(); });
+        const { base, stop } = await startServer({ convert });
+        try {
+            const res = await request(`${base}/convert`, { method: 'POST', body: 'graph TD' });
+            expect(res.status).toBe(503);
+            expect(res.headers['retry-after']).toBe('5');
+        } finally {
+            await stop();
+        }
+    });
+
+    // A directory where a file is expected used to reach createReadStream,
+    // whose unhandled EISDIR error killed the whole server process.
+    it('survives requests for directories and odd paths', async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gui-dir-'));
+        fs.mkdirSync(path.join(dir, 'index.html'));
+        const { base, stop } = await startServer({ publicDir: dir });
+        try {
+            expect((await request(`${base}/`)).status).toBe(404);
+            for (const rawPath of ['/browser/chunks/', '/browser/%2e%2e/%2e%2e/etc/passwd', '/vendor/mermaid/', '/%E0%A4%A']) {
+                const res = await request(base, { rawPath });
+                expect([301, 400, 403, 404]).toContain(res.status);
+            }
+            // Still alive.
+            expect((await request(`${base}/vendor/mermaid/mermaid.min.js`)).status).toBe(200);
+        } finally {
+            await stop();
+            fs.rmSync(dir, { recursive: true, force: true });
         }
     });
 
