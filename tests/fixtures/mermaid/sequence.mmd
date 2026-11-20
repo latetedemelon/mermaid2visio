@@ -1,0 +1,20 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant W as Web
+    participant D as Database
+    U->>W: Sign in
+    activate W
+    W->>+D: Look up user
+    D-->>-W: Row
+    alt found
+        W-->>U: Welcome
+    else missing
+        W--)U: Try again
+    end
+    deactivate W
+    loop every minute
+        W->>W: Refresh token
+    end
+    Note over W,D: Shared cache
+    U-xW: Close

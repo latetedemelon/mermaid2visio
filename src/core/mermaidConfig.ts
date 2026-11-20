@@ -53,19 +53,18 @@ function stringMap(input: unknown): Record<string, string> {
 // a caller-supplied config (the GUI accepts one over HTTP) can only ever
 // choose between valid settings.
 export function buildMermaidConfig(config: MermaidConfig | undefined, definition: string): ResolvedMermaidConfig {
+    // Mermaid applies a diagram's own frontmatter config at render time, on
+    // top of whatever initialize() was given, so frontmatter wins over the
+    // caller's setting. Report the engine that will actually run.
     let layout: string = DEFAULT_LAYOUT;
     let layoutSource: LayoutSource = 'default';
-    if (typeof config?.layout === 'string' && config.layout) {
+    const fm = frontmatterLayout(definition);
+    if (fm) {
+        layout = fm;
+        layoutSource = 'frontmatter';
+    } else if (typeof config?.layout === 'string' && config.layout) {
         layout = config.layout;
         layoutSource = 'config';
-    } else {
-        // Mermaid applies frontmatter config at render time, on top of
-        // initialize(). Mirror it here so callers know which engine runs.
-        const fm = frontmatterLayout(definition);
-        if (fm) {
-            layout = fm;
-            layoutSource = 'frontmatter';
-        }
     }
 
     const theme = typeof config?.theme === 'string' && config.theme ? config.theme : DEFAULT_THEME;
@@ -80,6 +79,13 @@ export function buildMermaidConfig(config: MermaidConfig | undefined, definition
             startOnLoad: false,
             theme,
             layout,
+            // Mermaid 12 defaults to the "neo" look (gradient strokes, drop
+            // shadows, dash-array tricks for marker offsets), none of which
+            // map to Visio. The classic look renders plain fills and strokes.
+            look: 'classic',
+            // Pin label rendering so output doesn't change with Mermaid's
+            // per-diagram defaults.
+            htmlLabels: true,
             themeVariables: { ...DEFAULT_THEME_VARIABLES, ...stringMap(config?.themeVariables) },
             flowchart: {
                 nodeSpacing: spacing(config?.flowchart?.nodeSpacing, 50),

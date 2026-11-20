@@ -1,0 +1,148 @@
+{
+ "mermaidType": "gitGraph",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 5,
+  "circle": 6,
+  "ellipse": 0,
+  "polygon": 1,
+  "path": 4,
+  "line": 2,
+  "text": 6,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getOptions": {},
+  "getBranchesAsObjArray": [
+   {
+    "name": "main"
+   },
+   {
+    "name": "develop"
+   }
+  ],
+  "getBranches": {
+   "main": "hotfix",
+   "develop": "feature"
+  },
+  "getCommits": {
+   "init": {
+    "id": "init",
+    "message": "",
+    "seq": 0,
+    "type": 0,
+    "tags": [],
+    "parents": [],
+    "branch": "main"
+   },
+   "feature": {
+    "id": "feature",
+    "message": "",
+    "seq": 1,
+    "type": 0,
+    "tags": [],
+    "parents": [
+     "init"
+    ],
+    "branch": "develop"
+   },
+   "2-0e14cc3": {
+    "id": "2-0e14cc3",
+    "message": "merged branch develop into main",
+    "seq": 2,
+    "parents": [
+     "init",
+     "feature"
+    ],
+    "branch": "main",
+    "type": 3,
+    "customType": null,
+    "customId": false,
+    "tags": [
+     "v1.0"
+    ]
+   },
+   "hotfix": {
+    "id": "hotfix",
+    "message": "",
+    "seq": 3,
+    "type": 0,
+    "tags": [],
+    "parents": [
+     "2-0e14cc3"
+    ],
+    "branch": "main"
+   }
+  },
+  "getCommitsArray": [
+   {
+    "id": "init",
+    "message": "",
+    "seq": 0,
+    "type": 0,
+    "tags": [],
+    "parents": [],
+    "branch": "main"
+   },
+   {
+    "id": "feature",
+    "message": "",
+    "seq": 1,
+    "type": 0,
+    "tags": [],
+    "parents": [
+     "init"
+    ],
+    "branch": "develop"
+   },
+   {
+    "id": "2-0e14cc3",
+    "message": "merged branch develop into main",
+    "seq": 2,
+    "parents": [
+     "init",
+     "feature"
+    ],
+    "branch": "main",
+    "type": 3,
+    "customType": null,
+    "customId": false,
+    "tags": [
+     "v1.0"
+    ]
+   },
+   {
+    "id": "hotfix",
+    "message": "",
+    "seq": 3,
+    "type": 0,
+    "tags": [],
+    "parents": [
+     "2-0e14cc3"
+    ],
+    "branch": "main"
+   }
+  ],
+  "getCurrentBranch": "main",
+  "getDirection": "LR",
+  "getHead": {
+   "id": "hotfix",
+   "message": "",
+   "seq": 3,
+   "type": 0,
+   "tags": [],
+   "parents": [
+    "2-0e14cc3"
+   ],
+   "branch": "main"
+  },
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": ""
+ }
+}

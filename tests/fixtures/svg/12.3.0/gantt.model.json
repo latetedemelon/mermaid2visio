@@ -1,0 +1,155 @@
+{
+ "mermaidType": "gantt",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 8,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 1,
+  "line": 11,
+  "text": 17,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getDateFormat": "YYYY-MM-DD",
+  "getAxisFormat": "",
+  "getTickInterval": null,
+  "getTodayMarker": "",
+  "getAccTitle": "",
+  "getDiagramTitle": "Release plan",
+  "getDisplayMode": "",
+  "getAccDescription": "",
+  "getSections": [
+   "Build",
+   "Ship"
+  ],
+  "getTasks": [
+   {
+    "section": "Build",
+    "type": "Build",
+    "processed": true,
+    "manualEndTime": false,
+    "renderEndTime": null,
+    "raw": {
+     "data": ":done, d1, 2026-01-05, 5d",
+     "startTime": {
+      "type": "getStartDate",
+      "startData": "2026-01-05"
+     },
+     "endTime": {
+      "data": "5d"
+     }
+    },
+    "task": "Design      ",
+    "classes": [],
+    "id": "d1",
+    "prevTaskId": null,
+    "active": null,
+    "done": true,
+    "crit": null,
+    "milestone": null,
+    "vert": null,
+    "order": 0,
+    "startTime": {},
+    "endTime": {}
+   },
+   {
+    "section": "Build",
+    "type": "Build",
+    "processed": true,
+    "manualEndTime": false,
+    "renderEndTime": null,
+    "raw": {
+     "data": ":active, d2, after d1, 10d",
+     "startTime": {
+      "type": "getStartDate",
+      "startData": "after d1"
+     },
+     "endTime": {
+      "data": "10d"
+     }
+    },
+    "task": "Implement   ",
+    "classes": [],
+    "id": "d2",
+    "prevTaskId": "d1",
+    "active": true,
+    "done": null,
+    "crit": null,
+    "milestone": null,
+    "vert": null,
+    "order": 1,
+    "startTime": {},
+    "endTime": {}
+   },
+   {
+    "section": "Ship",
+    "type": "Ship",
+    "processed": true,
+    "manualEndTime": false,
+    "renderEndTime": null,
+    "raw": {
+     "data": ":crit, t1, after d2, 4d",
+     "startTime": {
+      "type": "getStartDate",
+      "startData": "after d2"
+     },
+     "endTime": {
+      "data": "4d"
+     }
+    },
+    "task": "Test        ",
+    "classes": [],
+    "id": "t1",
+    "prevTaskId": "d2",
+    "active": null,
+    "done": null,
+    "crit": true,
+    "milestone": null,
+    "vert": null,
+    "order": 2,
+    "startTime": {},
+    "endTime": {}
+   },
+   {
+    "section": "Ship",
+    "type": "Ship",
+    "processed": true,
+    "manualEndTime": false,
+    "renderEndTime": null,
+    "raw": {
+     "data": ":milestone, after t1, 0d",
+     "startTime": {
+      "type": "getStartDate",
+      "startData": "after t1"
+     },
+     "endTime": {
+      "data": "0d"
+     }
+    },
+    "task": "Launch      ",
+    "classes": [],
+    "id": "task1",
+    "prevTaskId": "t1",
+    "active": null,
+    "done": null,
+    "crit": null,
+    "milestone": true,
+    "vert": null,
+    "order": 3,
+    "startTime": {},
+    "endTime": {}
+   }
+  ],
+  "getIncludes": [],
+  "getExcludes": [],
+  "getLinks": {},
+  "getWeekday": "sunday"
+ }
+}

@@ -1,0 +1,30 @@
+{
+ "mermaidType": "pie",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 3,
+  "circle": 1,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 3,
+  "line": 0,
+  "text": 7,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getDiagramTitle": "Pets adopted",
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getSections": {
+   "Dogs": 386,
+   "Cats": 85,
+   "Rats": 15
+  },
+  "getShowData": true
+ }
+}

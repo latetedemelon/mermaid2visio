@@ -1,0 +1,88 @@
+<svg id="m2v-probe" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 880px;" viewBox="0 0 880 680" role="graphics-document document" aria-roledescription="cynefin">
+<style>#m2v-probe{font-family:Segoe UI,sans-serif;font-size:14px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#m2v-probe .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#m2v-probe .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#m2v-probe .error-icon{fill:#552222;}#m2v-probe .error-text{fill:#552222;stroke:#552222;}#m2v-probe .edge-thickness-normal{stroke-width:1px;}#m2v-probe .edge-thickness-thick{stroke-width:3.5px;}#m2v-probe .edge-pattern-solid{stroke-dasharray:0;}#m2v-probe .edge-thickness-invisible{stroke-width:0;fill:none;}#m2v-probe .edge-pattern-dashed{stroke-dasharray:3;}#m2v-probe .edge-pattern-dotted{stroke-dasharray:2;}#m2v-probe .marker{fill:#01579b;stroke:#01579b;}#m2v-probe .marker.cross{stroke:#01579b;}#m2v-probe svg{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe p{margin:0;}#m2v-probe .cynefinDomain{stroke:none;}#m2v-probe .cynefinDomainLabel{font-size:16px;font-weight:bold;fill:#000;}#m2v-probe .cynefinSubtitle{font-size:11px;fill:#000000;font-style:italic;}#m2v-probe .cynefinItem{fill-opacity:0.95;stroke:#01579b;stroke-width:1;}#m2v-probe .cynefinItemText{font-size:12px;fill:#000000;}#m2v-probe .cynefinItemOverflow{fill-opacity:0.6;stroke:#01579b;stroke-width:1;stroke-dasharray:3 2;}#m2v-probe .cynefinBoundary{stroke:#01579b;stroke-width:2;stroke-dasharray:6 3;}#m2v-probe .cynefinCliff{stroke:#8B0000;stroke-width:4;}#m2v-probe .cynefinConfusion{stroke:#01579b;stroke-width:1.5;stroke-dasharray:4 2;}#m2v-probe .cynefinArrowLine{stroke:#01579b;stroke-width:2;fill:none;}#m2v-probe .cynefinArrowHead{fill:#01579b;stroke:none;}#m2v-probe .cynefinArrowLabel{font-size:11px;fill:#000000;}#m2v-probe .cynefinTitle{font-size:18px;font-weight:bold;fill:#000;}#m2v-probe .node .neo-node{stroke:#999;}#m2v-probe [data-look="neo"].node rect,#m2v-probe [data-look="neo"].cluster rect,#m2v-probe [data-look="neo"].node polygon{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].swimlane.cluster rect{filter:none;}#m2v-probe [data-look="neo"].node path{stroke:url(#m2v-probe-gradient);stroke-width:1px;}#m2v-probe [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#m2v-probe [data-look="neo"].node circle{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node circle .state-start{fill:#000000;}#m2v-probe [data-look="neo"].icon-shape .icon{fill:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].icon-shape .icon-neo path{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style>
+<g>
+</g>
+<g transform="translate(40, 40)">
+<g class="cynefin-backgrounds">
+<rect class="cynefinDomain" x="0" y="0" width="400" height="300" fill="#E8F5E9" fill-opacity="0.4" stroke="none">
+</rect>
+<rect class="cynefinDomain" x="400" y="0" width="400" height="300" fill="#E3F2FD" fill-opacity="0.4" stroke="none">
+</rect>
+<rect class="cynefinDomain" x="0" y="300" width="400" height="300" fill="#FBE9E7" fill-opacity="0.4" stroke="none">
+</rect>
+<rect class="cynefinDomain" x="400" y="300" width="400" height="300" fill="#FFF8E1" fill-opacity="0.4" stroke="none">
+</rect>
+</g>
+<g class="cynefin-boundaries">
+<path class="cynefinBoundary" d="M405.4299009889364,0 C411.210939261131,42.857142857142854 386.2413127915934,42.857142857142854 392.02235106378794,85.71428571428571 C382.60792167205364,128.57142857142856 403.41711687948555,128.57142857142856 394.00268748775125,171.42857142857142 C397.93911515176296,214.28571428571428 401.02747927233577,214.28571428571428 404.9639069363475,257.1428571428571 C395.821614831686,300 402.84717335551977,300 393.7048812508583,342.85714285714283 C394.7269909642637,385.71428571428567 400.4411565884948,385.71428571428567 401.46326630190015,428.57142857142856 C396.7620258927345,471.4285714285714 398.6220665462315,471.4285714285714 393.9208261370659,514.2857142857142 C402.41078463569283,557.1428571428571 396.14815259724855,557.1428571428571 404.6381110958755,600" fill="none">
+</path>
+<path class="cynefinBoundary" d="M0,304.1897228062153 C57.142857142857146,308.48250915668905 57.142857142857146,289.7549815494567 114.28571428571429,294.0477678999305 C171.42857142857144,292.9527018358931 171.42857142857144,307.6077206963673 228.57142857142858,306.51265463232994 C285.7142857142857,307.00196095649153 285.7142857142857,294.0680946474895 342.8571428571429,294.5574009716511 C400,292.14317828509957 400,294.6239039665088 457.14285714285717,292.2096812799573 C514.2857142857143,294.1076351441443 514.2857142857143,302.8663176931441 571.4285714285714,304.7642715573311 C628.5714285714287,303.9397677760571 628.5714285714287,297.9074152763933 685.7142857142858,297.08291149511933 C742.8571428571429,304.34992751665413 742.8571428571429,291.73962014727294 800,299.00663616880774" fill="none">
+</path>
+<path class="cynefinCliff" d="M400,300 C424,360 364,465 412,525 C376,555 407.2,585 400,600" fill="none">
+</path>
+</g>
+<path class="cynefinConfusion" d="M280,300 A120,90 0 1,1 520,300 A120,90 0 1,1 280,300 Z" fill="#F3E5F5" fill-opacity="0.5">
+</path>
+<g class="cynefin-labels">
+<text class="cynefinDomainLabel" x="200" y="120" text-anchor="middle" dominant-baseline="middle">Complex</text>
+<text class="cynefinDomainLabel" x="600" y="120" text-anchor="middle" dominant-baseline="middle">Complicated</text>
+<text class="cynefinDomainLabel" x="200" y="420" text-anchor="middle" dominant-baseline="middle">Chaotic</text>
+<text class="cynefinDomainLabel" x="600" y="420" text-anchor="middle" dominant-baseline="middle">Clear</text>
+<text class="cynefinDomainLabel" x="400" y="290" text-anchor="middle" dominant-baseline="middle">Confusion</text>
+</g>
+<g class="cynefin-subtitles">
+<text class="cynefinSubtitle" x="200" y="140" text-anchor="middle" dominant-baseline="middle">Probe → Sense → Respond</text>
+<text class="cynefinSubtitle" x="200" y="155" text-anchor="middle" dominant-baseline="middle">Emergent Practices</text>
+<text class="cynefinSubtitle" x="600" y="140" text-anchor="middle" dominant-baseline="middle">Sense → Analyse → Respond</text>
+<text class="cynefinSubtitle" x="600" y="155" text-anchor="middle" dominant-baseline="middle">Good Practices</text>
+<text class="cynefinSubtitle" x="200" y="440" text-anchor="middle" dominant-baseline="middle">Act → Sense → Respond</text>
+<text class="cynefinSubtitle" x="200" y="455" text-anchor="middle" dominant-baseline="middle">Novel Practices</text>
+<text class="cynefinSubtitle" x="600" y="440" text-anchor="middle" dominant-baseline="middle">Sense → Categorise → Respond</text>
+<text class="cynefinSubtitle" x="600" y="455" text-anchor="middle" dominant-baseline="middle">Best Practices</text>
+<text class="cynefinSubtitle" x="400" y="308" text-anchor="middle" dominant-baseline="middle">Disorder</text>
+</g>
+<g class="cynefin-items">
+<g transform="translate(131.2845230102539, 175)">
+<rect class="cynefinItem" x="0" y="0" width="137.4309539794922" height="26" rx="4" ry="4" fill="#E8F5E9" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="68.7154769897461" y="13" text-anchor="middle" dominant-baseline="central">Investigate root cause</text>
+</g>
+<g transform="translate(129.9691390991211, 205)">
+<rect class="cynefinItem" x="0" y="0" width="140.0617218017578" height="26" rx="4" ry="4" fill="#E8F5E9" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="70.0308609008789" y="13" text-anchor="middle" dominant-baseline="central">Run chaos experiment</text>
+</g>
+<g transform="translate(519.9501419067383, 175)">
+<rect class="cynefinItem" x="0" y="0" width="160.09971618652344" height="26" rx="4" ry="4" fill="#E3F2FD" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="80.04985809326172" y="13" text-anchor="middle" dominant-baseline="central">Analyze performance data</text>
+</g>
+<g transform="translate(531.9522819519043, 205)">
+<rect class="cynefinItem" x="0" y="0" width="136.0954360961914" height="26" rx="4" ry="4" fill="#E3F2FD" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="68.0477180480957" y="13" text-anchor="middle" dominant-baseline="central">Expert review needed</text>
+</g>
+<g transform="translate(122.62118530273438, 475)">
+<rect class="cynefinItem" x="0" y="0" width="154.75762939453125" height="26" rx="4" ry="4" fill="#FBE9E7" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="77.37881469726562" y="13" text-anchor="middle" dominant-baseline="central">Page on-call immediately</text>
+</g>
+<g transform="translate(549.970142364502, 475)">
+<rect class="cynefinItem" x="0" y="0" width="100.0597152709961" height="26" rx="4" ry="4" fill="#FFF8E1" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="50.02985763549805" y="13" text-anchor="middle" dominant-baseline="central">Restart service</text>
+</g>
+<g transform="translate(547.9580688476562, 505)">
+<rect class="cynefinItem" x="0" y="0" width="104.0838623046875" height="26" rx="4" ry="4" fill="#FFF8E1" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="52.04193115234375" y="13" text-anchor="middle" dominant-baseline="central">Apply known fix</text>
+</g>
+<g transform="translate(330.28873443603516, 322)">
+<rect class="cynefinItem" x="0" y="0" width="139.4225311279297" height="26" rx="4" ry="4" fill="#F3E5F5" fill-opacity="0.95">
+</rect>
+<text class="cynefinItemText" x="69.71126556396484" y="13" text-anchor="middle" dominant-baseline="central">Unknown failure mode</text>
+</g>
+</g>
+<text class="cynefinTitle" x="400" y="-20" text-anchor="middle" dominant-baseline="middle">Incident Response</text>
+</g>
+</svg>

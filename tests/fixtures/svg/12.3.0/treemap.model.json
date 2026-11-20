@@ -1,0 +1,128 @@
+{
+ "mermaidType": "treemap",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 15,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 0,
+  "line": 0,
+  "text": 12,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getDiagramTitle": "",
+  "getAccDescription": "",
+  "getNodes": [
+   {
+    "name": "Budget",
+    "children": [
+     {
+      "name": "Engineering",
+      "children": [
+       {
+        "name": "Backend",
+        "children": null,
+        "classSelector": null,
+        "value": 40
+       },
+       {
+        "name": "Frontend",
+        "children": null,
+        "classSelector": null,
+        "value": 30
+       }
+      ],
+      "classSelector": null
+     },
+     {
+      "name": "Marketing",
+      "children": null,
+      "classSelector": null,
+      "value": 20
+     }
+    ],
+    "classSelector": null
+   },
+   {
+    "name": "Engineering",
+    "children": [
+     {
+      "name": "Backend",
+      "children": null,
+      "classSelector": null,
+      "value": 40
+     },
+     {
+      "name": "Frontend",
+      "children": null,
+      "classSelector": null,
+      "value": 30
+     }
+    ],
+    "classSelector": null
+   },
+   {
+    "name": "Backend",
+    "children": null,
+    "classSelector": null,
+    "value": 40
+   },
+   {
+    "name": "Frontend",
+    "children": null,
+    "classSelector": null,
+    "value": 30
+   },
+   {
+    "name": "Marketing",
+    "children": null,
+    "classSelector": null,
+    "value": 20
+   }
+  ],
+  "getRoot": {
+   "name": "",
+   "children": [
+    {
+     "name": "Budget",
+     "children": [
+      {
+       "name": "Engineering",
+       "children": [
+        {
+         "name": "Backend",
+         "children": null,
+         "classSelector": null,
+         "value": 40
+        },
+        {
+         "name": "Frontend",
+         "children": null,
+         "classSelector": null,
+         "value": 30
+        }
+       ],
+       "classSelector": null
+      },
+      {
+       "name": "Marketing",
+       "children": null,
+       "classSelector": null,
+       "value": 20
+      }
+     ],
+     "classSelector": null
+    }
+   ]
+  },
+  "getClasses": {}
+ }
+}

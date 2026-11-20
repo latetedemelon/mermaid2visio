@@ -1,0 +1,48 @@
+{
+ "mermaidType": "packet",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 3,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 0,
+  "line": 0,
+  "text": 10,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getDiagramTitle": "",
+  "getAccDescription": "",
+  "getPacket": [
+   [
+    {
+     "start": 0,
+     "end": 15,
+     "bits": 16,
+     "label": "Source Port"
+    },
+    {
+     "start": 16,
+     "end": 31,
+     "bits": 16,
+     "label": "Destination Port"
+    }
+   ],
+   [
+    {
+     "start": 32,
+     "end": 63,
+     "bits": 32,
+     "label": "Sequence Number"
+    }
+   ]
+  ]
+ }
+}

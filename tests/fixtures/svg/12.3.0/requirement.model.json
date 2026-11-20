@@ -1,0 +1,77 @@
+{
+ "mermaidType": "requirement",
+ "counts": {
+  "node": 2,
+  "edgePath": 1,
+  "cluster": 0,
+  "edgeLabel": 1,
+  "rect": 0,
+  "circle": 1,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 8,
+  "line": 2,
+  "text": 0,
+  "foreignObject": 10,
+  "image": 0
+ },
+ "data": {
+  "nodes": [
+   {
+    "name": "login_req",
+    "type": "Requirement",
+    "requirementId": "1",
+    "text": "Users can sign in",
+    "risk": "High",
+    "verifyMethod": "Test",
+    "cssStyles": [],
+    "classes": [
+     "default"
+    ],
+    "id": "login_req",
+    "cssClasses": "default",
+    "shape": "requirementBox",
+    "look": "classic",
+    "colorIndex": 0
+   },
+   {
+    "name": "auth_service",
+    "type": "service",
+    "docRef": "",
+    "cssStyles": [],
+    "classes": [
+     "default"
+    ],
+    "shape": "requirementBox",
+    "look": "classic",
+    "id": "auth_service",
+    "cssClasses": "default",
+    "colorIndex": 1
+   }
+  ],
+  "edges": [
+   {
+    "id": "auth_service-login_req-0",
+    "start": "auth_service",
+    "end": "login_req",
+    "label": "&lt;&lt;satisfies&gt;&gt;",
+    "classes": "relationshipLine",
+    "style": [
+     "fill:none",
+     "stroke-dasharray: 10,7"
+    ],
+    "labelpos": "c",
+    "thickness": "normal",
+    "type": "normal",
+    "pattern": "dashed",
+    "arrowTypeStart": "",
+    "arrowTypeEnd": "requirement_arrow",
+    "look": "classic",
+    "labelType": "markdown"
+   }
+  ],
+  "other": {},
+  "direction": "TB"
+ },
+ "getters": {}
+}

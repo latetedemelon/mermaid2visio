@@ -34,6 +34,7 @@ RUN npm ci
 
 # Copy source and config, build the Node target and the browser bundle.
 COPY tsconfig.json ./
+COPY scripts ./scripts
 COPY src ./src
 RUN npm run build && npm run build:browser
 
@@ -63,7 +64,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true \
 
 WORKDIR /app
 
-# Production deps only. We need: mermaid, @mermaid-js/layout-elk, puppeteer,
+# Production deps only. We need: mermaid, puppeteer,
 # jszip, xmlbuilder2, commander, @modelcontextprotocol/sdk, zod.
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

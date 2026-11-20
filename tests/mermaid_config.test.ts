@@ -8,15 +8,20 @@ describe('buildMermaidConfig', () => {
         expect(layoutSource).toBe('default');
         expect(init.theme).toBe('neutral');
         expect(init.startOnLoad).toBe(false);
+        // Mermaid 12's default look ("neo") is not convertible; always classic.
+        expect(init.look).toBe('classic');
+        expect(init.htmlLabels).toBe(true);
         expect(init.themeVariables).toEqual(DEFAULT_THEME_VARIABLES);
         expect(init.flowchart).toEqual({ nodeSpacing: 50, rankSpacing: 50, curve: 'basis', useMaxWidth: true });
     });
 
-    it('prefers an explicit layout over frontmatter, and frontmatter over the default', () => {
+    it('reports the layout Mermaid will actually use: frontmatter, then config, then default', () => {
         const fm = '---\nconfig:\n  layout: elk\n---\ngraph TD\n A-->B';
         expect(frontmatterLayout(fm)).toBe('elk');
         expect(buildMermaidConfig(undefined, fm)).toMatchObject({ layout: 'elk', layoutSource: 'frontmatter' });
-        expect(buildMermaidConfig({ layout: 'dagre' }, fm)).toMatchObject({ layout: 'dagre', layoutSource: 'config' });
+        // Mermaid applies frontmatter over initialize(), so it beats the caller's choice.
+        expect(buildMermaidConfig({ layout: 'dagre' }, fm)).toMatchObject({ layout: 'elk', layoutSource: 'frontmatter' });
+        expect(buildMermaidConfig({ layout: 'elk' }, 'graph TD')).toMatchObject({ layout: 'elk', layoutSource: 'config' });
     });
 
     it('merges caller theme variables over the defaults', () => {

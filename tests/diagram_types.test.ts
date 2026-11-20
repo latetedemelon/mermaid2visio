@@ -1,5 +1,8 @@
 import { describe, it, expect } from '@jest/globals';
+import fs from 'fs';
+import path from 'path';
 import { parseMermaid, detectDiagramType } from '../src/parser';
+import { DIAGRAM_KINDS, diagramKind, supportLevel } from '../src/core/detect';
 import { VsdxGenerator } from '../src/vsdx';
 import { validateVsdx } from '../src/validate';
 
@@ -21,6 +24,53 @@ describe('detectDiagramType', () => {
     ])('detects %s', (src, expected) => {
         expect(detectDiagramType(src)).toBe(expected);
     });
+});
+
+const FIXTURE_DIR = path.join(process.cwd(), 'tests', 'fixtures', 'mermaid');
+const fixtureFiles = fs.readdirSync(FIXTURE_DIR).filter(f => f.endsWith('.mmd')).sort();
+
+describe('diagram type registry', () => {
+    it('classifies well-known keywords', () => {
+        expect(supportLevel('flowchart')).toBe('full');
+        expect(supportLevel('graph')).toBe('full');
+        expect(supportLevel('flowchart-elk')).toBe('full');
+        expect(diagramKind('stateDiagram-v2')?.kind).toBe('state');
+        expect(diagramKind('classDiagram-v2')?.kind).toBe('class');
+        expect(diagramKind('xychart-beta')?.kind).toBe('xychart');
+        expect(diagramKind('C4Container')?.kind).toBe('c4');
+        expect(diagramKind('notADiagram')).toBeUndefined();
+        expect(supportLevel('notADiagram')).toBe('none');
+    });
+
+    // Every fixture is a diagram type Mermaid really renders, so each must be
+    // known to the registry. A fixture for a new Mermaid type fails here
+    // until the registry is taught about it.
+    it.each(fixtureFiles)('knows the type of fixture %s', (file) => {
+        const type = detectDiagramType(fs.readFileSync(path.join(FIXTURE_DIR, file), 'utf8'));
+        expect(diagramKind(type)).toBeDefined();
+    });
+
+    it('has a fixture for every registered diagram kind', () => {
+        const covered = new Set(fixtureFiles.map(f => diagramKind(detectDiagramType(fs.readFileSync(path.join(FIXTURE_DIR, f), 'utf8')))?.kind));
+        expect(DIAGRAM_KINDS.map(k => k.kind).filter(k => !covered.has(k))).toEqual([]);
+    });
+});
+
+// Every diagram type Mermaid can render must convert without throwing and
+// produce a structurally valid package, whether or not shapes are extracted.
+describe('every Mermaid diagram type converts to a valid package', () => {
+    it.each(fixtureFiles)('%s', async (file) => {
+        const src = fs.readFileSync(path.join(FIXTURE_DIR, file), 'utf8');
+        const warn = console.warn;
+        console.warn = () => {};
+        try {
+            const graph = await parseMermaid(src);
+            const report = await validateVsdx(await new VsdxGenerator().generate(graph, src));
+            expect(report.errors).toEqual([]);
+        } finally {
+            console.warn = warn;
+        }
+    }, 60000);
 });
 
 describe('diagram type coverage (parse -> generate -> validate)', () => {

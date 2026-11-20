@@ -1,0 +1,84 @@
+{
+ "mermaidType": "treeView",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 0,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 0,
+  "line": 8,
+  "text": 6,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getRoot": {
+   "id": 0,
+   "level": -1,
+   "name": "/",
+   "nodeType": "directory",
+   "children": [
+    {
+     "id": 1,
+     "level": 4,
+     "name": "src",
+     "nodeType": "directory",
+     "icon": null,
+     "cssClass": null,
+     "description": null,
+     "children": [
+      {
+       "id": 2,
+       "level": 8,
+       "name": "index.ts",
+       "nodeType": "file",
+       "icon": null,
+       "cssClass": null,
+       "description": null,
+       "children": []
+      },
+      {
+       "id": 3,
+       "level": 8,
+       "name": "utils.ts",
+       "nodeType": "file",
+       "icon": null,
+       "cssClass": null,
+       "description": null,
+       "children": []
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "level": 4,
+     "name": "package.json",
+     "nodeType": "file",
+     "icon": null,
+     "cssClass": null,
+     "description": null,
+     "children": []
+    },
+    {
+     "id": 5,
+     "level": 4,
+     "name": "README.md",
+     "nodeType": "file",
+     "icon": null,
+     "cssClass": null,
+     "description": null,
+     "children": []
+    }
+   ]
+  },
+  "getCount": 6,
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": ""
+ }
+}

@@ -101,7 +101,7 @@ describe('Coordinate conversion', () => {
   }, 60000);
 
   it('parses user-facing node ids (not the "flowchart-X-N" scaffold)', async () => {
-    // Mermaid 11.x wraps nodes as id="flowchart-<USERID>-<IDX>". Edges still
+    // Mermaid wraps nodes as id="<svgId>-flowchart-<USERID>-<IDX>". Edges still
     // carry the plain user id, so the parser MUST strip the scaffold or every
     // lookup in the generator's nodeIdToPin map misses and every connector
     // falls through to the unglued path-drawing branch.

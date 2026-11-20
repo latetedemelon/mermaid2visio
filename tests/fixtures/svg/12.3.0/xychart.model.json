@@ -1,0 +1,540 @@
+{
+ "mermaidType": "xychart",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 5,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 18,
+  "line": 0,
+  "text": 17,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getDrawableElem": [
+   {
+    "groupTexts": [
+     "chart-title"
+    ],
+    "type": "text",
+    "data": [
+     {
+      "fontSize": 20,
+      "text": "Sales",
+      "verticalPos": "middle",
+      "horizontalPos": "center",
+      "x": 363.5,
+      "y": 10,
+      "fill": "#000",
+      "rotation": 0
+     }
+    ]
+   },
+   {
+    "groupTexts": [
+     "plot",
+     "bar-plot-0"
+    ],
+    "type": "rect",
+    "data": [
+     {
+      "x": 29.900000000000006,
+      "y": 390.40000000000003,
+      "width": 110.19999999999999,
+      "height": 92.59999999999997,
+      "fill": "#EEE",
+      "strokeWidth": 0,
+      "strokeFill": "#EEE"
+     },
+     {
+      "x": 215.56666666666663,
+      "y": 274.65000000000003,
+      "width": 110.19999999999999,
+      "height": 208.34999999999997,
+      "fill": "#EEE",
+      "strokeWidth": 0,
+      "strokeFill": "#EEE"
+     },
+     {
+      "x": 401.23333333333335,
+      "y": 205.20000000000002,
+      "width": 110.19999999999999,
+      "height": 277.79999999999995,
+      "fill": "#EEE",
+      "strokeWidth": 0,
+      "strokeFill": "#EEE"
+     },
+     {
+      "x": 586.9,
+      "y": 112.59999999999998,
+      "width": 110.19999999999999,
+      "height": 370.40000000000003,
+      "fill": "#EEE",
+      "strokeWidth": 0,
+      "strokeFill": "#EEE"
+     }
+    ]
+   },
+   {
+    "groupTexts": [
+     "plot",
+     "line-plot-1"
+    ],
+    "type": "path",
+    "data": [
+     {
+      "path": "M85,413.55L270.667,251.5L456.333,228.35L642,66.3",
+      "strokeFill": "#6BB8E4",
+      "strokeWidth": 2
+     }
+    ]
+   },
+   {
+    "type": "path",
+    "groupTexts": [
+     "bottom-axis",
+     "axis-line"
+    ],
+    "data": [
+     {
+      "path": "M 27,484 L 700,484",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     }
+    ]
+   },
+   {
+    "type": "text",
+    "groupTexts": [
+     "bottom-axis",
+     "label"
+    ],
+    "data": [
+     {
+      "text": "jan",
+      "x": 85,
+      "y": 495,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "top",
+      "horizontalPos": "center"
+     },
+     {
+      "text": "feb",
+      "x": 270.66666666666663,
+      "y": 495,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "top",
+      "horizontalPos": "center"
+     },
+     {
+      "text": "mar",
+      "x": 456.3333333333333,
+      "y": 495,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "top",
+      "horizontalPos": "center"
+     },
+     {
+      "text": "apr",
+      "x": 642,
+      "y": 495,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "top",
+      "horizontalPos": "center"
+     }
+    ]
+   },
+   {
+    "type": "path",
+    "groupTexts": [
+     "bottom-axis",
+     "ticks"
+    ],
+    "data": [
+     {
+      "path": "M 85,485 L 85,490",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 270.66666666666663,485 L 270.66666666666663,490",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 456.3333333333333,485 L 456.3333333333333,490",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 642,485 L 642,490",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     }
+    ]
+   },
+   {
+    "type": "path",
+    "groupTexts": [
+     "left-axis",
+     "axisl-line"
+    ],
+    "data": [
+     {
+      "path": "M 26,20 L 26,483 ",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     }
+    ]
+   },
+   {
+    "type": "text",
+    "groupTexts": [
+     "left-axis",
+     "label"
+    ],
+    "data": [
+     {
+      "text": "100",
+      "x": 15,
+      "y": 20,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "90",
+      "x": 15,
+      "y": 66.29999999999998,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "80",
+      "x": 15,
+      "y": 112.59999999999998,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "70",
+      "x": 15,
+      "y": 158.90000000000003,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "60",
+      "x": 15,
+      "y": 205.20000000000002,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "50",
+      "x": 15,
+      "y": 251.5,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "40",
+      "x": 15,
+      "y": 297.8,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "30",
+      "x": 15,
+      "y": 344.09999999999997,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "20",
+      "x": 15,
+      "y": 390.40000000000003,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "10",
+      "x": 15,
+      "y": 436.7,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     },
+     {
+      "text": "0",
+      "x": 15,
+      "y": 483,
+      "fill": "#000",
+      "fontSize": 14,
+      "rotation": 0,
+      "verticalPos": "middle",
+      "horizontalPos": "right"
+     }
+    ]
+   },
+   {
+    "type": "path",
+    "groupTexts": [
+     "left-axis",
+     "ticks"
+    ],
+    "data": [
+     {
+      "path": "M 25,20 L 20,20",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,66.29999999999998 L 20,66.29999999999998",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,112.59999999999998 L 20,112.59999999999998",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,158.90000000000003 L 20,158.90000000000003",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,205.20000000000002 L 20,205.20000000000002",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,251.5 L 20,251.5",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,297.8 L 20,297.8",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,344.09999999999997 L 20,344.09999999999997",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,390.40000000000003 L 20,390.40000000000003",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,436.7 L 20,436.7",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     },
+     {
+      "path": "M 25,483 L 20,483",
+      "strokeFill": "#000",
+      "strokeWidth": 2
+     }
+    ]
+   },
+   {
+    "type": "text",
+    "groupTexts": [
+     "left-axis",
+     "title"
+    ],
+    "data": [
+     {
+      "text": "Revenue",
+      "x": 5,
+      "y": 251.5,
+      "fill": "#000",
+      "fontSize": 16,
+      "rotation": 270,
+      "verticalPos": "top",
+      "horizontalPos": "center"
+     }
+    ]
+   }
+  ],
+  "getAccTitle": "",
+  "getDiagramTitle": "Sales",
+  "getAccDescription": "",
+  "getChartThemeConfig": {
+   "backgroundColor": "#ffffff",
+   "titleColor": "#000",
+   "dataLabelColor": "#000",
+   "legendTextColor": "#000",
+   "xAxisTitleColor": "#000",
+   "xAxisLabelColor": "#000",
+   "xAxisTickColor": "#000",
+   "xAxisLineColor": "#000",
+   "yAxisTitleColor": "#000",
+   "yAxisLabelColor": "#000",
+   "yAxisTickColor": "#000",
+   "yAxisLineColor": "#000",
+   "plotColorPalette": "#EEE,#6BB8E4,#8ACB88,#C7ACD6,#E8DCC2,#FFB2A8,#FFF380,#7E8D91,#FFD8B1,#FAF3E0"
+  },
+  "getChartConfig": {
+   "useMaxWidth": true,
+   "width": 700,
+   "height": 500,
+   "titleFontSize": 20,
+   "titlePadding": 10,
+   "showDataLabel": false,
+   "showDataLabelOutsideBar": false,
+   "showTitle": true,
+   "showLegend": true,
+   "legendFontSize": 14,
+   "legendPadding": 10,
+   "xAxis": {
+    "$ref": "#/$defs/XYChartAxisConfig",
+    "showLabel": true,
+    "labelFontSize": 14,
+    "labelPadding": 5,
+    "showTitle": true,
+    "titleFontSize": 16,
+    "titlePadding": 5,
+    "showTick": true,
+    "tickLength": 5,
+    "tickWidth": 2,
+    "showAxisLine": true,
+    "axisLineWidth": 2,
+    "labelRotation": 0
+   },
+   "yAxis": {
+    "$ref": "#/$defs/XYChartAxisConfig",
+    "showLabel": true,
+    "labelFontSize": 14,
+    "labelPadding": 5,
+    "showTitle": true,
+    "titleFontSize": 16,
+    "titlePadding": 5,
+    "showTick": true,
+    "tickLength": 5,
+    "tickWidth": 2,
+    "showAxisLine": true,
+    "axisLineWidth": 2,
+    "labelRotation": 0
+   },
+   "chartOrientation": "vertical",
+   "plotReservedSpacePercent": 50,
+   "useWidth": null
+  },
+  "getXYChartData": {
+   "yAxis": {
+    "type": "linear",
+    "title": "Revenue",
+    "min": 0,
+    "max": 100
+   },
+   "xAxis": {
+    "type": "band",
+    "title": "",
+    "categories": [
+     "jan",
+     "feb",
+     "mar",
+     "apr"
+    ]
+   },
+   "title": "Sales",
+   "plots": [
+    {
+     "type": "bar",
+     "title": "",
+     "fill": "#EEE",
+     "data": [
+      [
+       "jan",
+       20
+      ],
+      [
+       "feb",
+       45
+      ],
+      [
+       "mar",
+       60
+      ],
+      [
+       "apr",
+       80
+      ]
+     ]
+    },
+    {
+     "type": "line",
+     "title": "",
+     "strokeFill": "#6BB8E4",
+     "strokeWidth": 2,
+     "data": [
+      [
+       "jan",
+       15
+      ],
+      [
+       "feb",
+       50
+      ],
+      [
+       "mar",
+       55
+      ],
+      [
+       "apr",
+       90
+      ]
+     ]
+    }
+   ]
+  }
+ }
+}

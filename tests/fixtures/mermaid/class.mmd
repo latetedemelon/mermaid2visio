@@ -1,0 +1,20 @@
+classDiagram
+    class Animal {
+        +String name
+        #int age
+        +eat() void
+        +sleep()
+    }
+    class Dog {
+        +bark()
+    }
+    class Owner
+    class Walker {
+        <<interface>>
+        +walk()
+    }
+    Animal <|-- Dog : extends
+    Owner "1" o-- "*" Dog : owns
+    Dog ..|> Walker
+    Owner *-- Address
+    Owner --> Vet : visits

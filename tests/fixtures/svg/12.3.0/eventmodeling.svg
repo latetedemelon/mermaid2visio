@@ -1,0 +1,63 @@
+<svg id="m2v-probe" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 693px;" viewBox="-30 -30 693 470" role="graphics-document document" aria-roledescription="eventmodeling">
+<style>#m2v-probe{font-family:Segoe UI,sans-serif;font-size:14px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#m2v-probe .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#m2v-probe .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#m2v-probe .error-icon{fill:#552222;}#m2v-probe .error-text{fill:#552222;stroke:#552222;}#m2v-probe .edge-thickness-normal{stroke-width:1px;}#m2v-probe .edge-thickness-thick{stroke-width:3.5px;}#m2v-probe .edge-pattern-solid{stroke-dasharray:0;}#m2v-probe .edge-thickness-invisible{stroke-width:0;fill:none;}#m2v-probe .edge-pattern-dashed{stroke-dasharray:3;}#m2v-probe .edge-pattern-dotted{stroke-dasharray:2;}#m2v-probe .marker{fill:#01579b;stroke:#01579b;}#m2v-probe .marker.cross{stroke:#01579b;}#m2v-probe svg{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe p{margin:0;}#m2v-probe .node .neo-node{stroke:#999;}#m2v-probe [data-look="neo"].node rect,#m2v-probe [data-look="neo"].cluster rect,#m2v-probe [data-look="neo"].node polygon{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].swimlane.cluster rect{filter:none;}#m2v-probe [data-look="neo"].node path{stroke:url(#m2v-probe-gradient);stroke-width:1px;}#m2v-probe [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#m2v-probe [data-look="neo"].node circle{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node circle .state-start{fill:#000000;}#m2v-probe [data-look="neo"].icon-shape .icon{fill:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].icon-shape .icon-neo path{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style>
+<g>
+</g>
+<g class="em-swimlane">
+<rect x="0" y="0" rx="3" width="633" height="130" fill="rgb(250,250,250)" stroke="rgb(240,240,240)">
+</rect>
+<text font-weight="bold" x="30" y="30">UI/Automation</text>
+</g>
+<g class="em-swimlane">
+<rect x="0" y="140" rx="3" width="633" height="130" fill="rgb(250,250,250)" stroke="rgb(240,240,240)">
+</rect>
+<text font-weight="bold" x="30" y="170">Command/Read Model</text>
+</g>
+<g class="em-swimlane">
+<rect x="0" y="280" rx="3" width="633" height="130" fill="rgb(250,250,250)" stroke="rgb(240,240,240)">
+</rect>
+<text font-weight="bold" x="30" y="310">Events</text>
+</g>
+<g class="em-box">
+<rect x="250" y="15" rx="3" width="149" height="100" stroke="#dbdada" fill="white">
+</rect>
+<foreignObject x="260" y="25" width="129" height="80">
+<div xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<span style="display: table-cell; text-align: center; vertical-align: middle;">
+<b>CartUI</b>
+</span>
+</div>
+</foreignObject>
+</g>
+<g class="em-box">
+<rect x="329" y="155" rx="3" width="165" height="100" stroke="#679ac3" fill="#bcd6fe">
+</rect>
+<foreignObject x="339" y="165" width="145" height="80">
+<div xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<span style="display: table-cell; text-align: center; vertical-align: middle;">
+<b>AddItem</b>
+</span>
+</div>
+</foreignObject>
+</g>
+<g class="em-box">
+<rect x="424" y="295" rx="3" width="184" height="100" stroke="#c19a0f" fill="#ffb778">
+</rect>
+<foreignObject x="434" y="305" width="164" height="80">
+<div xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<span style="display: table-cell; text-align: center; vertical-align: middle;">
+<b>ItemAdded</b>
+</span>
+</div>
+</foreignObject>
+</g>
+<path class="em-relation" fill="none" stroke="#01579b" stroke-width="1" marker-end="url(#em-arrowhead-m2v-probe)" d="M349.3333333333333 115 L384 155">
+</path>
+<path class="em-relation" fill="none" stroke="#01579b" stroke-width="1" marker-end="url(#em-arrowhead-m2v-probe)" d="M439 255 L485.3333333333333 295">
+</path>
+<defs>
+<marker id="em-arrowhead-m2v-probe" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+<polygon points="0 0, 10 3.5, 0 7" fill="#01579b">
+</polygon>
+</marker>
+</defs>
+</svg>

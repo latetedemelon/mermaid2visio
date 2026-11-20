@@ -1,0 +1,212 @@
+{
+ "mermaidType": "er",
+ "counts": {
+  "node": 5,
+  "edgePath": 4,
+  "cluster": 0,
+  "edgeLabel": 4,
+  "rect": 6,
+  "circle": 4,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 44,
+  "line": 0,
+  "text": 0,
+  "foreignObject": 33,
+  "image": 0
+ },
+ "data": {
+  "nodes": [
+   {
+    "id": "entity-CUSTOMER-0",
+    "label": "CUSTOMER",
+    "attributes": [
+     {
+      "type": "int",
+      "name": "id",
+      "keys": [
+       "PK"
+      ],
+      "comment": ""
+     },
+     {
+      "type": "string",
+      "name": "name",
+      "keys": [],
+      "comment": ""
+     },
+     {
+      "type": "string",
+      "name": "email",
+      "keys": [
+       "UK"
+      ],
+      "comment": ""
+     }
+    ],
+    "alias": "",
+    "shape": "erBox",
+    "look": "classic",
+    "cssClasses": "default",
+    "cssStyles": [],
+    "labelType": "markdown",
+    "cssCompiledStyles": [],
+    "colorIndex": 0,
+    "parentId": null,
+    "isGroup": false
+   },
+   {
+    "id": "entity-ORDER-1",
+    "label": "ORDER",
+    "attributes": [
+     {
+      "type": "int",
+      "name": "id",
+      "keys": [
+       "PK"
+      ],
+      "comment": ""
+     },
+     {
+      "type": "int",
+      "name": "customer_id",
+      "keys": [
+       "FK"
+      ],
+      "comment": ""
+     },
+     {
+      "type": "date",
+      "name": "placed_on",
+      "keys": [],
+      "comment": ""
+     }
+    ],
+    "alias": "",
+    "shape": "erBox",
+    "look": "classic",
+    "cssClasses": "default",
+    "cssStyles": [],
+    "labelType": "markdown",
+    "cssCompiledStyles": [],
+    "colorIndex": 1,
+    "parentId": null,
+    "isGroup": false
+   },
+   {
+    "id": "entity-LINE_ITEM-2",
+    "label": "LINE_ITEM",
+    "attributes": [],
+    "alias": "",
+    "shape": "erBox",
+    "look": "classic",
+    "cssClasses": "default",
+    "cssStyles": [],
+    "labelType": "markdown",
+    "cssCompiledStyles": [],
+    "colorIndex": 2,
+    "parentId": null,
+    "isGroup": false
+   },
+   {
+    "id": "entity-PRODUCT-3",
+    "label": "PRODUCT",
+    "attributes": [],
+    "alias": "",
+    "shape": "erBox",
+    "look": "classic",
+    "cssClasses": "default",
+    "cssStyles": [],
+    "labelType": "markdown",
+    "cssCompiledStyles": [],
+    "colorIndex": 3,
+    "parentId": null,
+    "isGroup": false
+   },
+   {
+    "id": "entity-ADDRESS-4",
+    "label": "ADDRESS",
+    "attributes": [],
+    "alias": "",
+    "shape": "erBox",
+    "look": "classic",
+    "cssClasses": "default",
+    "cssStyles": [],
+    "labelType": "markdown",
+    "cssCompiledStyles": [],
+    "colorIndex": 4,
+    "parentId": null,
+    "isGroup": false
+   }
+  ],
+  "edges": [
+   {
+    "id": "id_entity-CUSTOMER-0_entity-ORDER-1_0",
+    "type": "normal",
+    "curve": "basis",
+    "start": "entity-CUSTOMER-0",
+    "end": "entity-ORDER-1",
+    "label": "places",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relationshipLine",
+    "arrowTypeStart": "only_one",
+    "arrowTypeEnd": "zero_or_more",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_entity-ORDER-1_entity-LINE_ITEM-2_1",
+    "type": "normal",
+    "curve": "basis",
+    "start": "entity-ORDER-1",
+    "end": "entity-LINE_ITEM-2",
+    "label": "contains",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relationshipLine",
+    "arrowTypeStart": "only_one",
+    "arrowTypeEnd": "one_or_more",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_entity-PRODUCT-3_entity-LINE_ITEM-2_2",
+    "type": "normal",
+    "curve": "basis",
+    "start": "entity-PRODUCT-3",
+    "end": "entity-LINE_ITEM-2",
+    "label": "appears in",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relationshipLine",
+    "arrowTypeStart": "zero_or_more",
+    "arrowTypeEnd": "zero_or_more",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_entity-CUSTOMER-0_entity-ADDRESS-4_3",
+    "type": "normal",
+    "curve": "basis",
+    "start": "entity-CUSTOMER-0",
+    "end": "entity-ADDRESS-4",
+    "label": "ships to",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relationshipLine",
+    "arrowTypeStart": "one_or_more",
+    "arrowTypeEnd": "only_one",
+    "pattern": "dashed",
+    "look": "classic",
+    "labelType": "markdown"
+   }
+  ],
+  "other": {},
+  "direction": "TB"
+ },
+ "getters": {}
+}

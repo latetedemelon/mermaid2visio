@@ -1,0 +1,61 @@
+{
+ "mermaidType": "c4",
+ "counts": {
+  "node": 3,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 15,
+  "circle": 1,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 9,
+  "line": 1,
+  "text": 12,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getCurrentBoundaryParse": "global",
+  "getParentBoundaryParse": "",
+  "getRels": [
+   {
+    "type": "rel",
+    "from": "customer",
+    "to": "shop",
+    "label": {
+     "text": "Uses"
+    },
+    "techn": {
+     "text": ""
+    },
+    "descr": {
+     "text": ""
+    },
+    "wrap": null
+   },
+   {
+    "type": "rel",
+    "from": "shop",
+    "to": "pay",
+    "label": {
+     "text": "Charges via"
+    },
+    "techn": {
+     "text": ""
+    },
+    "descr": {
+     "text": ""
+    },
+    "wrap": null
+   }
+  ],
+  "getTitle": "System context",
+  "getC4Type": "C4Context",
+  "getC4ShapeInRow": 4,
+  "getC4BoundaryInRow": 2,
+  "getAccTitle": "",
+  "getAccDescription": ""
+ }
+}

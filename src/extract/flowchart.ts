@@ -6,12 +6,18 @@
 import type { GraphData } from '../core/types.js';
 
 export function extractFlowchart(svg: SVGSVGElement, graphWidth: number, graphHeight: number): GraphData {
+    // Since Mermaid 11.14 every internal element id (nodes, edges, clusters,
+    // markers) is prefixed with the diagram's own SVG id, e.g.
+    // "<svgId>-flowchart-A-0". Strip it so ids match what the user wrote.
+    const idPrefix = svg.id ? `${svg.id}-` : '';
+    const stripPrefix = (id: string) => (idPrefix && id.startsWith(idPrefix) ? id.slice(idPrefix.length) : id);
+
     const nodes = Array.from(svg.querySelectorAll('.node'));
     const edges = Array.from(svg.querySelectorAll('.edgePaths path'));
 
     // Clusters (Subgraphs)
     const clusters = Array.from(svg.querySelectorAll('.cluster')).map(cluster => {
-        const id = cluster.id;
+        const id = stripPrefix(cluster.id);
         const rect = cluster.querySelector('rect, polygon, path');
         const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
 
@@ -125,8 +131,8 @@ export function extractFlowchart(svg: SVGSVGElement, graphWidth: number, graphHe
         width: graphWidth,
         height: graphHeight,
         nodes: nodes.map(node => {
-            const rawId = node.id;
-            // Mermaid 11.x emits node ids as "flowchart-<USERID>-<IDX>"
+            const rawId = stripPrefix(node.id);
+            // Mermaid emits node ids as "flowchart-<USERID>-<IDX>"
             // (e.g. "flowchart-A-0"). Edges reference the user-facing
             // id ("A"), so strip the scaffold here so the generator's
             // nodeId -> pin lookup matches what the edge carries.
@@ -254,7 +260,8 @@ export function extractFlowchart(svg: SVGSVGElement, graphWidth: number, graphHe
             // id="L_<src>_<dst>_<idx>" (and data-id= the same thing).
             // Parse that to recover the endpoint user ids.
             let startId, endId;
-            const edgeId = path.getAttribute('id') || path.getAttribute('data-id') || '';
+            // data-id is the un-prefixed edge id; fall back to the element id.
+            const edgeId = path.getAttribute('data-id') || stripPrefix(path.getAttribute('id') || '');
             const edgeMatch = /^L_(.+)_(.+)_\d+$/.exec(edgeId);
             if (edgeMatch) {
                 startId = edgeMatch[1];

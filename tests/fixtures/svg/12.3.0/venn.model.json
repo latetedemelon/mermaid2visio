@@ -1,0 +1,88 @@
+{
+ "mermaidType": "venn",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 0,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 7,
+  "line": 0,
+  "text": 8,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getDiagramTitle": "What makes a good feature",
+  "getAccDescription": "",
+  "getSubsetData": [
+   {
+    "sets": [
+     "Desirable"
+    ],
+    "size": 10,
+    "label": null
+   },
+   {
+    "sets": [
+     "Feasible"
+    ],
+    "size": 10,
+    "label": null
+   },
+   {
+    "sets": [
+     "Viable"
+    ],
+    "size": 10,
+    "label": null
+   },
+   {
+    "sets": [
+     "Desirable",
+     "Feasible"
+    ],
+    "size": 2.5,
+    "label": "Buildable"
+   },
+   {
+    "sets": [
+     "Feasible",
+     "Viable"
+    ],
+    "size": 2.5,
+    "label": "Sustainable"
+   },
+   {
+    "sets": [
+     "Desirable",
+     "Viable"
+    ],
+    "size": 2.5,
+    "label": "Marketable"
+   },
+   {
+    "sets": [
+     "Desirable",
+     "Feasible",
+     "Viable"
+    ],
+    "size": 1.1111111111111112,
+    "label": "Ship it"
+   }
+  ],
+  "getTextData": [],
+  "getStyleData": [],
+  "getCurrentSets": [
+   "Desirable",
+   "Feasible",
+   "Viable"
+  ],
+  "getIndentMode": true
+ }
+}

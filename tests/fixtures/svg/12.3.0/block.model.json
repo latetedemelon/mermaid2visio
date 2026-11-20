@@ -1,0 +1,157 @@
+{
+ "mermaidType": "block",
+ "counts": {
+  "node": 4,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 8,
+  "circle": 4,
+  "ellipse": 0,
+  "polygon": 1,
+  "path": 10,
+  "line": 0,
+  "text": 0,
+  "foreignObject": 4,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getLogger": {},
+  "getBlocksFlat": [
+   {
+    "id": "root",
+    "type": "composite",
+    "children": [
+     {
+      "id": "a",
+      "label": "Input",
+      "type": "square",
+      "directions": null,
+      "widthInColumns": 1
+     },
+     {
+      "id": "b",
+      "label": "Process",
+      "type": "square",
+      "directions": null,
+      "widthInColumns": 1
+     },
+     {
+      "id": "c",
+      "label": "Output",
+      "type": "square",
+      "directions": null,
+      "widthInColumns": 1
+     },
+     {
+      "id": "d",
+      "label": "Store",
+      "type": "square",
+      "directions": null,
+      "widthInColumns": 3
+     }
+    ],
+    "columns": 3
+   },
+   {
+    "id": "a",
+    "label": "Input",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "b",
+    "label": "Process",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "c",
+    "label": "Output",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "d",
+    "label": "Store",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 3
+   }
+  ],
+  "getBlocks": [
+   {
+    "id": "a",
+    "label": "Input",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "b",
+    "label": "Process",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "c",
+    "label": "Output",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 1
+   },
+   {
+    "id": "d",
+    "label": "Store",
+    "type": "square",
+    "directions": null,
+    "widthInColumns": 3
+   }
+  ],
+  "getEdges": [
+   {
+    "id": "1-a-b",
+    "start": "a",
+    "end": "b",
+    "label": "",
+    "type": "edge",
+    "thickness": "normal",
+    "pattern": "solid",
+    "directions": null,
+    "arrowTypeEnd": "arrow_point",
+    "arrowTypeStart": "arrow_open"
+   },
+   {
+    "id": "1-b-c",
+    "start": "b",
+    "end": "c",
+    "label": "",
+    "type": "edge",
+    "thickness": "normal",
+    "pattern": "solid",
+    "directions": null,
+    "arrowTypeEnd": "arrow_point",
+    "arrowTypeStart": "arrow_open"
+   },
+   {
+    "id": "1-b-d",
+    "start": "b",
+    "end": "d",
+    "label": "",
+    "type": "edge",
+    "thickness": "normal",
+    "pattern": "solid",
+    "directions": null,
+    "arrowTypeEnd": "arrow_point",
+    "arrowTypeStart": "arrow_open"
+   }
+  ],
+  "getClasses": {},
+  "getDiagramId": ""
+ }
+}

@@ -1,0 +1,1087 @@
+{
+ "mermaidType": "eventmodeling",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 6,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 1,
+  "path": 2,
+  "line": 0,
+  "text": 3,
+  "foreignObject": 3,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getOptions": {},
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": "",
+  "getDiagramProps": {
+   "swimlaneMinHeight": 70,
+   "swimlanePadding": 15,
+   "swimlaneGap": 10,
+   "boxPadding": 10,
+   "boxOverlap": 90,
+   "boxDefaultY": 0,
+   "boxMinWidth": 80,
+   "boxMaxWidth": 450,
+   "boxMinHeight": 80,
+   "boxMaxHeight": 750,
+   "contentStartX": 250,
+   "textMaxWidth": 430,
+   "boxTextFontWeight": "bold",
+   "boxTextPadding": 10,
+   "swimlaneTextFontWeight": "bold",
+   "labelUiAutomation": "UI/Automation",
+   "labelUiAutomationPrefix": "UI/A: ",
+   "labelCommandReadModel": "Command/Read Model",
+   "labelCommandReadModelPrefix": "C/RM: ",
+   "labelEvents": "Events",
+   "labelEventsPrefix": "Stream: "
+  },
+  "getState": {
+   "boxes": [
+    {
+     "x": 250,
+     "y": 25,
+     "r": 409,
+     "dimension": {
+      "width": 149,
+      "height": 100
+     },
+     "leftSibling": false,
+     "swimlane": {
+      "index": 0,
+      "label": "UI/Automation",
+      "r": 399,
+      "y": 0,
+      "height": 130,
+      "maxHeight": 100
+     },
+     "visual": {
+      "fill": "white",
+      "stroke": "#dbdada"
+     },
+     "text": "<b>CartUI</b>",
+     "frame": {
+      "$type": "EmTimeFrame",
+      "name": "01",
+      "modelEntityType": "ui",
+      "entityIdentifier": "CartUI",
+      "$cstNode": {
+       "container": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_astNode": {
+         "$type": "EventModel"
+        },
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "grammarSource": {
+        "$type": "RuleCall",
+        "rule": {
+         "$refText": "EmFrame"
+        },
+        "arguments": [],
+        "$container": {
+         "$type": "Assignment",
+         "feature": "frames",
+         "operator": "+=",
+         "$containerProperty": "elements",
+         "$containerIndex": 4
+        },
+        "$containerProperty": "terminal",
+        "$containerIndex": null
+       },
+       "content": [
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        }
+       ],
+       "_rangeCache": null
+      },
+      "sourceFrames": [],
+      "$container": {
+       "$type": "EventModel",
+       "frames": [
+        null,
+        {
+         "$type": "EmTimeFrame",
+         "name": "02",
+         "modelEntityType": "cmd",
+         "entityIdentifier": "AddItem",
+         "$containerProperty": "frames",
+         "$containerIndex": 1
+        },
+        {
+         "$type": "EmTimeFrame",
+         "name": "03",
+         "modelEntityType": "evt",
+         "entityIdentifier": "ItemAdded",
+         "$containerProperty": "frames",
+         "$containerIndex": 2
+        }
+       ],
+       "$cstNode": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "dataEntities": [],
+       "gwtEntities": [],
+       "modelEntities": [],
+       "noteEntities": []
+      },
+      "$containerProperty": "frames",
+      "$containerIndex": 0
+     },
+     "index": 0
+    },
+    {
+     "x": 329,
+     "y": 7025,
+     "r": 504,
+     "dimension": {
+      "width": 165,
+      "height": 100
+     },
+     "leftSibling": false,
+     "swimlane": {
+      "index": 100,
+      "label": "Command/Read Model",
+      "r": 494,
+      "y": 140,
+      "height": 130,
+      "maxHeight": 100
+     },
+     "visual": {
+      "fill": "#bcd6fe",
+      "stroke": "#679ac3"
+     },
+     "text": "<b>AddItem</b>",
+     "frame": {
+      "$type": "EmTimeFrame",
+      "name": "02",
+      "modelEntityType": "cmd",
+      "entityIdentifier": "AddItem",
+      "$cstNode": {
+       "container": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_astNode": {
+         "$type": "EventModel"
+        },
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "grammarSource": {
+        "$type": "RuleCall",
+        "rule": {
+         "$refText": "EmFrame"
+        },
+        "arguments": [],
+        "$container": {
+         "$type": "Assignment",
+         "feature": "frames",
+         "operator": "+=",
+         "$containerProperty": "elements",
+         "$containerIndex": 4
+        },
+        "$containerProperty": "terminal",
+        "$containerIndex": null
+       },
+       "content": [
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        }
+       ],
+       "_rangeCache": null
+      },
+      "sourceFrames": [],
+      "$container": {
+       "$type": "EventModel",
+       "frames": [
+        {
+         "$type": "EmTimeFrame",
+         "name": "01",
+         "modelEntityType": "ui",
+         "entityIdentifier": "CartUI",
+         "$containerProperty": "frames",
+         "$containerIndex": 0
+        },
+        null,
+        {
+         "$type": "EmTimeFrame",
+         "name": "03",
+         "modelEntityType": "evt",
+         "entityIdentifier": "ItemAdded",
+         "$containerProperty": "frames",
+         "$containerIndex": 2
+        }
+       ],
+       "$cstNode": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "dataEntities": [],
+       "gwtEntities": [],
+       "modelEntities": [],
+       "noteEntities": []
+      },
+      "$containerProperty": "frames",
+      "$containerIndex": 1
+     },
+     "index": 1
+    },
+    {
+     "x": 424,
+     "y": 14025,
+     "r": 618,
+     "dimension": {
+      "width": 184,
+      "height": 100
+     },
+     "leftSibling": false,
+     "swimlane": {
+      "index": 200,
+      "label": "Events",
+      "r": 608,
+      "y": 280,
+      "height": 130,
+      "maxHeight": 100
+     },
+     "visual": {
+      "fill": "#ffb778",
+      "stroke": "#c19a0f"
+     },
+     "text": "<b>ItemAdded</b>",
+     "frame": {
+      "$type": "EmTimeFrame",
+      "name": "03",
+      "modelEntityType": "evt",
+      "entityIdentifier": "ItemAdded",
+      "$cstNode": {
+       "container": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_astNode": {
+         "$type": "EventModel"
+        },
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "grammarSource": {
+        "$type": "RuleCall",
+        "rule": {
+         "$refText": "EmFrame"
+        },
+        "arguments": [],
+        "$container": {
+         "$type": "Assignment",
+         "feature": "frames",
+         "operator": "+=",
+         "$containerProperty": "elements",
+         "$containerIndex": 4
+        },
+        "$containerProperty": "terminal",
+        "$containerIndex": null
+       },
+       "content": [
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        }
+       ],
+       "_rangeCache": null
+      },
+      "sourceFrames": [],
+      "$container": {
+       "$type": "EventModel",
+       "frames": [
+        {
+         "$type": "EmTimeFrame",
+         "name": "01",
+         "modelEntityType": "ui",
+         "entityIdentifier": "CartUI",
+         "$containerProperty": "frames",
+         "$containerIndex": 0
+        },
+        {
+         "$type": "EmTimeFrame",
+         "name": "02",
+         "modelEntityType": "cmd",
+         "entityIdentifier": "AddItem",
+         "$containerProperty": "frames",
+         "$containerIndex": 1
+        },
+        null
+       ],
+       "$cstNode": {
+        "container": null,
+        "grammarSource": null,
+        "content": [
+         null,
+         null,
+         null,
+         null
+        ],
+        "_rangeCache": null,
+        "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+       },
+       "dataEntities": [],
+       "gwtEntities": [],
+       "modelEntities": [],
+       "noteEntities": []
+      },
+      "$containerProperty": "frames",
+      "$containerIndex": 2
+     },
+     "index": 2
+    }
+   ],
+   "swimlanes": {
+    "0": {
+     "index": 0,
+     "label": "UI/Automation",
+     "r": 399,
+     "y": 0,
+     "height": 130,
+     "maxHeight": 100
+    },
+    "100": {
+     "index": 100,
+     "label": "Command/Read Model",
+     "r": 494,
+     "y": 140,
+     "height": 130,
+     "maxHeight": 100
+    },
+    "200": {
+     "index": 200,
+     "label": "Events",
+     "r": 608,
+     "y": 280,
+     "height": 130,
+     "maxHeight": 100
+    }
+   },
+   "relations": [
+    {
+     "visual": {
+      "fill": "none",
+      "stroke": "#000"
+     },
+     "source": {
+      "x": 250,
+      "y": 25
+     },
+     "target": {
+      "x": 329,
+      "y": 7025
+     },
+     "sourceBox": {
+      "x": 250,
+      "y": 25,
+      "r": 409,
+      "dimension": {
+       "width": 149,
+       "height": 100
+      },
+      "leftSibling": false,
+      "swimlane": {
+       "index": 0,
+       "label": "UI/Automation",
+       "r": 399,
+       "y": 0,
+       "height": 130,
+       "maxHeight": 100
+      },
+      "visual": {
+       "fill": "white",
+       "stroke": "#dbdada"
+      },
+      "text": "<b>CartUI</b>",
+      "frame": {
+       "$type": "EmTimeFrame",
+       "name": "01",
+       "modelEntityType": "ui",
+       "entityIdentifier": "CartUI",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$container": {
+        "$type": "EventModel",
+        "frames": [
+         null,
+         null,
+         null
+        ],
+        "$cstNode": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "dataEntities": [],
+        "gwtEntities": [],
+        "modelEntities": [],
+        "noteEntities": []
+       },
+       "$containerProperty": "frames",
+       "$containerIndex": 0
+      },
+      "index": 0
+     },
+     "targetBox": {
+      "x": 329,
+      "y": 7025,
+      "r": 504,
+      "dimension": {
+       "width": 165,
+       "height": 100
+      },
+      "leftSibling": false,
+      "swimlane": {
+       "index": 100,
+       "label": "Command/Read Model",
+       "r": 494,
+       "y": 140,
+       "height": 130,
+       "maxHeight": 100
+      },
+      "visual": {
+       "fill": "#bcd6fe",
+       "stroke": "#679ac3"
+      },
+      "text": "<b>AddItem</b>",
+      "frame": {
+       "$type": "EmTimeFrame",
+       "name": "02",
+       "modelEntityType": "cmd",
+       "entityIdentifier": "AddItem",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$container": {
+        "$type": "EventModel",
+        "frames": [
+         null,
+         null,
+         null
+        ],
+        "$cstNode": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "dataEntities": [],
+        "gwtEntities": [],
+        "modelEntities": [],
+        "noteEntities": []
+       },
+       "$containerProperty": "frames",
+       "$containerIndex": 1
+      },
+      "index": 1
+     }
+    },
+    {
+     "visual": {
+      "fill": "none",
+      "stroke": "#000"
+     },
+     "source": {
+      "x": 329,
+      "y": 7025
+     },
+     "target": {
+      "x": 424,
+      "y": 14025
+     },
+     "sourceBox": {
+      "x": 329,
+      "y": 7025,
+      "r": 504,
+      "dimension": {
+       "width": 165,
+       "height": 100
+      },
+      "leftSibling": false,
+      "swimlane": {
+       "index": 100,
+       "label": "Command/Read Model",
+       "r": 494,
+       "y": 140,
+       "height": 130,
+       "maxHeight": 100
+      },
+      "visual": {
+       "fill": "#bcd6fe",
+       "stroke": "#679ac3"
+      },
+      "text": "<b>AddItem</b>",
+      "frame": {
+       "$type": "EmTimeFrame",
+       "name": "02",
+       "modelEntityType": "cmd",
+       "entityIdentifier": "AddItem",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$container": {
+        "$type": "EventModel",
+        "frames": [
+         null,
+         null,
+         null
+        ],
+        "$cstNode": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "dataEntities": [],
+        "gwtEntities": [],
+        "modelEntities": [],
+        "noteEntities": []
+       },
+       "$containerProperty": "frames",
+       "$containerIndex": 1
+      },
+      "index": 1
+     },
+     "targetBox": {
+      "x": 424,
+      "y": 14025,
+      "r": 618,
+      "dimension": {
+       "width": 184,
+       "height": 100
+      },
+      "leftSibling": false,
+      "swimlane": {
+       "index": 200,
+       "label": "Events",
+       "r": 608,
+       "y": 280,
+       "height": 130,
+       "maxHeight": 100
+      },
+      "visual": {
+       "fill": "#ffb778",
+       "stroke": "#c19a0f"
+      },
+      "text": "<b>ItemAdded</b>",
+      "frame": {
+       "$type": "EmTimeFrame",
+       "name": "03",
+       "modelEntityType": "evt",
+       "entityIdentifier": "ItemAdded",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$container": {
+        "$type": "EventModel",
+        "frames": [
+         null,
+         null,
+         null
+        ],
+        "$cstNode": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "dataEntities": [],
+        "gwtEntities": [],
+        "modelEntities": [],
+        "noteEntities": []
+       },
+       "$containerProperty": "frames",
+       "$containerIndex": 2
+      },
+      "index": 2
+     }
+    }
+   ],
+   "maxR": 618,
+   "sortedSwimlanesArray": [
+    {
+     "index": 0,
+     "label": "UI/Automation",
+     "r": 399,
+     "y": 0,
+     "height": 130,
+     "maxHeight": 100
+    },
+    {
+     "index": 100,
+     "label": "Command/Read Model",
+     "r": 494,
+     "y": 140,
+     "height": 130,
+     "maxHeight": 100
+    },
+    {
+     "index": 200,
+     "label": "Events",
+     "r": 608,
+     "y": 280,
+     "height": 130,
+     "maxHeight": 100
+    }
+   ],
+   "previousSwimlaneNumber": 200,
+   "previousFrame": {
+    "$type": "EmTimeFrame",
+    "name": "03",
+    "modelEntityType": "evt",
+    "entityIdentifier": "ItemAdded",
+    "$cstNode": {
+     "container": {
+      "container": null,
+      "grammarSource": null,
+      "content": [
+       {
+        "grammarSource": {
+         "$type": "Keyword",
+         "value": "eventmodeling",
+         "$containerProperty": "elements",
+         "$containerIndex": 0
+        },
+        "_hidden": false,
+        "_offset": 0,
+        "_length": 13,
+        "_startLine": 0,
+        "_startColumn": 0,
+        "_endLine": 0,
+        "_endColumn": 13,
+        "_tokenType": {
+         "name": "eventmodeling",
+         "tokenTypeIdx": 3,
+         "isParent": false
+        }
+       },
+       {
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_astNode": {
+         "$type": "EmTimeFrame",
+         "name": "01",
+         "modelEntityType": "ui",
+         "entityIdentifier": "CartUI",
+         "$containerProperty": "frames",
+         "$containerIndex": 0
+        },
+        "_rangeCache": null
+       },
+       {
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_astNode": {
+         "$type": "EmTimeFrame",
+         "name": "02",
+         "modelEntityType": "cmd",
+         "entityIdentifier": "AddItem",
+         "$containerProperty": "frames",
+         "$containerIndex": 1
+        },
+        "_rangeCache": null
+       },
+       null
+      ],
+      "_astNode": {
+       "$type": "EventModel",
+       "frames": [
+        {
+         "$type": "EmTimeFrame",
+         "name": "01",
+         "modelEntityType": "ui",
+         "entityIdentifier": "CartUI",
+         "$containerProperty": "frames",
+         "$containerIndex": 0
+        },
+        {
+         "$type": "EmTimeFrame",
+         "name": "02",
+         "modelEntityType": "cmd",
+         "entityIdentifier": "AddItem",
+         "$containerProperty": "frames",
+         "$containerIndex": 1
+        },
+        null
+       ],
+       "dataEntities": [],
+       "gwtEntities": [],
+       "modelEntities": [],
+       "noteEntities": []
+      },
+      "_rangeCache": null,
+      "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+     },
+     "grammarSource": {
+      "$type": "RuleCall",
+      "rule": {
+       "$refText": "EmFrame",
+       "ref": {
+        "$type": "ParserRule",
+        "name": "EmFrame",
+        "definition": {
+         "$type": "Alternatives",
+         "$containerProperty": "definition",
+         "$containerIndex": null
+        },
+        "entry": false,
+        "fragment": false,
+        "parameters": [],
+        "$container": {
+         "$type": "Grammar",
+         "isDeclared": true,
+         "name": "EventModeling",
+         "$container": null,
+         "$containerProperty": null,
+         "$containerIndex": null
+        },
+        "$containerProperty": "rules",
+        "$containerIndex": 8
+       }
+      },
+      "arguments": [],
+      "$container": {
+       "$type": "Assignment",
+       "feature": "frames",
+       "operator": "+=",
+       "$container": {
+        "$type": "Alternatives",
+        "elements": [
+         null,
+         null,
+         null,
+         null,
+         null,
+         null,
+         null,
+         null
+        ],
+        "cardinality": "*",
+        "$container": {
+         "$type": "Group",
+         "$containerProperty": "definition",
+         "$containerIndex": null
+        },
+        "$containerProperty": "elements",
+        "$containerIndex": 1
+       },
+       "$containerProperty": "elements",
+       "$containerIndex": 4
+      },
+      "$containerProperty": "terminal",
+      "$containerIndex": null
+     },
+     "content": [
+      {
+       "grammarSource": {
+        "$type": "RuleCall",
+        "rule": {
+         "$refText": "EmTimeFrame"
+        },
+        "arguments": [],
+        "$container": {
+         "$type": "Alternatives",
+         "$containerProperty": "definition",
+         "$containerIndex": null
+        },
+        "$containerProperty": "elements",
+        "$containerIndex": 0
+       },
+       "content": [
+        {
+         "_hidden": false,
+         "_offset": 49,
+         "_length": 2,
+         "_startLine": 4,
+         "_startColumn": 0,
+         "_endLine": 4,
+         "_endColumn": 2
+        },
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        },
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        },
+        {
+         "_astNode": null,
+         "_rangeCache": null
+        }
+       ],
+       "_astNode": null,
+       "_rangeCache": null
+      }
+     ],
+     "_rangeCache": null
+    },
+    "sourceFrames": [],
+    "$container": {
+     "$type": "EventModel",
+     "frames": [
+      {
+       "$type": "EmTimeFrame",
+       "name": "01",
+       "modelEntityType": "ui",
+       "entityIdentifier": "CartUI",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$containerProperty": "frames",
+       "$containerIndex": 0
+      },
+      {
+       "$type": "EmTimeFrame",
+       "name": "02",
+       "modelEntityType": "cmd",
+       "entityIdentifier": "AddItem",
+       "$cstNode": {
+        "container": {
+         "container": null,
+         "grammarSource": null,
+         "_rangeCache": null,
+         "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+        },
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       },
+       "sourceFrames": [],
+       "$containerProperty": "frames",
+       "$containerIndex": 1
+      },
+      null
+     ],
+     "$cstNode": {
+      "container": null,
+      "grammarSource": null,
+      "content": [
+       {
+        "grammarSource": {
+         "$type": "Keyword",
+         "value": "eventmodeling",
+         "$containerProperty": "elements",
+         "$containerIndex": 0
+        },
+        "_hidden": false,
+        "_offset": 0,
+        "_length": 13,
+        "_startLine": 0,
+        "_startColumn": 0,
+        "_endLine": 0,
+        "_endColumn": 13,
+        "_tokenType": {
+         "name": "eventmodeling",
+         "tokenTypeIdx": 3,
+         "isParent": false
+        }
+       },
+       {
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_astNode": {
+         "$type": "EmTimeFrame",
+         "name": "01",
+         "modelEntityType": "ui",
+         "entityIdentifier": "CartUI",
+         "$containerProperty": "frames",
+         "$containerIndex": 0
+        },
+        "_rangeCache": null
+       },
+       {
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_astNode": {
+         "$type": "EmTimeFrame",
+         "name": "02",
+         "modelEntityType": "cmd",
+         "entityIdentifier": "AddItem",
+         "$containerProperty": "frames",
+         "$containerIndex": 1
+        },
+        "_rangeCache": null
+       },
+       {
+        "grammarSource": {
+         "$type": "RuleCall",
+         "$containerProperty": "terminal",
+         "$containerIndex": null
+        },
+        "content": [
+         null
+        ],
+        "_rangeCache": null
+       }
+      ],
+      "_rangeCache": null,
+      "_text": "eventmodeling\n\ntf 01 ui CartUI\ntf 02 cmd AddItem\ntf 03 evt ItemAdded\n\n"
+     },
+     "dataEntities": [],
+     "gwtEntities": [],
+     "modelEntities": [],
+     "noteEntities": []
+    },
+    "$containerProperty": "frames",
+    "$containerIndex": 2
+   }
+  }
+ }
+}

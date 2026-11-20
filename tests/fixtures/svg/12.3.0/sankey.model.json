@@ -1,0 +1,120 @@
+{
+ "mermaidType": "sankey",
+ "counts": {
+  "node": 5,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 5,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 4,
+  "line": 0,
+  "text": 5,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getNodes": [
+   {
+    "ID": "Source A"
+   },
+   {
+    "ID": "Hub"
+   },
+   {
+    "ID": "Source B"
+   },
+   {
+    "ID": "Sink X"
+   },
+   {
+    "ID": "Sink Y"
+   }
+  ],
+  "getLinks": [
+   {
+    "source": {
+     "ID": "Source A"
+    },
+    "target": {
+     "ID": "Hub"
+    },
+    "value": 10
+   },
+   {
+    "source": {
+     "ID": "Source B"
+    },
+    "target": {
+     "ID": "Hub"
+    },
+    "value": 5
+   },
+   {
+    "source": {
+     "ID": "Hub"
+    },
+    "target": {
+     "ID": "Sink X"
+    },
+    "value": 9
+   },
+   {
+    "source": {
+     "ID": "Hub"
+    },
+    "target": {
+     "ID": "Sink Y"
+    },
+    "value": 6
+   }
+  ],
+  "getGraph": {
+   "nodes": [
+    {
+     "id": "Source A"
+    },
+    {
+     "id": "Hub"
+    },
+    {
+     "id": "Source B"
+    },
+    {
+     "id": "Sink X"
+    },
+    {
+     "id": "Sink Y"
+    }
+   ],
+   "links": [
+    {
+     "source": "Source A",
+     "target": "Hub",
+     "value": 10
+    },
+    {
+     "source": "Source B",
+     "target": "Hub",
+     "value": 5
+    },
+    {
+     "source": "Hub",
+     "target": "Sink X",
+     "value": 9
+    },
+    {
+     "source": "Hub",
+     "target": "Sink Y",
+     "value": 6
+    }
+   ]
+  },
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": ""
+ }
+}

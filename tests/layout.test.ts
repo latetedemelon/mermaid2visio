@@ -1,10 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
 import { parseMermaid } from '../src/parser';
 
-// Guards against the silent ELK regression: when mermaid.registerLayoutLoaders
-// is not called for 'elk', mermaid quietly falls back to dagre and produces
-// exactly the same coordinates as if the user picked dagre. This test asserts
-// that ELK actually re-positions nodes compared to dagre for the same source.
+// Mermaid 12 bundles ELK, and silently falls back to dagre for a layout name
+// it doesn't know. This test asserts that asking for ELK really re-positions
+// nodes compared to dagre for the same source, i.e. that no fallback happened.
 //
 // We use a graph with enough nodes that any hierarchical layout (dagre) and
 // orthogonal layered layout (ELK) will disagree on at least one coordinate.
@@ -25,12 +24,8 @@ function fingerprint(nodes: { id: string; x: number; y: number }[]) {
         .join('|');
 }
 
-// A minimal diagram whose frontmatter requests ELK.  parseMermaid is
-// intentionally called without an explicit config so the test exercises the
-// code path where the frontmatter must be read to decide whether to register
-// the ELK adapter.  Without the fix, Mermaid's internal frontmatter parser
-// picks up `layout: elk` at render time and throws because the adapter was
-// never registered.
+// A minimal diagram whose frontmatter requests ELK. parseMermaid is called
+// without an explicit config, so the layout must come from the frontmatter.
 const FRONTMATTER_ELK = `---
 config:
   layout: elk
@@ -44,10 +39,14 @@ describe('layout engine selection', () => {
     it(
         'reads layout from YAML frontmatter when no config is passed',
         async () => {
-            // Should not throw; before the fix this raised "No layout engine for elk".
             const graph = await parseMermaid(FRONTMATTER_ELK);
             expect(graph.nodes.length).toBeGreaterThan(0);
             expect(graph.edges.length).toBeGreaterThan(0);
+            // The tool's default is dagre, so a layout that differs from the
+            // same diagram without frontmatter proves it was honoured.
+            const body = FRONTMATTER_ELK.replace(/^---[\s\S]*?---\n/, '');
+            const dagre = await parseMermaid(body);
+            expect(fingerprint(graph.nodes)).not.toBe(fingerprint(dagre.nodes));
         },
         60000,
     );
@@ -64,10 +63,30 @@ describe('layout engine selection', () => {
             const dagreFp = fingerprint(dagre.nodes);
             const elkFp = fingerprint(elk.nodes);
 
-            // If the ELK loader silently fails, mermaid falls back to dagre
-            // and the fingerprints match exactly. That is the regression we
-            // are guarding against.
+            // A silent fallback to dagre would make the fingerprints match.
             expect(elkFp).not.toBe(dagreFp);
+        },
+        60000,
+    );
+
+    it(
+        'keeps the classic look and dagre layout by default, whatever Mermaid defaults to',
+        async () => {
+            // Mermaid 12 defaults to ELK + the "neo" look, whose gradient
+            // strokes and dash-array marker offsets don't convert. Edges must
+            // stay glued, solid and plainly coloured without any config.
+            const graph = await parseMermaid(SOURCE);
+            expect(fingerprint(graph.nodes)).toBe(fingerprint((await parseMermaid(SOURCE, { layout: 'dagre' })).nodes));
+            for (const e of graph.edges) {
+                expect(e.startId).toBeTruthy();
+                expect(e.endId).toBeTruthy();
+                expect(parseFloat(e.style?.strokeDasharray || '0')).toBe(0);
+                expect(e.style?.stroke).toMatch(/^rgb/);
+            }
+            for (const n of graph.nodes) {
+                expect(n.id).toMatch(/^[A-E]$/);
+                expect(n.style?.stroke).toMatch(/^rgb/);
+            }
         },
         60000,
     );

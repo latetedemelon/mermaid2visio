@@ -2,7 +2,7 @@
 // Diagnoses common mermaid2visio environment issues.
 //   - Bundled Chromium present and executable?
 //   - Launching it actually works?
-//   - Required optional packages (ELK) resolvable?
+//   - Node version and build output present?
 // Exits 0 on all-clear, 1 otherwise. Intended for `npm run doctor`.
 
 import fs from 'fs';
@@ -68,13 +68,21 @@ try {
     }
 }
 
-// 3. Optional ELK loader
-const elkPath = path.resolve(__dirname, '..', 'node_modules/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs');
-if (fs.existsSync(elkPath)) {
-    ok('@mermaid-js/layout-elk is installed');
+// 3. Node version (Mermaid 12 requires Node >= 22.12)
+const [major, minor] = process.versions.node.split('.').map(Number);
+if (major > 22 || (major === 22 && minor >= 12)) {
+    ok(`node ${process.versions.node}`);
 } else {
-    warn('@mermaid-js/layout-elk not installed (ELK layout will fall back to dagre)');
-    console.log('  fix: npm install @mermaid-js/layout-elk');
+    fail(`node ${process.versions.node} is too old; Node 22.12 or later is required`);
+}
+
+// 4. Build output the renderer injects into its page
+const extractorPath = path.resolve(__dirname, '..', 'dist/extractor.iife.js');
+if (fs.existsSync(extractorPath)) {
+    ok('dist/extractor.iife.js is built');
+} else {
+    fail('dist/extractor.iife.js is missing');
+    console.log('  fix: npm run build');
 }
 
 console.log('');

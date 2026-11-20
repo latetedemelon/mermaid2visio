@@ -3,15 +3,14 @@
 // (src/extract/index.ts). Everything DOM-related happens in the page; this
 // file only does lifecycle and I/O.
 
-import puppeteer, { type Browser, type Page } from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
-import http from 'http';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 
 import { buildMermaidConfig } from '../core/mermaidConfig.js';
-import { detectDiagramType, formatMermaidError, FULLY_SUPPORTED, PARTIALLY_SUPPORTED } from '../core/detect.js';
+import { detectDiagramType, formatMermaidError, supportLevel } from '../core/detect.js';
 import type { ContentBounds } from '../core/normalize.js';
 import type { GraphData, MermaidConfig } from '../core/types.js';
 import type { ExtractorApi } from '../extract/page.js';
@@ -140,7 +139,6 @@ export class MermaidRenderer {
 
         const browser = await this.getBrowser();
         const page = await browser.newPage();
-        let elkServer: http.Server | null = null;
         try {
             if (config?.verbose) {
                 page.on('console', (m) => log(`[browser:${m.type()}] ${m.text()}`));
@@ -150,12 +148,7 @@ export class MermaidRenderer {
             await page.addScriptTag({ path: mermaidScriptPath() });
             await page.addScriptTag({ path: extractorPath });
 
-            const init = { ...resolved.init };
-            if (resolved.layout === 'elk') {
-                elkServer = await this.registerElk(page, log);
-                if (!elkServer) init.layout = 'dagre';
-            }
-
+            const init = resolved.init;
             const { graph, bounds } = await page.evaluate(
                 (def: string, initConfig: Record<string, unknown>, dtype: string) => {
                     const api = (window as any).__m2v as ExtractorApi;
@@ -171,7 +164,7 @@ export class MermaidRenderer {
             // channel is stdout).
             const totalShapes = graph.nodes.length + graph.edges.length + graph.clusters.length + graph.labels.length;
             if (totalShapes === 0) {
-                const support = FULLY_SUPPORTED.has(diagramType) || PARTIALLY_SUPPORTED.has(diagramType)
+                const support = supportLevel(diagramType) !== 'none'
                     ? `Expected shapes for "${diagramType}" but found none — the diagram may be empty or use unsupported syntax.`
                     : `Diagram type "${diagramType}" is not supported by the geometry extractor ` +
                       `(supported: flowchart/graph fully; sequence/class/state/ER partially). ` +
@@ -197,57 +190,6 @@ export class MermaidRenderer {
             throw e;
         } finally {
             await page.close().catch(() => {});
-            if (elkServer) await new Promise<void>((resolve) => elkServer!.close(() => resolve()));
-        }
-    }
-
-    // Mermaid 11 ships non-dagre layouts as separate packages that must be
-    // registered before `initialize`. Serve the ELK bundle from node_modules
-    // via a short-lived localhost HTTP server so relative chunk imports
-    // resolve, the ESM MIME type is correct, and no network is required.
-    // Returns the server on success, or null when ELK could not be registered.
-    private async registerElk(page: Page, log: (msg: string) => void): Promise<http.Server | null> {
-        const elkDistDir = path.dirname(resolveNodeModule('@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs'));
-        let server: http.Server | null = null;
-        try {
-            if (!fs.existsSync(elkDistDir)) {
-                throw new Error(`@mermaid-js/layout-elk not installed at ${elkDistDir}`);
-            }
-            server = http.createServer((req, res) => {
-                const rel = (req.url || '/').split('?')[0].replace(/^\/+/, '');
-                const abs = path.resolve(elkDistDir, rel);
-                if (!abs.startsWith(elkDistDir + path.sep)) {
-                    res.writeHead(403); res.end(); return;
-                }
-                fs.readFile(abs, (err, buf) => {
-                    if (err) { res.writeHead(404); res.end(); return; }
-                    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
-                    res.end(buf);
-                });
-            });
-            await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve));
-            const port = (server.address() as any).port;
-            await page.addScriptTag({
-                content: `import elk from 'http://127.0.0.1:${port}/mermaid-layout-elk.esm.min.mjs'; window.__elkLoader = elk; window.__elkReady = true;`,
-                type: 'module',
-            });
-            // Module scripts fire their load event before their sub-chunk
-            // imports resolve, so poll until the loader is on `window`.
-            await page.waitForFunction(() => (window as any).__elkReady === true, { timeout: 5000 });
-            const registered = await page.evaluate(() => {
-                const loader = (window as any).__elkLoader;
-                if (!loader) return false;
-                (window as any).mermaid.registerLayoutLoaders(loader);
-                return true;
-            });
-            if (!registered) throw new Error('ELK loader was not exposed on window');
-            log('ELK adapter registered');
-            return server;
-        } catch (e) {
-            console.warn('ELK layout loader failed, falling back to dagre:', e);
-            log('ELK registration failed; falling back to dagre');
-            if (server) await new Promise<void>((resolve) => server!.close(() => resolve()));
-            return null;
         }
     }
 }

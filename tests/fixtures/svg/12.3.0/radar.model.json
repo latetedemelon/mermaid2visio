@@ -1,0 +1,71 @@
+{
+ "mermaidType": "radar",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 2,
+  "circle": 5,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 2,
+  "line": 4,
+  "text": 7,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAxes": [
+   {
+    "name": "a",
+    "label": "Speed"
+   },
+   {
+    "name": "b",
+    "label": "Power"
+   },
+   {
+    "name": "c",
+    "label": "Range"
+   },
+   {
+    "name": "d",
+    "label": "Cost"
+   }
+  ],
+  "getCurves": [
+   {
+    "name": "x",
+    "label": "Model X",
+    "entries": [
+     80,
+     60,
+     70,
+     40
+    ]
+   },
+   {
+    "name": "y",
+    "label": "Model Y",
+    "entries": [
+     50,
+     90,
+     40,
+     70
+    ]
+   }
+  ],
+  "getOptions": {
+   "showLegend": true,
+   "ticks": 5,
+   "max": 100,
+   "min": 0,
+   "graticule": "circle"
+  },
+  "getAccTitle": "",
+  "getDiagramTitle": "Skills",
+  "getAccDescription": ""
+ }
+}

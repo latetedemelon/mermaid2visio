@@ -1,0 +1,127 @@
+{
+ "mermaidType": "kanban",
+ "counts": {
+  "node": 4,
+  "edgePath": 0,
+  "cluster": 3,
+  "edgeLabel": 0,
+  "rect": 19,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 0,
+  "line": 0,
+  "text": 0,
+  "foreignObject": 15,
+  "image": 0
+ },
+ "data": {
+  "nodes": [
+   {
+    "id": "todo",
+    "label": "To do",
+    "labelType": "markdown",
+    "isGroup": true,
+    "ticket": null,
+    "shape": "kanbanSection",
+    "level": 4,
+    "look": "classic"
+   },
+   {
+    "id": "t1",
+    "parentId": "todo",
+    "label": "Write docs",
+    "labelType": "markdown",
+    "isGroup": false,
+    "ticket": null,
+    "priority": null,
+    "assigned": null,
+    "icon": null,
+    "shape": "kanbanItem",
+    "level": 8,
+    "rx": 5,
+    "ry": 5,
+    "cssStyles": [
+     "text-align: left"
+    ]
+   },
+   {
+    "id": "t2",
+    "parentId": "todo",
+    "label": "Fix bug",
+    "labelType": "markdown",
+    "isGroup": false,
+    "ticket": null,
+    "priority": null,
+    "assigned": null,
+    "icon": null,
+    "shape": "kanbanItem",
+    "level": 8,
+    "rx": 5,
+    "ry": 5,
+    "cssStyles": [
+     "text-align: left"
+    ]
+   },
+   {
+    "id": "doing",
+    "label": "In progress",
+    "labelType": "markdown",
+    "isGroup": true,
+    "ticket": null,
+    "shape": "kanbanSection",
+    "level": 4,
+    "look": "classic"
+   },
+   {
+    "id": "t3",
+    "parentId": "doing",
+    "label": "Build feature",
+    "labelType": "markdown",
+    "isGroup": false,
+    "ticket": null,
+    "priority": null,
+    "assigned": null,
+    "icon": null,
+    "shape": "kanbanItem",
+    "level": 8,
+    "rx": 5,
+    "ry": 5,
+    "cssStyles": [
+     "text-align: left"
+    ]
+   },
+   {
+    "id": "done",
+    "label": "Done",
+    "labelType": "markdown",
+    "isGroup": true,
+    "ticket": null,
+    "shape": "kanbanSection",
+    "level": 4,
+    "look": "classic"
+   },
+   {
+    "id": "t4",
+    "parentId": "done",
+    "label": "Ship v1",
+    "labelType": "markdown",
+    "isGroup": false,
+    "ticket": null,
+    "priority": null,
+    "assigned": null,
+    "icon": null,
+    "shape": "kanbanItem",
+    "level": 8,
+    "rx": 5,
+    "ry": 5,
+    "cssStyles": [
+     "text-align: left"
+    ]
+   }
+  ],
+  "edges": [],
+  "other": {}
+ },
+ "getters": {}
+}

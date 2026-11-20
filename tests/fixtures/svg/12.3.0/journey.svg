@@ -1,0 +1,142 @@
+<svg id="m2v-probe" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 900px;" viewBox="0 -25 900 540" preserveAspectRatio="xMinYMin meet" height="565" role="graphics-document document" aria-roledescription="journey">
+<style>#m2v-probe{font-family:Segoe UI,sans-serif;font-size:14px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#m2v-probe .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#m2v-probe .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#m2v-probe .error-icon{fill:#552222;}#m2v-probe .error-text{fill:#552222;stroke:#552222;}#m2v-probe .edge-thickness-normal{stroke-width:1px;}#m2v-probe .edge-thickness-thick{stroke-width:3.5px;}#m2v-probe .edge-pattern-solid{stroke-dasharray:0;}#m2v-probe .edge-thickness-invisible{stroke-width:0;fill:none;}#m2v-probe .edge-pattern-dashed{stroke-dasharray:3;}#m2v-probe .edge-pattern-dotted{stroke-dasharray:2;}#m2v-probe .marker{fill:#01579b;stroke:#01579b;}#m2v-probe .marker.cross{stroke:#01579b;}#m2v-probe svg{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe p{margin:0;}#m2v-probe .label{font-family:Segoe UI,sans-serif;color:#000000;}#m2v-probe .mouth{stroke:#666;}#m2v-probe line{stroke:#000000;}#m2v-probe .legend{fill:#000000;font-family:Segoe UI,sans-serif;}#m2v-probe .label text{fill:#333;}#m2v-probe .label{color:#000000;}#m2v-probe .face{fill:#FFF8DC;stroke:#999;}#m2v-probe .node rect,#m2v-probe .node circle,#m2v-probe .node ellipse,#m2v-probe .node polygon,#m2v-probe .node path{fill:#eee;stroke:#999;stroke-width:1px;}#m2v-probe .node .label{text-align:center;}#m2v-probe .node.clickable{cursor:pointer;}#m2v-probe .arrowheadPath{fill:#333333;}#m2v-probe .edgePaths .path{stroke:#01579b;stroke-width:1.5px;}#m2v-probe .flowchart-link{stroke:#01579b;fill:none;}#m2v-probe .edgeLabel{background-color:white;text-align:center;}#m2v-probe .edgeLabel rect{opacity:0.5;}#m2v-probe .cluster text{fill:#333;}#m2v-probe div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:Segoe UI,sans-serif;font-size:12px;background:#ffffff;border:1px solid #707070;border-radius:2px;pointer-events:none;z-index:100;}#m2v-probe .task-type-0,#m2v-probe .section-type-0{fill:#e1f5fe;}#m2v-probe .task-type-1,#m2v-probe .section-type-1{fill:hsl(0, 0%, 98.9215686275%);}#m2v-probe .task-type-2,#m2v-probe .section-type-2{fill:hsl(262.6206896552, 93.5483870968%, 93.9215686275%);}#m2v-probe .task-type-3,#m2v-probe .section-type-3{fill:hsl(64, 0%, 98.9215686275%);}#m2v-probe .task-type-4,#m2v-probe .section-type-4{fill:hsl(134.6206896552, 93.5483870968%, 93.9215686275%);}#m2v-probe .task-type-5,#m2v-probe .section-type-5{fill:hsl(-64, 0%, 98.9215686275%);}#m2v-probe .task-type-6,#m2v-probe .section-type-6{fill:hsl(326.6206896552, 93.5483870968%, 93.9215686275%);}#m2v-probe .task-type-7,#m2v-probe .section-type-7{fill:hsl(128, 0%, 98.9215686275%);}#m2v-probe .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#m2v-probe .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#m2v-probe .node .neo-node{stroke:#999;}#m2v-probe [data-look="neo"].node rect,#m2v-probe [data-look="neo"].cluster rect,#m2v-probe [data-look="neo"].node polygon{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].swimlane.cluster rect{filter:none;}#m2v-probe [data-look="neo"].node path{stroke:url(#m2v-probe-gradient);stroke-width:1px;}#m2v-probe [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#m2v-probe [data-look="neo"].node circle{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node circle .state-start{fill:#000000;}#m2v-probe [data-look="neo"].icon-shape .icon{fill:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].icon-shape .icon-neo path{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style>
+<g>
+</g>
+<defs>
+<marker id="m2v-probe-arrowhead" refX="5" refY="2" markerWidth="6" markerHeight="4" orient="auto">
+<path d="M 0,0 V 4 L6,2 Z">
+</path>
+</marker>
+</defs>
+<circle cx="20" cy="60" class="actor-0" fill="#8FBC8F" stroke="#000" r="7">
+</circle>
+<text x="40" y="67" class="legend">
+<tspan x="50">Cat</tspan>
+</text>
+<circle cx="20" cy="80" class="actor-1" fill="#7CFC00" stroke="#000" r="7">
+</circle>
+<text x="40" y="87" class="legend">
+<tspan x="50">Me</tspan>
+</text>
+<g>
+<rect x="150" y="50" fill="#191970" stroke="#666" width="350" height="50" rx="3" ry="3" class="journey-section section-type-0">
+</rect>
+<switch>
+<foreignObject x="150" y="50" width="350" height="50" position="fixed">
+<div class="journey-section section-type-0" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Morning</div>
+</div>
+</foreignObject>
+<text x="325" y="75" dominant-baseline="central" alignment-baseline="central" class="journey-section section-type-0" style="text-anchor: middle; font-size: 14px; font-family: &quot;Open Sans&quot;, sans-serif;">
+<tspan x="325" dy="0">Morning</tspan>
+</text>
+</switch>
+</g>
+<g>
+<line id="m2v-probe-task0" x1="225" y1="110" x2="225" y2="450" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666">
+</line>
+<circle cx="225" cy="300" class="face" r="15" stroke-width="2" overflow="visible">
+</circle>
+<g>
+<circle cx="220" cy="295" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<circle cx="230" cy="295" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<path class="mouth" d="M7.5,0A7.5,7.5,0,1,1,-7.5,0L-6.818,0A6.818,6.818,0,1,0,6.818,0Z" transform="translate(225,302)">
+</path>
+</g>
+<rect x="150" y="110" fill="#191970" stroke="#666" width="150" height="50" rx="3" ry="3" class="task task-type-0">
+</rect>
+<circle cx="164" cy="110" class="actor-1" fill="#7CFC00" stroke="#000" r="7">
+<title>Me</title>
+</circle>
+<switch>
+<foreignObject x="150" y="110" width="150" height="50" position="fixed">
+<div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Make tea</div>
+</div>
+</foreignObject>
+<text x="225" y="135" dominant-baseline="central" alignment-baseline="central" class="task" style="text-anchor: middle; font-size: 14px; font-family: &quot;Open Sans&quot;, sans-serif;">
+<tspan x="225" dy="0">Make tea</tspan>
+</text>
+</switch>
+</g>
+<g>
+<line id="m2v-probe-task1" x1="425" y1="110" x2="425" y2="450" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666">
+</line>
+<circle cx="425" cy="390" class="face" r="15" stroke-width="2" overflow="visible">
+</circle>
+<g>
+<circle cx="420" cy="385" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<circle cx="430" cy="385" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<path class="mouth" d="M-7.5,0A7.5,7.5,0,1,1,7.5,0L6.818,0A6.818,6.818,0,1,0,-6.818,0Z" transform="translate(425,397)">
+</path>
+</g>
+<rect x="350" y="110" fill="#191970" stroke="#666" width="150" height="50" rx="3" ry="3" class="task task-type-0">
+</rect>
+<circle cx="364" cy="110" class="actor-1" fill="#7CFC00" stroke="#000" r="7">
+<title>Me</title>
+</circle>
+<circle cx="374" cy="110" class="actor-0" fill="#8FBC8F" stroke="#000" r="7">
+<title>Cat</title>
+</circle>
+<switch>
+<foreignObject x="350" y="110" width="150" height="50" position="fixed">
+<div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Commute</div>
+</div>
+</foreignObject>
+<text x="425" y="135" dominant-baseline="central" alignment-baseline="central" class="task" style="text-anchor: middle; font-size: 14px; font-family: &quot;Open Sans&quot;, sans-serif;">
+<tspan x="425" dy="0">Commute</tspan>
+</text>
+</switch>
+</g>
+<g>
+<rect x="550" y="50" fill="#8B008B" stroke="#666" width="150" height="50" rx="3" ry="3" class="journey-section section-type-1">
+</rect>
+<switch>
+<foreignObject x="550" y="50" width="150" height="50" position="fixed">
+<div class="journey-section section-type-1" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Evening</div>
+</div>
+</foreignObject>
+<text x="625" y="75" dominant-baseline="central" alignment-baseline="central" class="journey-section section-type-1" style="text-anchor: middle; font-size: 14px; font-family: &quot;Open Sans&quot;, sans-serif;">
+<tspan x="625" dy="0">Evening</tspan>
+</text>
+</switch>
+</g>
+<g>
+<line id="m2v-probe-task2" x1="625" y1="110" x2="625" y2="450" class="task-line" stroke-width="1px" stroke-dasharray="4 2" stroke="#666">
+</line>
+<circle cx="625" cy="330" class="face" r="15" stroke-width="2" overflow="visible">
+</circle>
+<g>
+<circle cx="620" cy="325" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<circle cx="630" cy="325" r="1.5" stroke-width="2" fill="#666" stroke="#666">
+</circle>
+<path class="mouth" d="M7.5,0A7.5,7.5,0,1,1,-7.5,0L-6.818,0A6.818,6.818,0,1,0,6.818,0Z" transform="translate(625,332)">
+</path>
+</g>
+<rect x="550" y="110" fill="#8B008B" stroke="#666" width="150" height="50" rx="3" ry="3" class="task task-type-1">
+</rect>
+<circle cx="564" cy="110" class="actor-1" fill="#7CFC00" stroke="#000" r="7">
+<title>Me</title>
+</circle>
+<switch>
+<foreignObject x="550" y="110" width="150" height="50" position="fixed">
+<div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
+<div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Cook</div>
+</div>
+</foreignObject>
+<text x="625" y="135" dominant-baseline="central" alignment-baseline="central" class="task" style="text-anchor: middle; font-size: 14px; font-family: &quot;Open Sans&quot;, sans-serif;">
+<tspan x="625" dy="0">Cook</tspan>
+</text>
+</switch>
+</g>
+<text x="150" font-size="4ex" font-weight="bold" y="25" fill="" font-family="&quot;trebuchet ms&quot;, verdana, arial, sans-serif">Working day</text>
+<line x1="150" y1="200" x2="746" y2="200" stroke-width="4" stroke="black" marker-end="url(#m2v-probe-arrowhead)">
+</line>
+</svg>
