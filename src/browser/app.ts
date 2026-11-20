@@ -3,8 +3,8 @@
 // the Node path via src/core/* + src/vsdx + src/validate (all browser-safe).
 
 import mermaid from 'mermaid';
-import { extractGraphFromDom } from '../core/extract.js';
-import { normalizeContentBounds } from '../core/normalize.js';
+import { renderAndExtract, RENDER_ERROR_TAG } from '../extract/index.js';
+import { buildMermaidConfig } from '../core/mermaidConfig.js';
 import { detectDiagramType, formatMermaidError } from '../core/detect.js';
 import { VsdxGenerator } from '../vsdx.js';
 import { validateVsdx } from '../validate.js';
@@ -14,8 +14,6 @@ const convertBtn = document.getElementById('convert') as HTMLButtonElement;
 const statusEl = document.getElementById('status') as HTMLDivElement;
 const hostEl = document.getElementById('mermaid-host') as HTMLDivElement;
 const themeEl = document.getElementById('theme') as HTMLSelectElement;
-
-mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
 
 function setStatus(text: string, kind: 'info' | 'ok' | 'err' = 'info') {
     statusEl.textContent = text;
@@ -29,25 +27,19 @@ async function convert(): Promise<void> {
     convertBtn.disabled = true;
     setStatus('Rendering...');
     try {
-        // Re-init so theme changes take effect on subsequent renders.
-        mermaid.initialize({
-            startOnLoad: false,
-            securityLevel: 'loose',
-            theme: (themeEl?.value as any) || 'neutral',
-        });
-
-        // Render into the visible host so getBBox/getCTM see laid-out geometry.
-        let svg: string;
-        try {
-            ({ svg } = await mermaid.render('graphDiv', src));
-        } catch (renderErr: any) {
-            throw new Error(formatMermaidError(renderErr?.message ?? String(renderErr), src));
-        }
-        hostEl.innerHTML = svg;
-
+        // Same config builder and in-page pipeline as the Node renderer, so
+        // both paths produce the same geometry for the same source.
+        const { init } = buildMermaidConfig({ theme: (themeEl?.value as any) || undefined }, src);
         const dtype = detectDiagramType(src);
-        const raw = extractGraphFromDom(dtype);
-        const bounds = normalizeContentBounds(raw);
+        let raw, bounds;
+        try {
+            ({ graph: raw, bounds } = await renderAndExtract(mermaid, src, init, dtype, hostEl));
+        } catch (err: any) {
+            const msg = err?.message ?? String(err);
+            const at = msg.indexOf(RENDER_ERROR_TAG);
+            if (at < 0) throw err;
+            throw new Error(formatMermaidError(msg.slice(at + RENDER_ERROR_TAG.length), src));
+        }
         const totalShapes = raw.nodes.length + raw.edges.length + raw.clusters.length + raw.labels.length;
 
         setStatus(

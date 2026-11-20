@@ -1,0 +1,242 @@
+{
+ "mermaidType": "architecture",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 11,
+  "circle": 9,
+  "ellipse": 7,
+  "polygon": 0,
+  "path": 13,
+  "line": 4,
+  "text": 4,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getDiagramTitle": "",
+  "getAccDescription": "",
+  "getDiagramId": "",
+  "getServices": [
+   {
+    "id": "db",
+    "type": "service",
+    "icon": "database",
+    "iconText": null,
+    "title": "Database",
+    "edges": [
+     {
+      "lhsId": "db",
+      "lhsDir": "L",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "R",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   },
+   {
+    "id": "server",
+    "type": "service",
+    "icon": "server",
+    "iconText": null,
+    "title": "Server",
+    "edges": [
+     {
+      "lhsId": "db",
+      "lhsDir": "L",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "R",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     },
+     {
+      "lhsId": "disk",
+      "lhsDir": "T",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "B",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   },
+   {
+    "id": "disk",
+    "type": "service",
+    "icon": "disk",
+    "iconText": null,
+    "title": "Storage",
+    "edges": [
+     {
+      "lhsId": "disk",
+      "lhsDir": "T",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "B",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   }
+  ],
+  "getJunctions": [],
+  "getNodes": [
+   {
+    "id": "db",
+    "type": "service",
+    "icon": "database",
+    "iconText": null,
+    "title": "Database",
+    "edges": [
+     {
+      "lhsId": "db",
+      "lhsDir": "L",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "R",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   },
+   {
+    "id": "server",
+    "type": "service",
+    "icon": "server",
+    "iconText": null,
+    "title": "Server",
+    "edges": [
+     {
+      "lhsId": "db",
+      "lhsDir": "L",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "R",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     },
+     {
+      "lhsId": "disk",
+      "lhsDir": "T",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "B",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   },
+   {
+    "id": "disk",
+    "type": "service",
+    "icon": "disk",
+    "iconText": null,
+    "title": "Storage",
+    "edges": [
+     {
+      "lhsId": "disk",
+      "lhsDir": "T",
+      "lhsInto": false,
+      "lhsGroup": false,
+      "rhsId": "server",
+      "rhsDir": "B",
+      "rhsInto": false,
+      "rhsGroup": false,
+      "title": null
+     }
+    ],
+    "in": "api"
+   }
+  ],
+  "getGroups": [
+   {
+    "id": "api",
+    "icon": "cloud",
+    "title": "API",
+    "in": null
+   }
+  ],
+  "getEdges": [
+   {
+    "lhsId": "db",
+    "lhsDir": "L",
+    "lhsInto": false,
+    "lhsGroup": false,
+    "rhsId": "server",
+    "rhsDir": "R",
+    "rhsInto": false,
+    "rhsGroup": false,
+    "title": null
+   },
+   {
+    "lhsId": "disk",
+    "lhsDir": "T",
+    "lhsInto": false,
+    "lhsGroup": false,
+    "rhsId": "server",
+    "rhsDir": "B",
+    "rhsInto": false,
+    "rhsGroup": false,
+    "title": null
+   }
+  ],
+  "getLayoutHints": [],
+  "getDataStructures": {
+   "adjList": {
+    "db": {
+     "LR": "server"
+    },
+    "server": {
+     "RL": "db",
+     "BT": "disk"
+    },
+    "disk": {
+     "TB": "server"
+    }
+   },
+   "spatialMaps": [
+    {
+     "db": [
+      0,
+      0
+     ],
+     "server": [
+      -1,
+      0
+     ],
+     "disk": [
+      -1,
+      -1
+     ]
+    }
+   ],
+   "groupAlignments": {}
+  }
+ }
+}

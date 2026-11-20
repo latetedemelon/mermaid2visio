@@ -1,0 +1,76 @@
+{
+ "mermaidType": "railroadEbnf",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 10,
+  "circle": 2,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 22,
+  "line": 0,
+  "text": 11,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getTitle": "Digit Definition",
+  "getRules": [
+   {
+    "name": "digit",
+    "definition": {
+     "type": "choice",
+     "alternatives": [
+      {
+       "type": "terminal",
+       "value": "0"
+      },
+      {
+       "type": "terminal",
+       "value": "1"
+      },
+      {
+       "type": "terminal",
+       "value": "2"
+      },
+      {
+       "type": "terminal",
+       "value": "3"
+      },
+      {
+       "type": "terminal",
+       "value": "4"
+      },
+      {
+       "type": "terminal",
+       "value": "5"
+      },
+      {
+       "type": "terminal",
+       "value": "6"
+      },
+      {
+       "type": "terminal",
+       "value": "7"
+      },
+      {
+       "type": "terminal",
+       "value": "8"
+      },
+      {
+       "type": "terminal",
+       "value": "9"
+      }
+     ]
+    },
+    "comment": null
+   }
+  ],
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": "Digit Definition"
+ }
+}

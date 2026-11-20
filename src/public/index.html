@@ -193,25 +193,14 @@
             color: #a4373a;
         }
     </style>
+    <!-- Served by the GUI server from node_modules / dist: the exact Mermaid
+         build and config builder the converter uses, so the preview matches
+         the generated file and works offline. -->
+    <script src="/vendor/mermaid/mermaid.min.js"></script>
+    <script src="/vendor/m2v/extractor.iife.js"></script>
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
-        // Mermaid 11 ships ELK as a separate package that must be registered
-        // before `initialize`. The GUI server vendors the bundle under
-        // /vendor/mermaid-layout-elk/ so the preview works offline.
-        let elkRegistered = false;
-        async function ensureElk() {
-            if (elkRegistered) return true;
-            try {
-                const mod = await import('/vendor/mermaid-layout-elk/mermaid-layout-elk.esm.min.mjs');
-                mermaid.registerLayoutLoaders(mod.default);
-                elkRegistered = true;
-                return true;
-            } catch (e) {
-                console.warn('ELK layout loader failed to load:', e);
-                return false;
-            }
-        }
+        const mermaid = window.mermaid;
+        const { buildMermaidConfig } = window.__m2v;
 
         const inputEl = document.getElementById('input');
         const previewEl = document.getElementById('preview');
@@ -256,27 +245,11 @@
 
                 previewEl.innerHTML = '';
 
-                // Register ELK on demand; fall back to dagre if it fails.
-                let effectiveLayout = currentConfig.layout;
-                if (effectiveLayout === 'elk') {
-                    const ok = await ensureElk();
-                    if (!ok) effectiveLayout = 'dagre';
-                }
-
-                mermaid.initialize({
-                    startOnLoad: false,
-                    theme: currentConfig.theme,
-                    layout: effectiveLayout,
-                    themeVariables: currentConfig.themeVariables,
-                    flowchart: currentConfig.flowchart,
-                    securityLevel: 'loose'
-                });
+                mermaid.initialize(buildMermaidConfig(currentConfig, code).init);
 
                 const { svg } = await mermaid.render('graphDiv_' + Date.now(), code);
                 previewEl.innerHTML = svg;
-                statusEl.textContent = effectiveLayout !== currentConfig.layout
-                    ? `Preview updated (fell back to ${effectiveLayout})`
-                    : 'Preview updated \u2713';
+                statusEl.textContent = 'Preview updated \u2713';
                 statusEl.className = 'status success';
             } catch (e) {
                 console.error(e);
@@ -351,7 +324,6 @@
         curveInput.addEventListener('change', window.updateConfig);
         
         // Initial load
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         window.updatePreview();
     </script>
 </head>
@@ -376,7 +348,8 @@
                     <select id="layout">
                         <option value="dagre">Dagre (Hierarchical)</option>
                         <option value="elk">ELK (Orthogonal)</option>
-                        <option value="flexbox">Flexbox</option>
+                        <option value="elk.stress">ELK Stress</option>
+                        <option value="elk.mrtree">ELK Tree</option>
                     </select>
                 </div>
 

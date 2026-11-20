@@ -1,0 +1,116 @@
+<svg id="m2v-probe" width="100%" xmlns="http://www.w3.org/2000/svg" class="railroad-diagram" style="max-width: 180.75px;" viewBox="0 0 180.75 480" role="graphics-document document" aria-roledescription="railroadEbnf">
+<style>#m2v-probe{font-family:Segoe UI,sans-serif;font-size:14px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#m2v-probe .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#m2v-probe .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#m2v-probe .error-icon{fill:#552222;}#m2v-probe .error-text{fill:#552222;stroke:#552222;}#m2v-probe .edge-thickness-normal{stroke-width:1px;}#m2v-probe .edge-thickness-thick{stroke-width:3.5px;}#m2v-probe .edge-pattern-solid{stroke-dasharray:0;}#m2v-probe .edge-thickness-invisible{stroke-width:0;fill:none;}#m2v-probe .edge-pattern-dashed{stroke-dasharray:3;}#m2v-probe .edge-pattern-dotted{stroke-dasharray:2;}#m2v-probe .marker{fill:#01579b;stroke:#01579b;}#m2v-probe .marker.cross{stroke:#01579b;}#m2v-probe svg{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe p{margin:0;}#m2v-probe .railroad-diagram{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe .railroad-terminal rect{fill:hsl(0, 0%, 98.9215686275%);stroke:hsl(0, 0%, 88.9215686275%);stroke-width:2px;}#m2v-probe .railroad-terminal text{fill:rgb(2.7499999999, 2.7499999999, 2.7499999999);font-family:Segoe UI,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:middle;}#m2v-probe .railroad-nonterminal rect{fill:#eee;stroke:#01579b;stroke-width:2px;}#m2v-probe .railroad-nonterminal text{fill:#000;font-family:Segoe UI,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:middle;}#m2v-probe .railroad-line{stroke:#01579b;stroke-width:2px;fill:none;}#m2v-probe .railroad-start circle,#m2v-probe .railroad-end circle{fill:#01579b;}#m2v-probe .railroad-comment ellipse{fill:rgba(232,232,232, 0.8);stroke:hsl(-160, 0%, 83.3333333333%);stroke-width:2px;}#m2v-probe .railroad-comment text{fill:rgb(17.0000000001, 17.0000000001, 17.0000000001);font-style:italic;font-family:Segoe UI,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:middle;}#m2v-probe .railroad-special rect{fill:#ffffff;stroke:hsl(-160, 0%, 83.3333333333%);stroke-width:2px;stroke-dasharray:5,3;}#m2v-probe .railroad-special text{fill:#000;font-family:Segoe UI,sans-serif;font-size:14px;text-anchor:middle;dominant-baseline:middle;}#m2v-probe .railroad-rule-name{font-weight:bold;fill:#333;font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe .node .neo-node{stroke:#999;}#m2v-probe [data-look="neo"].node rect,#m2v-probe [data-look="neo"].cluster rect,#m2v-probe [data-look="neo"].node polygon{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].swimlane.cluster rect{filter:none;}#m2v-probe [data-look="neo"].node path{stroke:url(#m2v-probe-gradient);stroke-width:1px;}#m2v-probe [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#m2v-probe [data-look="neo"].node circle{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node circle .state-start{fill:#000000;}#m2v-probe [data-look="neo"].icon-shape .icon{fill:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].icon-shape .icon-neo path{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style>
+<g>
+</g>
+<g class="railroad-rule" transform="translate(0, 10)">
+<g transform="translate(77.75, 0)">
+<g class="railroad-choice">
+<g class="railroad-terminal" transform="translate(20, 0)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">0</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 0 10 206 L 10 28 A 10 10 0 0 1 20 18 L 20 18">
+</path>
+<path class="railroad-line" d="M 48 18 L 48 18 A 10 10 0 0 1 58 28 L 58 206 A 10 10 0 0 0 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 44)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">1</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 0 10 206 L 10 72 A 10 10 0 0 1 20 62 L 20 62">
+</path>
+<path class="railroad-line" d="M 48 62 L 48 62 A 10 10 0 0 1 58 72 L 58 206 A 10 10 0 0 0 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 88)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">2</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 0 10 206 L 10 116 A 10 10 0 0 1 20 106 L 20 106">
+</path>
+<path class="railroad-line" d="M 48 106 L 48 106 A 10 10 0 0 1 58 116 L 58 206 A 10 10 0 0 0 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 132)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">3</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 0 10 206 L 10 160 A 10 10 0 0 1 20 150 L 20 150">
+</path>
+<path class="railroad-line" d="M 48 150 L 48 150 A 10 10 0 0 1 58 160 L 58 206 A 10 10 0 0 0 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 176)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">4</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 0 10 206 L 10 204 A 10 10 0 0 1 20 194 L 20 194">
+</path>
+<path class="railroad-line" d="M 48 194 L 48 194 A 10 10 0 0 1 58 204 L 58 206 A 10 10 0 0 0 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 220)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">5</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 1 10 226 L 10 228 A 10 10 0 0 0 20 238 L 20 238">
+</path>
+<path class="railroad-line" d="M 48 238 L 48 238 A 10 10 0 0 0 58 228 L 58 226 A 10 10 0 0 1 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 264)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">6</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 1 10 226 L 10 272 A 10 10 0 0 0 20 282 L 20 282">
+</path>
+<path class="railroad-line" d="M 48 282 L 48 282 A 10 10 0 0 0 58 272 L 58 226 A 10 10 0 0 1 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 308)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">7</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 1 10 226 L 10 316 A 10 10 0 0 0 20 326 L 20 326">
+</path>
+<path class="railroad-line" d="M 48 326 L 48 326 A 10 10 0 0 0 58 316 L 58 226 A 10 10 0 0 1 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 352)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">8</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 1 10 226 L 10 360 A 10 10 0 0 0 20 370 L 20 370">
+</path>
+<path class="railroad-line" d="M 48 370 L 48 370 A 10 10 0 0 0 58 360 L 58 226 A 10 10 0 0 1 68 216">
+</path>
+<g class="railroad-terminal" transform="translate(20, 396)">
+<rect x="0" y="0" width="28" height="36" rx="10" ry="10">
+</rect>
+<text x="14" y="18">9</text>
+</g>
+<path class="railroad-line" d="M 0 216 A 10 10 0 0 1 10 226 L 10 404 A 10 10 0 0 0 20 414 L 20 414">
+</path>
+<path class="railroad-line" d="M 48 414 L 48 414 A 10 10 0 0 0 58 404 L 58 226 A 10 10 0 0 1 68 216">
+</path>
+</g>
+</g>
+<g class="railroad-rule-name-group">
+<text class="railroad-rule-name" x="0" y="216">digit =</text>
+</g>
+<g class="railroad-start">
+<circle cx="57.75" cy="216" r="5">
+</circle>
+</g>
+<g class="railroad-end">
+<circle cx="155.75" cy="216" r="5">
+</circle>
+</g>
+<path class="railroad-line" d="M 62.75 216 L 77.75 216">
+</path>
+<path class="railroad-line" d="M 145.75 216 L 150.75 216">
+</path>
+</g>
+</svg>

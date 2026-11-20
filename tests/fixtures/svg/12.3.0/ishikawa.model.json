@@ -1,0 +1,102 @@
+{
+ "mermaidType": "ishikawa",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 4,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 2,
+  "line": 19,
+  "text": 19,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getRoot": {
+   "text": "Blurry Photo",
+   "children": [
+    {
+     "text": "Process",
+     "children": [
+      {
+       "text": "Out of focus",
+       "children": []
+      },
+      {
+       "text": "Shutter speed too slow",
+       "children": []
+      },
+      {
+       "text": "Protective film not removed",
+       "children": []
+      },
+      {
+       "text": "Beautification filter applied",
+       "children": []
+      }
+     ]
+    },
+    {
+     "text": "User",
+     "children": [
+      {
+       "text": "Shaky hands",
+       "children": []
+      }
+     ]
+    },
+    {
+     "text": "Equipment",
+     "children": [
+      {
+       "text": "LENS",
+       "children": [
+        {
+         "text": "Inappropriate lens"
+        },
+        {
+         "text": "Damaged lens"
+        },
+        {
+         "text": "Dirty lens"
+        }
+       ]
+      },
+      {
+       "text": "SENSOR",
+       "children": [
+        {
+         "text": "Damaged sensor"
+        },
+        {
+         "text": "Dirty sensor"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "text": "Environment",
+     "children": [
+      {
+       "text": "Subject moved too quickly",
+       "children": []
+      },
+      {
+       "text": "Too dark",
+       "children": []
+      }
+     ]
+    }
+   ]
+  },
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": "Blurry Photo"
+ }
+}

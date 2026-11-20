@@ -1,0 +1,7 @@
+C4Context
+    title System context
+    Person(customer, "Customer", "Buys things")
+    System(shop, "Web shop", "Sells things")
+    System_Ext(pay, "Payments", "Takes money")
+    Rel(customer, shop, "Uses")
+    Rel(shop, pay, "Charges via")

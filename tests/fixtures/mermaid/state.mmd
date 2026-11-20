@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Running : start
+    state Running {
+        [*] --> Warm
+        Warm --> Hot : heat
+        Hot --> [*]
+    }
+    Running --> Idle : stop
+    Running --> Failed : error
+    state check <<choice>>
+    Failed --> check
+    check --> Idle : retry
+    check --> [*] : give up
+    note right of Failed : needs attention

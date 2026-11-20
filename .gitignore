@@ -3,3 +3,8 @@ node_modules/
 *.vsdx
 .env
 coverage/
+
+calibration-out/
+
+# Generated files for checking output in desktop Visio (docs/VISIO_CALIBRATION.md).
+!docs/calibration/*.vsdx

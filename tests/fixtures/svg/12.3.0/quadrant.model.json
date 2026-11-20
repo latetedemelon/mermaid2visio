@@ -1,0 +1,236 @@
+{
+ "mermaidType": "quadrantChart",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 4,
+  "circle": 2,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 0,
+  "line": 6,
+  "text": 11,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getQuadrantData": {
+   "points": [
+    {
+     "x": 379,
+     "y": 129.79999999999998,
+     "fill": "hsl(198.6206896552, 93.5483870968%, NaN%)",
+     "radius": 5,
+     "text": {
+      "text": "Campaign B",
+      "fill": "#000",
+      "x": 379,
+      "y": 134.79999999999998,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "fontSize": 12,
+      "rotation": 0
+     },
+     "strokeColor": "hsl(198.6206896552, 93.5483870968%, NaN%)",
+     "strokeWidth": "0px"
+    },
+    {
+     "x": 170.2,
+     "y": 214.60000000000002,
+     "fill": "hsl(198.6206896552, 93.5483870968%, NaN%)",
+     "radius": 5,
+     "text": {
+      "text": "Campaign A",
+      "fill": "#000",
+      "x": 170.2,
+      "y": 219.60000000000002,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "fontSize": 12,
+      "rotation": 0
+     },
+     "strokeColor": "hsl(198.6206896552, 93.5483870968%, NaN%)",
+     "strokeWidth": "0px"
+    }
+   ],
+   "quadrants": [
+    {
+     "text": {
+      "text": "Expand",
+      "fill": "#000",
+      "x": 379,
+      "y": 50,
+      "fontSize": 16,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "rotation": 0
+     },
+     "x": 263,
+     "y": 45,
+     "width": 232,
+     "height": 212,
+     "fill": "#e1f5fe"
+    },
+    {
+     "text": {
+      "text": "Promote",
+      "fill": "#000000",
+      "x": 147,
+      "y": 50,
+      "fontSize": 16,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "rotation": 0
+     },
+     "x": 31,
+     "y": 45,
+     "width": 232,
+     "height": 212,
+     "fill": "#e6faff"
+    },
+    {
+     "text": {
+      "text": "Rethink",
+      "fill": "#000000",
+      "x": 147,
+      "y": 262,
+      "fontSize": 16,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "rotation": 0
+     },
+     "x": 31,
+     "y": 257,
+     "width": 232,
+     "height": 212,
+     "fill": "#ebffff"
+    },
+    {
+     "text": {
+      "text": "Improve",
+      "fill": "#000000",
+      "x": 379,
+      "y": 262,
+      "fontSize": 16,
+      "verticalPos": "center",
+      "horizontalPos": "top",
+      "rotation": 0
+     },
+     "x": 263,
+     "y": 257,
+     "width": 232,
+     "height": 212,
+     "fill": "#f0ffff"
+    }
+   ],
+   "axisLabels": [
+    {
+     "text": "Low Reach",
+     "fill": "#000",
+     "x": 147,
+     "y": 479,
+     "fontSize": 16,
+     "verticalPos": "center",
+     "horizontalPos": "top",
+     "rotation": 0
+    },
+    {
+     "text": "High Reach",
+     "fill": "#000",
+     "x": 379,
+     "y": 479,
+     "fontSize": 16,
+     "verticalPos": "center",
+     "horizontalPos": "top",
+     "rotation": 0
+    },
+    {
+     "text": "Low Engagement",
+     "fill": "#000",
+     "x": 5,
+     "y": 363,
+     "fontSize": 16,
+     "verticalPos": "center",
+     "horizontalPos": "top",
+     "rotation": -90
+    },
+    {
+     "text": "High Engagement",
+     "fill": "#000",
+     "x": 5,
+     "y": 151,
+     "fontSize": 16,
+     "verticalPos": "center",
+     "horizontalPos": "top",
+     "rotation": -90
+    }
+   ],
+   "borderLines": [
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 2,
+     "x1": 30,
+     "y1": 45,
+     "x2": 496,
+     "y2": 45
+    },
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 2,
+     "x1": 495,
+     "y1": 46,
+     "x2": 495,
+     "y2": 468
+    },
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 2,
+     "x1": 30,
+     "y1": 469,
+     "x2": 496,
+     "y2": 469
+    },
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 2,
+     "x1": 31,
+     "y1": 46,
+     "x2": 31,
+     "y2": 468
+    },
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 1,
+     "x1": 263,
+     "y1": 46,
+     "x2": 263,
+     "y2": 468
+    },
+    {
+     "strokeFill": "#01579b",
+     "strokeWidth": 1,
+     "x1": 32,
+     "y1": 257,
+     "x2": 494,
+     "y2": 257
+    }
+   ],
+   "title": {
+    "text": "Reach and engagement",
+    "fill": "#000",
+    "fontSize": 20,
+    "horizontalPos": "top",
+    "verticalPos": "center",
+    "rotation": 0,
+    "y": 10,
+    "x": 250
+   }
+  },
+  "getAccTitle": "",
+  "getDiagramTitle": "Reach and engagement",
+  "getAccDescription": ""
+ }
+}

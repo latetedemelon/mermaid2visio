@@ -3,6 +3,7 @@ import http, { AddressInfo } from 'http';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import puppeteer from 'puppeteer';
 import { createServer, MAX_BODY_BYTES } from '../src/gui';
 
 async function startServer(opts: Parameters<typeof createServer>[0] = {}) {
@@ -118,23 +119,10 @@ describe('GUI HTTP server', () => {
         expect(MAX_BODY_BYTES).toBe(1024 * 1024);
     });
 
-    it('serves the vendored ELK loader under /vendor/', async () => {
-        const { base, stop } = await startServer();
-        try {
-            const res = await request(`${base}/vendor/mermaid-layout-elk/mermaid-layout-elk.esm.min.mjs`);
-            expect(res.status).toBe(200);
-            expect(res.headers['content-type']).toBe('application/javascript');
-            // The ESM module's first statement imports its chunk module.
-            expect(res.body.toString()).toContain('import');
-        } finally {
-            await stop();
-        }
-    });
-
     it('blocks path traversal under /vendor/', async () => {
         const { base, stop } = await startServer();
         try {
-            const res = await request(`${base}/vendor/mermaid-layout-elk/../../../etc/passwd`);
+            const res = await request(`${base}/vendor/mermaid/../../../etc/passwd`);
             // Node's http client normalizes the URL before send, so we also
             // accept 404 as an acceptable "not served" outcome.
             expect([403, 404]).toContain(res.status);
@@ -142,4 +130,40 @@ describe('GUI HTTP server', () => {
             await stop();
         }
     });
+
+    it('serves the Mermaid build and extractor bundle the converter itself uses', async () => {
+        const { base, stop } = await startServer();
+        try {
+            for (const p of ['/vendor/mermaid/mermaid.min.js', '/vendor/m2v/extractor.iife.js']) {
+                const res = await request(`${base}${p}`);
+                expect(res.status).toBe(200);
+                expect(res.headers['content-type']).toBe('application/javascript');
+                expect(res.body.length).toBeGreaterThan(1000);
+            }
+        } finally {
+            await stop();
+        }
+    });
+
+    // End-to-end check of the page itself: it must load Mermaid and the
+    // config builder from this server (not a CDN) and render the sample
+    // diagram with the same pinned look the converter uses.
+    it('renders the live preview from locally served Mermaid', async () => {
+        const { base, stop } = await startServer();
+        const browser = await puppeteer.connect({ browserWSEndpoint: process.env.M2V_BROWSER_WS_ENDPOINT! });
+        const page = await browser.newPage();
+        const external: string[] = [];
+        page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:')) external.push(r.url()); });
+        try {
+            await page.goto(base, { waitUntil: 'load' });
+            await page.waitForSelector('#preview svg .node', { timeout: 20000 });
+            const look = await page.$eval('#preview svg .node', (n) => n.getAttribute('data-look'));
+            expect(look).toBe('classic');
+            expect(external).toEqual([]);
+        } finally {
+            await page.close();
+            await browser.disconnect();
+            await stop();
+        }
+    }, 60000);
 });

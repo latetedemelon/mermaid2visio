@@ -1,0 +1,13 @@
+flowchart TD
+    start([Start]) --> check{Valid?}
+    check -->|yes| user_db[(User DB)]
+    check -. no .-> fail[/Reject/]
+    user_db ==> done((Done))
+    subgraph svc [Services]
+        api[API] --> worker[[Worker]]
+    end
+    done --> api
+    fail --x done
+    worker --o start
+    api <--> check
+    click api "https://example.com/api"

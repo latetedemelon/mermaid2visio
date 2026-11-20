@@ -10,11 +10,18 @@ Entry points:
 - **Web GUI** (Node-backed): `src/gui.ts` → `dist/gui.js`
 - **MCP server**: `src/server.ts` → `dist/server.js`
 
-All four share the environment-agnostic core in **`src/core/`** (`extract`, `normalize`, `detect`, `types`) plus `src/vsdx.ts` and `src/validate.ts` (also browser-safe). The Node entries (`parser.ts`, the three servers) wrap that core with Puppeteer + ELK + I/O; the browser entry calls it directly against the live `document`.
+All four share:
+- **`src/core/`** — pure, environment-agnostic logic (`mermaidConfig`, `normalize`, `detect`, `types`).
+- **`src/extract/`** — the in-page pipeline (DOM code). `index.ts` owns initialise → render → extract → normalise; `flowchart.ts` and `sequence.ts` are the per-diagram extractors; `model.ts` reads Mermaid's parsed model. `scripts/build-extractor.mjs` bundles `page.ts` into `dist/extractor.iife.js`, which the Node renderer injects into its headless page; the browser app imports the same modules directly. Both paths therefore run identical code.
+- `src/vsdx.ts` and `src/validate.ts` (browser-safe).
+
+**`src/render/renderer.ts`** (`MermaidRenderer`) is the only Node-side browser code: it owns Chromium, opens a page per render, loads `mermaid.min.js` + the extractor bundle, and calls the pipeline. `src/parser.ts` is a thin `parseMermaid()` wrapper over it.
+
+**Mermaid version policy.** Mermaid is pinned to an exact version (currently 12.3.0) because extraction depends on the structure of its rendered SVG and on its internal parsed model. `buildMermaidConfig()` (`src/core/mermaidConfig.ts`) is the single place that decides what reaches `mermaid.initialize()`; it pins `look: 'classic'` (Mermaid 12's default `neo` look uses gradients and dash-array tricks that don't convert) and defaults `layout` to `dagre` (Mermaid 12 defaults to ELK, which is bundled and available on request). When upgrading Mermaid: bump the pin, run `node scripts/probe-render.mjs`, and read `git diff tests/fixtures/svg` to see exactly what changed in the output the extractors depend on.
 
 Pipeline:
 1. **Render**: Mermaid SVG into a DOM (Puppeteer page for Node; `document` directly in browser).
-2. **Extract**: `extractGraphFromDom(diagramType)` → raw `GraphData` (DOM-only, env-agnostic).
+2. **Extract**: `extractGraph(svg, diagramType)` (`src/extract/index.ts`) → raw `GraphData` (DOM-only, env-agnostic).
 3. **Normalize**: `normalizeContentBounds(graph)` shifts content to origin (pure).
 4. **Generate**: `VsdxGenerator.generate(graph, source?)` → `Uint8Array` VSDX (JSZip + xmlbuilder2).
 5. **Validate** (optional): `validateVsdx(bytes)` — structural oracle.
@@ -27,8 +34,8 @@ Pipeline:
 .mmd / .md source
        │
        ▼
-  parseMermaid()          src/parser.ts
-  (Puppeteer + Mermaid.js)
+  parseMermaid()          src/parser.ts -> src/render/renderer.ts
+  (Puppeteer page running src/extract/* + Mermaid.js)
        │
        ▼
   GraphData (IR)          src/parser.ts interfaces
@@ -45,20 +52,20 @@ Pipeline:
 
 ## Key Source Files
 
-### `src/parser.ts`
-Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry via DOM APIs.
+### `src/render/renderer.ts` + `src/extract/`
+Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry via DOM APIs. The notes below describe the extractors in `src/extract/`.
 
 **Coordinate extraction** uses SVG CTM (`getCTM()`/`getScreenCTM()`) rather than parsing `transform` attributes. This correctly accumulates all ancestor transforms, which is essential for nodes inside nested subgraphs.
 
-**Node IDs**: Mermaid 11.x wraps node IDs as `flowchart-<USERID>-<N>`. The parser strips this scaffold so IDs match what edge paths carry (plain user IDs like `A`, `B`).
+**Node IDs**: Mermaid wraps node IDs as `<svgId>-flowchart-<USERID>-<N>` (the `<svgId>-` prefix on every internal id arrived in 11.14). The extractor strips both the prefix and the scaffold so IDs match what edge paths carry (plain user IDs like `A`, `B`).
 
-**Edge endpoints**: Each `.edgePaths path` element carries `id="L_<src>_<dst>_<idx>"`. The parser extracts `startId`/`endId` from this. Legacy fallback reads `LS-<id>`/`LE-<id>` classes on the parent `<g>`.
+**Edge endpoints**: Each `.edgePaths path` element carries `data-id="L_<src>_<dst>_<idx>"` (and the same value, svg-id-prefixed, as its `id`). The extractor reads `startId`/`endId` from `data-id`. Legacy fallback reads `LS-<id>`/`LE-<id>` classes on the parent `<g>`.
 
 **Edge labels**: `g.edgeLabel` groups appear in the same DOM order as `.edgePaths path` elements. The parser matches them by index, storing `text` directly on `GraphEdge`. This avoids needing IDs on label elements (they have none). Only `g.edgeLabel` is selected (not `.edgeLabel`) to avoid the HTML `<span class="edgeLabel">` inside foreignObject.
 
 **Content normalization**: After extraction, all coordinates are translated by `(-minX, -minY)` so the top-left of actual content is at origin. Edge `d` strings are also translated via `translatePathD()`. This prevents off-page shapes when Mermaid/ELK places content with negative SVG coords.
 
-**ELK layout**: When `layout: elk` appears in the diagram's YAML frontmatter, the parser spins up a localhost HTTP server to serve `@mermaid-js/layout-elk/dist/` so Puppeteer can import it as an ES module. Falls back to dagre if registration fails.
+**ELK layout**: bundled with Mermaid 12 — no separate package or registration. Requested via `config.layout`, the GUI picker, or `layout: elk` in the diagram's YAML frontmatter (which Mermaid applies over `initialize()`, so it wins).
 
 **Sequence diagrams**: `parseMermaid` branches on `detectDiagramType`. For `sequenceDiagram` it runs a dedicated extractor (inside the page.evaluate) that maps actor boxes (`rect.actor-top`/`rect.actor-bottom`) to rectangle nodes — pairing each box with the `<text>` whose centre falls inside it — and lifelines (`line.actor-line`) plus messages (`line.messageLine0` solid / `line.messageLine1` dashed) to unglued edges with a synthesized `d`. Message labels (`text.messageText`) are matched to message lines by DOM order. The generator's margin-aware path fallback then draws them. Not yet handled: activations, notes, loop/alt/opt boxes.
 
@@ -135,7 +142,8 @@ Tests live in `tests/`. All use Jest with `--experimental-vm-modules` for ESM.
 | `styling.test.ts` | Color normalisation, fill/stroke/lineweight cells |
 | `shapes.test.ts` | Geometry section rows for each node type |
 | `generator.test.ts` | Mermaid source round-trip in ZIP, page sizing |
-| `layout.test.ts` | ELK vs dagre layout selection; frontmatter detection |
+| `layout.test.ts` | ELK vs dagre layout selection; frontmatter detection; default look/layout pinned regardless of Mermaid's defaults |
+| `mermaid_config.test.ts` | `buildMermaidConfig` defaults, precedence, and coercion of hostile caller config |
 | `parse_errors.test.ts` | Error formatting, inline-comment hint |
 | `launch_errors.test.ts` | `explainLaunchFailure` message classification |
 | `gui.test.ts` | HTTP endpoints, VSDX download header |
@@ -143,9 +151,11 @@ Tests live in `tests/`. All use Jest with `--experimental-vm-modules` for ESM.
 | `package_structure.test.ts` | `dist/` artefacts exist after build |
 | `render_libreoffice.test.ts` | Round-trip through LibreOffice (skipped unless `soffice` + `libreoffice-draw` present) |
 | `validate.test.ts` | Runs `validateVsdx` over fixtures + a synthetic all-node-types graph; negative tests corrupt a package to prove the validator fires |
-| `diagram_types.test.ts` | `detectDiagramType` unit tests + parse→generate→validate across flowchart/class/state/ER (expect shapes) and sequence/pie (expect blank-but-valid), pinning the support matrix |
+| `diagram_types.test.ts` | `detectDiagramType` + the diagram-kind registry; every fixture in `tests/fixtures/mermaid/` (one per Mermaid 12.3 diagram type) converts to a structurally valid package; the support matrix for flowchart/class/state/ER/sequence/pie |
 
-Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tests/fixtures/diagram (5).vsdx` (reference VSDX for LibreOffice probe).
+Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tests/fixtures/diagram (5).vsdx` (reference VSDX for LibreOffice probe), `tests/fixtures/mermaid/*.mmd` (one sample per diagram type), `tests/fixtures/svg/<mermaid version>/` (reference dumps of Mermaid's SVG and parsed model for each sample, written by `scripts/probe-render.mjs`; coordinates depend on the machine's fonts, so treat them as reference, not as a test oracle).
+
+The suite shares one Chromium, started by `tests/global-setup.mjs` (which also builds the extractor bundle) and exposed through `M2V_BROWSER_WS_ENDPOINT`.
 
 ---
 
@@ -164,4 +174,4 @@ Fixtures: `tests/fixtures/all_features.mmd`, `tests/fixtures/rob_test.mmd`, `tes
 - The round-trip `mermaid/source.mmd` part now has a declared content type (was an OPC violation / 1400015 candidate), caught by the new `validateVsdx`.
 
 ### Verification note
-No Microsoft Visio is available in the dev sandbox, and LibreOffice's VSDX importer is non-functional there, so all checks run through `validateVsdx` + the Jest suite. Changes affecting *visual* fidelity should still be opened in real Visio to confirm — see `PROGRESS_LOG.md` for items tagged `[VERIFY-IN-VISIO]`.
+No Microsoft Visio is available in the dev sandbox, so automated checks run through `validateVsdx`, the Jest suite and (when installed) a LibreOffice render. None of those prove Visio accepts a construct: `docs/VISIO_CALIBRATION.md` and `scripts/make-calibration.mjs` produce single-purpose files for checking each construct in real Visio. Changes affecting *visual* fidelity should still be opened in real Visio to confirm — see `PROGRESS_LOG.md` for items tagged `[VERIFY-IN-VISIO]`.

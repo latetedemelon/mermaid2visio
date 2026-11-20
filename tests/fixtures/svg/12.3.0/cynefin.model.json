@@ -1,0 +1,76 @@
+{
+ "mermaidType": "cynefin",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 12,
+  "circle": 0,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 4,
+  "line": 0,
+  "text": 23,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getDomains": {
+   "complex": {
+    "name": "complex",
+    "items": [
+     {
+      "label": "Investigate root cause"
+     },
+     {
+      "label": "Run chaos experiment"
+     }
+    ]
+   },
+   "complicated": {
+    "name": "complicated",
+    "items": [
+     {
+      "label": "Analyze performance data"
+     },
+     {
+      "label": "Expert review needed"
+     }
+    ]
+   },
+   "clear": {
+    "name": "clear",
+    "items": [
+     {
+      "label": "Restart service"
+     },
+     {
+      "label": "Apply known fix"
+     }
+    ]
+   },
+   "chaotic": {
+    "name": "chaotic",
+    "items": [
+     {
+      "label": "Page on-call immediately"
+     }
+    ]
+   },
+   "confusion": {
+    "name": "confusion",
+    "items": [
+     {
+      "label": "Unknown failure mode"
+     }
+    ]
+   }
+  },
+  "getTransitions": [],
+  "getAccTitle": "",
+  "getDiagramTitle": "Incident Response",
+  "getAccDescription": ""
+ }
+}

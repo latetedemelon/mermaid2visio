@@ -3,7 +3,7 @@
 This project uses **Jest** (with `ts-jest`) for automated testing.
 
 ## Prerequisites
-- Node.js (v18+)
+- Node.js v22.12 or later
 - npm
 
 ## Running Tests
@@ -14,7 +14,8 @@ npm test
 ```
 
 This will:
-1. Compile TypeScript (via `ts-node`/`ts-jest`).
+1. Build the injected extractor bundle and start one shared headless Chromium (Jest global setup).
+1. Compile TypeScript on the fly (via `ts-jest`).
 2. Run unit tests defined in `tests/`.
 3. Verify that Mermaid parsing and VSDX generation work correctly.
 

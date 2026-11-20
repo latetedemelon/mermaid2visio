@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { parseMermaid, MermaidConfig } from './parser.js';
+import { mermaidScriptPath, extractorScriptPath } from './render/renderer.js';
 import { VsdxGenerator } from './vsdx.js';
 import { exec } from 'child_process';
 
@@ -18,11 +19,13 @@ export const DEFAULT_PUBLIC_DIR = path.join(__dirname, 'public');
 // server-backed editor and the static client-side app.
 export const DEFAULT_BROWSER_DIR = path.join(__dirname, 'browser');
 
-// Serve vendored ESM bundles (currently the ELK layout loader) out of
-// node_modules so the browser preview works offline too.
-const VENDOR_MAP: Record<string, string> = {
-    '/vendor/mermaid-layout-elk/': path.resolve(__dirname, '../node_modules/@mermaid-js/layout-elk/dist'),
+// Single files the preview page loads: the same Mermaid build and the same
+// extractor bundle the converter itself uses, so preview and output agree.
+const VENDOR_FILES: Record<string, () => string> = {
+    '/vendor/mermaid/mermaid.min.js': mermaidScriptPath,
+    '/vendor/m2v/extractor.iife.js': extractorScriptPath,
 };
+
 
 export interface HandlerOptions {
     publicDir?: string;
@@ -56,20 +59,11 @@ function serveBrowserBundle(urlPath: string, res: ServerResponse): boolean {
 }
 
 function serveVendor(urlPath: string, res: ServerResponse): boolean {
-    for (const [prefix, dir] of Object.entries(VENDOR_MAP)) {
-        if (!urlPath.startsWith(prefix)) continue;
-        const rel = urlPath.slice(prefix.length);
-        const abs = path.resolve(dir, rel);
-        if (!abs.startsWith(dir + path.sep) && abs !== dir) {
-            res.writeHead(403); res.end(); return true;
-        }
-        if (!fs.existsSync(abs)) {
-            res.writeHead(404); res.end(); return true;
-        }
-        res.writeHead(200, {
-            'Content-Type': 'application/javascript',
-            'Cache-Control': 'public, max-age=3600',
-        });
+    const single = VENDOR_FILES[urlPath];
+    if (single) {
+        const abs = single();
+        if (!fs.existsSync(abs)) { res.writeHead(404); res.end(); return true; }
+        res.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'public, max-age=3600' });
         fs.createReadStream(abs).pipe(res);
         return true;
     }

@@ -93,8 +93,11 @@ export interface GraphData {
 }
 
 export interface MermaidConfig {
-    layout?: 'elk' | 'dagre' | 'flexbox' | 'linear';
-    theme?: 'default' | 'forest' | 'dark' | 'neutral';
+    // Layout engine. Mermaid 12 bundles dagre and ELK (including the ELK
+    // sub-algorithms such as 'elk.stress'); any other registered layout name
+    // is passed through.
+    layout?: 'dagre' | 'elk' | (string & {});
+    theme?: 'default' | 'forest' | 'dark' | 'neutral' | 'base' | (string & {});
     themeVariables?: Record<string, string>;
     flowchart?: {
         nodeSpacing?: number;

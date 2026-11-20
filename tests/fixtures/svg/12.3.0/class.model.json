@@ -1,0 +1,295 @@
+{
+ "mermaidType": "classDiagram",
+ "counts": {
+  "node": 6,
+  "edgePath": 5,
+  "cluster": 0,
+  "edgeLabel": 5,
+  "rect": 0,
+  "circle": 4,
+  "ellipse": 0,
+  "polygon": 2,
+  "path": 43,
+  "line": 0,
+  "text": 0,
+  "foreignObject": 20,
+  "image": 0
+ },
+ "data": {
+  "nodes": [
+   {
+    "id": "Animal",
+    "type": null,
+    "label": "Animal",
+    "text": "Animal",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [
+     {
+      "memberType": "method",
+      "visibility": "+",
+      "classifier": "",
+      "text": "\\+eat() : void",
+      "id": "eat",
+      "parameters": "",
+      "returnType": "void"
+     },
+     {
+      "memberType": "method",
+      "visibility": "+",
+      "classifier": "",
+      "text": "\\+sleep()",
+      "id": "sleep",
+      "parameters": "",
+      "returnType": ""
+     }
+    ],
+    "members": [
+     {
+      "memberType": "attribute",
+      "visibility": "+",
+      "classifier": "",
+      "text": "\\+String name",
+      "id": "String name"
+     },
+     {
+      "memberType": "attribute",
+      "visibility": "#",
+      "classifier": "",
+      "text": "\\#int age",
+      "id": "int age"
+     }
+    ],
+    "annotations": [],
+    "styles": [],
+    "domId": "classId-Animal-6",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 0
+   },
+   {
+    "id": "Dog",
+    "type": null,
+    "label": "Dog",
+    "text": "Dog",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [
+     {
+      "memberType": "method",
+      "visibility": "+",
+      "classifier": "",
+      "text": "\\+bark()",
+      "id": "bark",
+      "parameters": "",
+      "returnType": ""
+     }
+    ],
+    "members": [],
+    "annotations": [],
+    "styles": [],
+    "domId": "classId-Dog-7",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 1
+   },
+   {
+    "id": "Owner",
+    "type": null,
+    "label": "Owner",
+    "text": "Owner",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [],
+    "members": [],
+    "annotations": [],
+    "styles": [],
+    "domId": "classId-Owner-8",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 2
+   },
+   {
+    "id": "Walker",
+    "type": null,
+    "label": "Walker",
+    "text": "Walker",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [
+     {
+      "memberType": "method",
+      "visibility": "+",
+      "classifier": "",
+      "text": "\\+walk()",
+      "id": "walk",
+      "parameters": "",
+      "returnType": ""
+     }
+    ],
+    "members": [],
+    "annotations": [
+     "interface"
+    ],
+    "styles": [],
+    "domId": "classId-Walker-9",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 3
+   },
+   {
+    "id": "Address",
+    "type": null,
+    "label": "Address",
+    "text": "Address",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [],
+    "members": [],
+    "annotations": [],
+    "styles": [],
+    "domId": "classId-Address-10",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 4
+   },
+   {
+    "id": "Vet",
+    "type": null,
+    "label": "Vet",
+    "text": "Vet",
+    "shape": "classBox",
+    "cssClasses": "default",
+    "methods": [],
+    "members": [],
+    "annotations": [],
+    "styles": [],
+    "domId": "classId-Vet-11",
+    "isGroup": false,
+    "parentId": null,
+    "look": "classic",
+    "colorIndex": 5
+   }
+  ],
+  "edges": [
+   {
+    "id": "id_Animal_Dog_1",
+    "start": "Animal",
+    "end": "Dog",
+    "type": "normal",
+    "label": "extends",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relation",
+    "arrowTypeStart": "extension",
+    "arrowTypeEnd": "none",
+    "startLabelRight": "",
+    "endLabelLeft": "",
+    "arrowheadStyle": "",
+    "labelStyle": [
+     "display: inline-block"
+    ],
+    "style": "",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_Owner_Dog_2",
+    "start": "Owner",
+    "end": "Dog",
+    "type": "normal",
+    "label": "owns",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relation",
+    "arrowTypeStart": "aggregation",
+    "arrowTypeEnd": "none",
+    "startLabelRight": "1",
+    "endLabelLeft": "*",
+    "arrowheadStyle": "",
+    "labelStyle": [
+     "display: inline-block"
+    ],
+    "style": "",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_Dog_Walker_3",
+    "start": "Dog",
+    "end": "Walker",
+    "type": "normal",
+    "label": null,
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relation",
+    "arrowTypeStart": "none",
+    "arrowTypeEnd": "extension",
+    "startLabelRight": "",
+    "endLabelLeft": "",
+    "arrowheadStyle": "",
+    "labelStyle": [
+     "display: inline-block"
+    ],
+    "style": "",
+    "pattern": "dashed",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_Owner_Address_4",
+    "start": "Owner",
+    "end": "Address",
+    "type": "normal",
+    "label": null,
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relation",
+    "arrowTypeStart": "composition",
+    "arrowTypeEnd": "none",
+    "startLabelRight": "",
+    "endLabelLeft": "",
+    "arrowheadStyle": "",
+    "labelStyle": [
+     "display: inline-block"
+    ],
+    "style": "",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   },
+   {
+    "id": "id_Owner_Vet_5",
+    "start": "Owner",
+    "end": "Vet",
+    "type": "normal",
+    "label": "visits",
+    "labelpos": "c",
+    "thickness": "normal",
+    "classes": "relation",
+    "arrowTypeStart": "none",
+    "arrowTypeEnd": "dependency",
+    "startLabelRight": "",
+    "endLabelLeft": "",
+    "arrowheadStyle": "",
+    "labelStyle": [
+     "display: inline-block"
+    ],
+    "style": "",
+    "pattern": "solid",
+    "look": "classic",
+    "labelType": "markdown"
+   }
+  ],
+  "other": {},
+  "direction": "TB"
+ },
+ "getters": {}
+}

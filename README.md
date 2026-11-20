@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/latetedemelon/mermaid2visio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/latetedemelon/mermaid2visio/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-ISC-blue)
-![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![Node](https://img.shields.io/badge/node-%3E%3D22.12-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Mac%20%7C%20Linux-lightgrey)
 ![Status](https://img.shields.io/badge/status-Active-green)
 
@@ -21,7 +21,7 @@ Unlike legacy tools that rely on a local installation of Visio (COM automation),
 ## Installation
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or later)
+- [Node.js](https://nodejs.org/) v22.12 or later (required by Mermaid 12)
 
 ### Setup
 ```bash
@@ -56,7 +56,7 @@ The web UI now includes:
 - **Layout Engines**: 
   - Dagre (Hierarchical) - Default
   - ELK (Orthogonal) - Professional, structured layouts
-  - Flexbox - Flexible positioning
+  - ELK Stress / ELK Tree - alternative ELK algorithms
 - **Themes**: Default, Forest, Dark, Neutral
 - **Theme Variables**: 
   - Primary Color
@@ -73,7 +73,7 @@ node dist/index.js input.mmd -o output.vsdx
 ```
 Options:
 - `-o, --output <path>` — output file (defaults to the input name with a `.vsdx` extension)
-- `-l, --layout <engine>` — `dagre` (default) or `elk`
+- `-l, --layout <engine>` — `dagre` (default), `elk`, or an ELK algorithm such as `elk.stress` or `elk.mrtree`
 - `-t, --theme <name>` — `default`, `forest`, `dark`, or `neutral`
 - `-v, --verbose` — diagnostic logging (layout selection, parsed graph summary, render errors)
 
@@ -151,11 +151,18 @@ Puppeteer's bundled Chromium is missing or can't resolve its shared libraries
 
 Run `npm run doctor` to diagnose which of the above applies.
 
-### `ELK layout option doesn't re-render`
-Mermaid 11 moved ELK into a separate package that must be registered at
-runtime. This project vendors it automatically (`@mermaid-js/layout-elk`);
-if you see ELK silently behaving like dagre, confirm with `npm run doctor`
-that the package is installed, then reinstall with `npm ci`.
+### Output looks different from mermaid.live
+This tool renders with **Mermaid 12.3.0** (pinned exactly, because the
+converter reads Mermaid's rendered SVG and its parsed model). Two defaults are
+deliberately different from Mermaid's own:
+
+- **Look** is always `classic`. Mermaid 12's default `neo` look uses gradient
+  strokes and drop shadows that have no Visio equivalent.
+- **Layout** defaults to `dagre`. Mermaid 12 defaults to ELK; ask for it with
+  `--layout elk`, the GUI's layout picker, or `layout: elk` in the diagram's
+  frontmatter (frontmatter always wins, as in Mermaid itself).
+
+ELK is bundled with Mermaid 12, so there is nothing extra to install.
 
 ## License
 ISC

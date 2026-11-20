@@ -1,0 +1,62 @@
+{
+ "mermaidType": "journey",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 5,
+  "circle": 15,
+  "ellipse": 0,
+  "polygon": 0,
+  "path": 4,
+  "line": 4,
+  "text": 8,
+  "foreignObject": 5,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getDiagramTitle": "Working day",
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getSections": [
+   "Morning",
+   "Evening"
+  ],
+  "getTasks": [
+   {
+    "section": "Morning",
+    "type": "Morning",
+    "people": [
+     "Me"
+    ],
+    "task": "Make tea",
+    "score": 5
+   },
+   {
+    "section": "Morning",
+    "type": "Morning",
+    "people": [
+     "Me",
+     "Cat"
+    ],
+    "task": "Commute",
+    "score": 2
+   },
+   {
+    "section": "Evening",
+    "type": "Evening",
+    "people": [
+     "Me"
+    ],
+    "task": "Cook",
+    "score": 4
+   }
+  ],
+  "getActors": [
+   "Cat",
+   "Me"
+  ]
+ }
+}

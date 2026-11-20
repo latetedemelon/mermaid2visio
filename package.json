@@ -4,12 +4,13 @@
   "description": "",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc && copyfiles -u 1 src/public/**/* dist && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
+    "build": "tsc && node scripts/build-extractor.mjs && copyfiles -u 1 src/public/**/* dist && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
     "build:browser": "esbuild src/browser/app.ts --bundle --format=esm --target=es2020 --outfile=dist/browser/app.js && copyfiles -u 2 src/browser/index.html dist/browser",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "install:browser": "puppeteer browsers install chrome",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "build:extractor": "node scripts/build-extractor.mjs"
   },
   "keywords": [
     "mermaid",
@@ -41,26 +42,27 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@mermaid-js/layout-elk": "^0.2.1",
     "@modelcontextprotocol/sdk": "^1.25.3",
-    "@types/mermaid": "^9.1.0",
-    "@types/node": "^25.0.9",
     "commander": "^14.0.2",
     "jszip": "^3.10.1",
-    "mermaid": "^11.12.2",
+    "mermaid": "12.3.0",
     "puppeteer": "^24.35.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
     "xmlbuilder2": "^4.0.3",
     "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "@types/node": "^25.0.9",
     "copyfiles": "^2.4.1",
     "esbuild": "^0.28.0",
     "events": "^3.3.0",
     "jest": "^30.2.0",
     "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
     "url": "^0.11.4"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

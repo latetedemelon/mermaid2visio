@@ -3,6 +3,10 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
+  // Builds the injected extractor bundle and starts one shared Chromium that
+  // every parseMermaid() call in the suite attaches to.
+  globalSetup: '<rootDir>/tests/global-setup.mjs',
+  globalTeardown: '<rootDir>/tests/global-teardown.mjs',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
@@ -23,6 +27,9 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/public/**',
+    // Runs inside the browser page, where Node's coverage can't see it.
+    '!src/extract/**',
+    '!src/browser/**',
   ],
   coverageReporters: ['text-summary', 'lcov', 'html', 'json-summary'],
   coverageThreshold: {

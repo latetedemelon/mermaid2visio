@@ -1,0 +1,44 @@
+<svg id="m2v-probe" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 700px;" viewBox="0 0 700 700" overflow="visible" role="graphics-document document" aria-roledescription="radar">
+<style>#m2v-probe{font-family:Segoe UI,sans-serif;font-size:14px;fill:#000000;}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#m2v-probe .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#m2v-probe .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#m2v-probe .error-icon{fill:#552222;}#m2v-probe .error-text{fill:#552222;stroke:#552222;}#m2v-probe .edge-thickness-normal{stroke-width:1px;}#m2v-probe .edge-thickness-thick{stroke-width:3.5px;}#m2v-probe .edge-pattern-solid{stroke-dasharray:0;}#m2v-probe .edge-thickness-invisible{stroke-width:0;fill:none;}#m2v-probe .edge-pattern-dashed{stroke-dasharray:3;}#m2v-probe .edge-pattern-dotted{stroke-dasharray:2;}#m2v-probe .marker{fill:#01579b;stroke:#01579b;}#m2v-probe .marker.cross{stroke:#01579b;}#m2v-probe svg{font-family:Segoe UI,sans-serif;font-size:14px;}#m2v-probe p{margin:0;}#m2v-probe .radarTitle{font-size:14px;color:#333;dominant-baseline:hanging;text-anchor:middle;}#m2v-probe .radarAxisLine{stroke:#01579b;stroke-width:2;}#m2v-probe .radarAxisLabel{font-size:12px;color:#01579b;}#m2v-probe .radarGraticule{fill:#DEDEDE;fill-opacity:0.3;stroke:#DEDEDE;stroke-width:1;}#m2v-probe .radarLegendText{text-anchor:start;font-size:12px;dominant-baseline:hanging;}#m2v-probe .radarCurve-0{color:#555;fill:#555;fill-opacity:0.5;stroke:#555;stroke-width:2;}#m2v-probe .radarLegendBox-0{fill:#555;fill-opacity:0.5;stroke:#555;}#m2v-probe .radarCurve-1{color:#F4F4F4;fill:#F4F4F4;fill-opacity:0.5;stroke:#F4F4F4;stroke-width:2;}#m2v-probe .radarLegendBox-1{fill:#F4F4F4;fill-opacity:0.5;stroke:#F4F4F4;}#m2v-probe .radarCurve-2{color:#555;fill:#555;fill-opacity:0.5;stroke:#555;stroke-width:2;}#m2v-probe .radarLegendBox-2{fill:#555;fill-opacity:0.5;stroke:#555;}#m2v-probe .radarCurve-3{color:#BBB;fill:#BBB;fill-opacity:0.5;stroke:#BBB;stroke-width:2;}#m2v-probe .radarLegendBox-3{fill:#BBB;fill-opacity:0.5;stroke:#BBB;}#m2v-probe .radarCurve-4{color:#777;fill:#777;fill-opacity:0.5;stroke:#777;stroke-width:2;}#m2v-probe .radarLegendBox-4{fill:#777;fill-opacity:0.5;stroke:#777;}#m2v-probe .radarCurve-5{color:#999;fill:#999;fill-opacity:0.5;stroke:#999;stroke-width:2;}#m2v-probe .radarLegendBox-5{fill:#999;fill-opacity:0.5;stroke:#999;}#m2v-probe .radarCurve-6{color:#DDD;fill:#DDD;fill-opacity:0.5;stroke:#DDD;stroke-width:2;}#m2v-probe .radarLegendBox-6{fill:#DDD;fill-opacity:0.5;stroke:#DDD;}#m2v-probe .radarCurve-7{color:#FFF;fill:#FFF;fill-opacity:0.5;stroke:#FFF;stroke-width:2;}#m2v-probe .radarLegendBox-7{fill:#FFF;fill-opacity:0.5;stroke:#FFF;}#m2v-probe .radarCurve-8{color:#DDD;fill:#DDD;fill-opacity:0.5;stroke:#DDD;stroke-width:2;}#m2v-probe .radarLegendBox-8{fill:#DDD;fill-opacity:0.5;stroke:#DDD;}#m2v-probe .radarCurve-9{color:#BBB;fill:#BBB;fill-opacity:0.5;stroke:#BBB;stroke-width:2;}#m2v-probe .radarLegendBox-9{fill:#BBB;fill-opacity:0.5;stroke:#BBB;}#m2v-probe .radarCurve-10{color:#999;fill:#999;fill-opacity:0.5;stroke:#999;stroke-width:2;}#m2v-probe .radarLegendBox-10{fill:#999;fill-opacity:0.5;stroke:#999;}#m2v-probe .radarCurve-11{color:#777;fill:#777;fill-opacity:0.5;stroke:#777;stroke-width:2;}#m2v-probe .radarLegendBox-11{fill:#777;fill-opacity:0.5;stroke:#777;}#m2v-probe .node .neo-node{stroke:#999;}#m2v-probe [data-look="neo"].node rect,#m2v-probe [data-look="neo"].cluster rect,#m2v-probe [data-look="neo"].node polygon{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].swimlane.cluster rect{filter:none;}#m2v-probe [data-look="neo"].node path{stroke:url(#m2v-probe-gradient);stroke-width:1px;}#m2v-probe [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node .neo-line path{stroke:#999;filter:none;}#m2v-probe [data-look="neo"].node circle{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].node circle .state-start{fill:#000000;}#m2v-probe [data-look="neo"].icon-shape .icon{fill:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe [data-look="neo"].icon-shape .icon-neo path{stroke:url(#m2v-probe-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#m2v-probe :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style>
+<g>
+</g>
+<g transform="translate(350, 350)">
+<circle r="60" class="radarGraticule">
+</circle>
+<circle r="120" class="radarGraticule">
+</circle>
+<circle r="180" class="radarGraticule">
+</circle>
+<circle r="240" class="radarGraticule">
+</circle>
+<circle r="300" class="radarGraticule">
+</circle>
+<line x1="0" y1="0" x2="1.8369701987210297e-14" y2="-300" class="radarAxisLine">
+</line>
+<text x="1.9533116446400285e-14" y="-319" text-anchor="middle" dominant-baseline="auto" class="radarAxisLabel">Speed</text>
+<line x1="0" y1="0" x2="300" y2="0" class="radarAxisLine">
+</line>
+<text x="319" y="0" text-anchor="start" dominant-baseline="central" class="radarAxisLabel">Power</text>
+<line x1="0" y1="0" x2="1.8369701987210297e-14" y2="300" class="radarAxisLine">
+</line>
+<text x="1.9533116446400285e-14" y="319" text-anchor="middle" dominant-baseline="hanging" class="radarAxisLabel">Range</text>
+<line x1="0" y1="0" x2="-300" y2="3.6739403974420595e-14" class="radarAxisLine">
+</line>
+<text x="-319" y="3.906623289280057e-14" text-anchor="end" dominant-baseline="central" class="radarAxisLabel">Cost</text>
+<path d="M1.469576158976824e-14,-240 C51.00000000000002,-240 180,-76.5 180,0 C180,76.5 51.00000000000002,210 1.2858791391047208e-14,210 C-50.99999999999999,210 -120,76.50000000000001 -120,1.469576158976824e-14 C-120,-76.49999999999999 -50.99999999999999,-240 1.469576158976824e-14,-240 Z" class="radarCurve-0">
+</path>
+<path d="M9.184850993605149e-15,-150 C81.60000000000002,-150 270,-45.900000000000006 270,0 C270,45.900000000000006 81.60000000000002,120 7.34788079488412e-15,120 C-81.6,120 -210,45.900000000000034 -210,2.5717582782094416e-14 C-210,-45.89999999999998 -81.6,-150 9.184850993605149e-15,-150 Z" class="radarCurve-1">
+</path>
+<g transform="translate(262.5, -262.5)">
+<rect width="12" height="12" class="radarLegendBox-0">
+</rect>
+<text x="16" y="0" class="radarLegendText">Model X</text>
+</g>
+<g transform="translate(262.5, -242.5)">
+<rect width="12" height="12" class="radarLegendBox-1">
+</rect>
+<text x="16" y="0" class="radarLegendText">Model Y</text>
+</g>
+<text class="radarTitle" x="0" y="-350">Skills</text>
+</g>
+</svg>

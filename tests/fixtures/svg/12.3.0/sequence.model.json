@@ -1,0 +1,255 @@
+{
+ "mermaidType": "sequence",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 7,
+  "circle": 3,
+  "ellipse": 0,
+  "polygon": 2,
+  "path": 11,
+  "line": 33,
+  "text": 27,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": "",
+  "getMessages": [
+   {
+    "id": "0",
+    "from": null,
+    "to": null,
+    "message": {
+     "start": null,
+     "step": null,
+     "visible": true
+    },
+    "wrap": false,
+    "type": 26
+   },
+   {
+    "id": "1",
+    "from": "U",
+    "to": "W",
+    "message": "Sign in",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "2",
+    "from": "W",
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 17,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "3",
+    "from": "W",
+    "to": "D",
+    "message": "Look up user",
+    "wrap": false,
+    "type": 0,
+    "activate": true,
+    "centralConnection": 0
+   },
+   {
+    "id": "4",
+    "from": "D",
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 17,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "5",
+    "from": "D",
+    "to": "W",
+    "message": "Row",
+    "wrap": false,
+    "type": 1,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "6",
+    "from": "D",
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 18,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "7",
+    "from": null,
+    "to": null,
+    "message": "found",
+    "wrap": false,
+    "type": 12,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "8",
+    "from": "W",
+    "to": "U",
+    "message": "Welcome",
+    "wrap": false,
+    "type": 1,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "9",
+    "from": null,
+    "to": null,
+    "message": "missing",
+    "wrap": false,
+    "type": 13,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "10",
+    "from": "W",
+    "to": "U",
+    "message": "Try again",
+    "wrap": false,
+    "type": 25,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "11",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 14,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "12",
+    "from": "W",
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 18,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "13",
+    "from": null,
+    "to": null,
+    "message": "every minute",
+    "wrap": false,
+    "type": 10,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "14",
+    "from": "W",
+    "to": "W",
+    "message": "Refresh token",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "15",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 11,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "16",
+    "from": "W",
+    "to": "D",
+    "message": "Shared cache",
+    "wrap": false,
+    "type": 2,
+    "placement": 2
+   },
+   {
+    "id": "17",
+    "from": "U",
+    "to": "W",
+    "message": "Close",
+    "wrap": false,
+    "type": 3,
+    "activate": false,
+    "centralConnection": 0
+   }
+  ],
+  "getBoxes": [],
+  "getActors": {
+   "U": {
+    "box": null,
+    "name": "U",
+    "description": "User",
+    "wrap": false,
+    "prevActor": null,
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "actor",
+    "nextActor": "W"
+   },
+   "W": {
+    "box": null,
+    "name": "W",
+    "description": "Web",
+    "wrap": false,
+    "prevActor": "U",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "participant",
+    "nextActor": "D"
+   },
+   "D": {
+    "box": null,
+    "name": "D",
+    "description": "Database",
+    "wrap": false,
+    "prevActor": "W",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "participant"
+   }
+  },
+  "getCreatedActors": {},
+  "getDestroyedActors": {},
+  "getActorKeys": [
+   "U",
+   "W",
+   "D"
+  ]
+ }
+}
