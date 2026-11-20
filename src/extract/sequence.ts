@@ -5,6 +5,15 @@
 
 import type { GraphData } from '../core/types.js';
 
+// Sequence markers are referenced as url(#<svgId>-<name>).
+function markerKind(ref: string | null): string {
+    const name = /#[^)]*?-?(arrowhead|crosshead|filled-head|solidTopArrowHead|solidBottomArrowHead|stickTopArrowHead|stickBottomArrowHead)\)?$/.exec(ref || '')?.[1];
+    if (!name) return 'none';
+    if (name === 'crosshead') return 'arrow_cross';
+    if (name === 'filled-head') return 'arrow_open';
+    return 'arrow_point';
+}
+
 export function extractSequence(svg: SVGSVGElement, graphWidth: number, graphHeight: number): GraphData {
     const num = (el: Element | null, attr: string) => parseFloat(el?.getAttribute(attr) || '0');
     const actorRects = Array.from(svg.querySelectorAll('rect.actor-top, rect.actor-bottom')) as SVGGraphicsElement[];
@@ -96,7 +105,14 @@ export function extractSequence(svg: SVGSVGElement, graphWidth: number, graphHei
         const ts = tEl ? window.getComputedStyle(tEl) : null;
         seqEdges.push({
             d,
-            arrowStart: false, arrowEnd: true,
+            // The arrowhead, if any, is a marker reference: `A->B` draws a
+            // plain line, `A->>B` an arrowhead, `A<<->>B` one at each end.
+            // (`autonumber` also uses marker-start, for the number badge,
+            // which markerKind() reports as 'none'.)
+            arrowStart: markerKind(ml.getAttribute('marker-start')) !== 'none',
+            arrowEnd: markerKind(ml.getAttribute('marker-end')) !== 'none',
+            arrowStartKind: markerKind(ml.getAttribute('marker-start')),
+            arrowEndKind: markerKind(ml.getAttribute('marker-end')),
             text: tEl?.textContent?.trim() || undefined,
             labelStyle: tEl ? {
                 color: ts?.color, fontSize: ts?.fontSize,

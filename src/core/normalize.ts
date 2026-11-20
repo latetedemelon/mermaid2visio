@@ -52,6 +52,31 @@ export interface ContentBounds {
     maxY: number;
 }
 
+// Extent of the coordinates in an SVG path `d` string (absolute commands).
+// Control points are included, so for curves this is a slight over-estimate,
+// which is what a page-bounds calculation wants.
+export function pathBounds(d: string): ContentBounds | null {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let curX = 0, curY = 0;
+    const see = (x: number, y: number) => {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        curX = x; curY = y;
+    };
+    for (const [, cmd, args] of d.matchAll(/([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g)) {
+        const upper = cmd.toUpperCase();
+        if (upper === 'Z' || cmd !== upper) continue;
+        const v = (args.match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g) || []).map(parseFloat);
+        if (upper === 'H') { for (const x of v) see(x, curY); continue; }
+        if (upper === 'V') { for (const y of v) see(curX, y); continue; }
+        const step = upper === 'A' ? 7 : 2;
+        for (let i = upper === 'A' ? 5 : 0; i + 1 < v.length; i += step) see(v[i], v[i + 1]);
+    }
+    return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+}
+
 export function normalizeContentBounds(graph: GraphData): ContentBounds {
     const xs: number[] = [];
     const ys: number[] = [];
@@ -69,6 +94,19 @@ export function normalizeContentBounds(graph: GraphData): ContentBounds {
         xs.push(l.x); ys.push(l.y);
         maxXs.push(l.x + l.width); maxYs.push(l.y + l.height);
     }
+    // Edges can reach outside every node (self-loops, wide curves, sequence
+    // self-messages), and so can their labels.
+    for (const e of graph.edges) {
+        const b = e.d ? pathBounds(e.d) : null;
+        if (b) {
+            xs.push(b.minX); ys.push(b.minY);
+            maxXs.push(b.maxX); maxYs.push(b.maxY);
+        }
+        if (e.labelX !== undefined && e.labelY !== undefined) {
+            xs.push(e.labelX); ys.push(e.labelY);
+            maxXs.push(e.labelX + (e.labelWidth ?? 0)); maxYs.push(e.labelY + (e.labelHeight ?? 0));
+        }
+    }
     const minX = xs.length ? Math.min(...xs) : 0;
     const minY = ys.length ? Math.min(...ys) : 0;
     const maxX = maxXs.length ? Math.max(...maxXs) : graph.width;
@@ -79,6 +117,8 @@ export function normalizeContentBounds(graph: GraphData): ContentBounds {
     for (const l of graph.labels) { l.x -= minX; l.y -= minY; }
     for (const e of graph.edges) {
         if (e.d) e.d = translatePathD(e.d, -minX, -minY);
+        if (e.labelX !== undefined) e.labelX -= minX;
+        if (e.labelY !== undefined) e.labelY -= minY;
     }
 
     graph.width = maxX - minX;
