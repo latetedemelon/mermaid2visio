@@ -22,7 +22,7 @@
 <rect x="150" y="50" fill="#191970" stroke="#666" width="350" height="50" rx="3" ry="3" class="journey-section section-type-0">
 </rect>
 <switch>
-<foreignObject x="150" y="50" width="350" height="50" position="fixed">
+<foreignObject x="150" y="50" width="350" height="50">
 <div class="journey-section section-type-0" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
 <div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Morning</div>
 </div>
@@ -51,7 +51,7 @@
 <title>Me</title>
 </circle>
 <switch>
-<foreignObject x="150" y="110" width="150" height="50" position="fixed">
+<foreignObject x="150" y="110" width="150" height="50">
 <div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
 <div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Make tea</div>
 </div>
@@ -83,7 +83,7 @@
 <title>Cat</title>
 </circle>
 <switch>
-<foreignObject x="350" y="110" width="150" height="50" position="fixed">
+<foreignObject x="350" y="110" width="150" height="50">
 <div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
 <div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Commute</div>
 </div>
@@ -97,7 +97,7 @@
 <rect x="550" y="50" fill="#8B008B" stroke="#666" width="150" height="50" rx="3" ry="3" class="journey-section section-type-1">
 </rect>
 <switch>
-<foreignObject x="550" y="50" width="150" height="50" position="fixed">
+<foreignObject x="550" y="50" width="150" height="50">
 <div class="journey-section section-type-1" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
 <div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Evening</div>
 </div>
@@ -126,7 +126,7 @@
 <title>Me</title>
 </circle>
 <switch>
-<foreignObject x="550" y="110" width="150" height="50" position="fixed">
+<foreignObject x="550" y="110" width="150" height="50">
 <div class="task" xmlns="http://www.w3.org/1999/xhtml" style="display: table; height: 100%; width: 100%;">
 <div class="label" style="display: table-cell; text-align: center; vertical-align: middle;">Cook</div>
 </div>

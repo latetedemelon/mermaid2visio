@@ -187,7 +187,9 @@ export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult
         if (!pc) {
             errors.push('page1.xml: missing <PageContents> root');
         } else {
-            const shapes = asArray<any>(pc.Shapes?.Shape);
+            // Groups nest their sub-shapes; every rule applies at every level.
+            const collect = (list: any[]): any[] => list.flatMap(sh => [sh, ...collect(asArray<any>(sh.Shapes?.Shape))]);
+            const shapes = collect(asArray<any>(pc.Shapes?.Shape));
             const shapeIds = new Set<number>();
             const sheetRefs: Array<{ from: number; to: number; cell: string }> = [];
             for (const sh of shapes) {
@@ -298,15 +300,22 @@ export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult
 
         // Shape child order: Cells -> Sections -> Text. Verified on raw text
         // because element interleave order is invisible in the object model.
-        const shapeBlocks = pageText.match(/<Shape\b[^>]*>[\s\S]*?<\/Shape>/g) || [];
-        for (const block of shapeBlocks) {
-            const idMatch = /ID="(\d+)"/.exec(block);
-            const id = idMatch ? idMatch[1] : '?';
-            const textIdx = block.indexOf('<Text>');
-            const lastSection = block.lastIndexOf('</Section>');
-            if (textIdx !== -1 && lastSection !== -1 && textIdx < lastSection) {
-                errors.push(`page1.xml: Shape ${id} emits <Text> before a </Section> (schema order is Cells->Sections->Text)`);
+        // Check innermost shapes first and remove them, so a group's own
+        // children are judged separately from the group.
+        let remaining = pageText;
+        const innermost = /<Shape\b[^>]*>(?:(?!<Shape\b)[\s\S])*?<\/Shape>/g;
+        for (let pass = 0; pass < 50; pass++) {
+            const blocks = remaining.match(innermost);
+            if (!blocks) break;
+            for (const block of blocks) {
+                const id = /ID="(\d+)"/.exec(block)?.[1] ?? '?';
+                const textIdx = block.indexOf('<Text>');
+                const lastSection = block.lastIndexOf('</Section>');
+                if (textIdx !== -1 && lastSection !== -1 && textIdx < lastSection) {
+                    errors.push(`page1.xml: Shape ${id} emits <Text> before a </Section> (schema order is Cells->Sections->Text)`);
+                }
             }
+            remaining = remaining.replace(innermost, '');
         }
     }
 

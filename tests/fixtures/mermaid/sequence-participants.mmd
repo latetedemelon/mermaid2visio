@@ -1,0 +1,36 @@
+sequenceDiagram
+    participant P as Plain
+    actor A as Person
+    participant B@{ "type": "boundary" } as Boundary
+    participant C@{ "type": "control" } as Control
+    participant E@{ "type": "entity" } as Entity
+    participant D@{ "type": "database" } as Store
+    participant L@{ "type": "collections" } as Items
+    participant Q@{ "type": "queue" } as Jobs
+    box Aqua Backend
+        participant S as Service
+    end
+    A->>P: one
+    P->>B: two
+    B->>C: three
+    C->>E: four
+    E->>D: five
+    D->>L: six
+    L->>Q: seven
+    Q->>S: eight
+    par first
+        S->>A: a
+    and second
+        S-)P: b
+    end
+    critical check
+        P->>P: self
+    option fail
+        P--xA: no
+    end
+    break stop
+        A->>P: bye
+    end
+    rect rgb(200, 220, 255)
+        P->>A: highlighted
+    end

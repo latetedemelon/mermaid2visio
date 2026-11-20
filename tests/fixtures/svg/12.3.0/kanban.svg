@@ -6,10 +6,10 @@
 <g class="cluster undefined section-1" id="m2v-probe-todo" data-look="classic">
 <rect style="" rx="5" ry="5" x="100" y="-300" width="200" height="122">
 </rect>
-<g class="cluster-label " transform="translate(182.875, -300)">
+<g class="cluster-label" transform="translate(182.875, -300)">
 <foreignObject width="34.25" height="21">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>To do</p>
 </span>
 </div>
@@ -19,10 +19,10 @@
 <g class="cluster undefined section-2" id="m2v-probe-doing" data-look="classic">
 <rect style="" rx="5" ry="5" x="305" y="-300" width="200" height="76">
 </rect>
-<g class="cluster-label " transform="translate(369.9765625, -300)">
+<g class="cluster-label" transform="translate(369.9765625, -300)">
 <foreignObject width="70.046875" height="21">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>In progress</p>
 </span>
 </div>
@@ -32,10 +32,10 @@
 <g class="cluster undefined section-3" id="m2v-probe-done" data-look="classic">
 <rect style="" rx="5" ry="5" x="510" y="-300" width="200" height="76">
 </rect>
-<g class="cluster-label " transform="translate(593.265625, -300)">
+<g class="cluster-label" transform="translate(593.265625, -300)">
 <foreignObject width="33.46875" height="21">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>Done</p>
 </span>
 </div>
@@ -44,7 +44,7 @@
 </g>
 </g>
 <g class="items">
-<g class="node undefined " id="m2v-probe-t1" transform="translate(200, -254.5)">
+<g class="node undefined" id="m2v-probe-t1" transform="translate(200, -254.5)">
 <rect class="basic label-container __APA__" style="" rx="5" ry="5" x="-92.5" y="-20.5" width="185" height="41">
 </rect>
 <g class="label" style="text-align:left !important" transform="translate(-82.5, -10.5)">
@@ -63,7 +63,7 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
@@ -73,13 +73,13 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
 </g>
 </g>
-<g class="node undefined " id="m2v-probe-t2" transform="translate(200, -208.5)">
+<g class="node undefined" id="m2v-probe-t2" transform="translate(200, -208.5)">
 <rect class="basic label-container __APA__" style="" rx="5" ry="5" x="-92.5" y="-20.5" width="185" height="41">
 </rect>
 <g class="label" style="text-align:left !important" transform="translate(-82.5, -10.5)">
@@ -98,7 +98,7 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
@@ -108,13 +108,13 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
 </g>
 </g>
-<g class="node undefined " id="m2v-probe-t3" transform="translate(405, -254.5)">
+<g class="node undefined" id="m2v-probe-t3" transform="translate(405, -254.5)">
 <rect class="basic label-container __APA__" style="" rx="5" ry="5" x="-92.5" y="-20.5" width="185" height="41">
 </rect>
 <g class="label" style="text-align:left !important" transform="translate(-82.5, -10.5)">
@@ -133,7 +133,7 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
@@ -143,13 +143,13 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
 </g>
 </g>
-<g class="node undefined " id="m2v-probe-t4" transform="translate(610, -254.5)">
+<g class="node undefined" id="m2v-probe-t4" transform="translate(610, -254.5)">
 <rect class="basic label-container __APA__" style="" rx="5" ry="5" x="-92.5" y="-20.5" width="185" height="41">
 </rect>
 <g class="label" style="text-align:left !important" transform="translate(-82.5, -10.5)">
@@ -168,7 +168,7 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>
@@ -178,7 +178,7 @@
 </rect>
 <foreignObject width="0" height="0">
 <div style="text-align: center; display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 175px;" xmlns="http://www.w3.org/1999/xhtml">
-<span style="text-align:left !important" class="nodeLabel ">
+<span style="text-align:left !important" class="nodeLabel">
 </span>
 </div>
 </foreignObject>

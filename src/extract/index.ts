@@ -9,6 +9,9 @@ import { normalizeContentBounds, type ContentBounds } from '../core/normalize.js
 import { readRawModel, toUnifiedModel, type UnifiedModel } from './model.js';
 import { extractSequence } from './sequence.js';
 import { extractUnified } from './unified.js';
+import { extractPrimitives } from './primitives.js';
+import { ARCHITECTURE_SPEC, C4_SPEC, extractDrawnGraph } from './drawn.js';
+import { diagramKind, UNIFIED_KINDS } from '../core/detect.js';
 
 // Prefix on errors thrown by a failed mermaid.render(), so callers can tell a
 // diagram syntax error from a bug in the extraction code.
@@ -27,8 +30,18 @@ export function extractGraph(svg: SVGSVGElement, diagramType: string, model: Uni
     const graphWidth = viewBox[2] || parseFloat(svg.getAttribute('width') || '0');
     const graphHeight = viewBox[3] || parseFloat(svg.getAttribute('height') || '0');
 
-    if (diagramType === 'sequenceDiagram') return extractSequence(svg, graphWidth, graphHeight);
-    return extractUnified(svg, graphWidth, graphHeight, model);
+    const kind = diagramKind(diagramType)?.kind;
+    if (kind === 'sequence') return extractSequence(svg, graphWidth, graphHeight);
+    if (kind === 'c4') return extractDrawnGraph(svg, graphWidth, graphHeight, C4_SPEC);
+    if (kind === 'architecture') return extractDrawnGraph(svg, graphWidth, graphHeight, ARCHITECTURE_SPEC);
+    // Diagrams on the unified renderer have nodes and edges to map. If one
+    // yields nothing (an unknown type that happens to match, an empty
+    // diagram), or the type isn't a graph at all, draw what was rendered.
+    if (!kind || UNIFIED_KINDS.has(kind)) {
+        const graph = extractUnified(svg, graphWidth, graphHeight, model);
+        if (graph.nodes.length + graph.clusters.length + graph.edges.length > 0) return graph;
+    }
+    return extractPrimitives(svg, graphWidth, graphHeight);
 }
 
 let renderCounter = 0;

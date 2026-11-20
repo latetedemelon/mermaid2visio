@@ -108,24 +108,23 @@ Right-click any `.mmd` or `.md` file to convert.
 
 ## Supported Diagram Types
 
-This tool converts Mermaid's rendered SVG geometry into native, editable Visio
-shapes. The extractor is **flowchart-oriented**, so support varies by diagram
-type. Any Mermaid diagram will at least produce a valid `.vsdx` that opens in
-Visio; the table below describes how much of it comes across as editable shapes.
+Every diagram type Mermaid 12.3 renders converts to a non-blank `.vsdx`. How
+"live" the result is depends on the type:
 
-| Diagram type | Support | Notes |
+| Diagram type | Result | Notes |
 |---|---|---|
-| **Flowcharts** (`flowchart`, `graph` TD/LR/RL/BT) | ✅ Full | Nodes, edges, subgraphs, shape types, styling, hyperlinks, glued connectors. Newer shapes not listed below are drawn as rectangles. |
-| **Sequence diagrams** | 🟡 Partial | Participant boxes, lifelines, activations, notes and messages (captions, dashed/solid, arrowheads) map to shapes and lines. Loop/alt frames and stick-figure actors are not yet extracted. |
-| **Class diagrams** | 🟡 Partial | Class boxes and relationships map; member/method detail is limited |
-| **State diagrams** (`stateDiagram-v2`) | 🟡 Partial | States and transitions map |
-| **ER diagrams** | 🟡 Partial | Entities and relationships map |
-| **Pie, Gantt, Journey, Git graph, Mindmap, C4, XY, Sankey** | ❌ Not yet | Currently produce a **blank** (but valid) `.vsdx`. The CLI prints a warning when no shapes are extracted. |
+| **Flowcharts** (`flowchart`, `graph`) | ✅ Live | Shapes, subgraphs as containers, connectors glued to their shapes, captions, styling, hyperlinks. Shapes without a Visio equivalent keep the exact outline Mermaid drew. |
+| **Class diagrams** | ✅ Live | Each class is a group: outline with compartment dividers, and every member as its own text. Relationships are glued, with UML line ends and multiplicities. |
+| **State diagrams** | ✅ Live | States, transitions, start/end/choice nodes; composite states are containers. |
+| **ER diagrams** | ✅ Live | Entities with their attribute rows; relationships glued, with crow's-foot ends. |
+| **C4, architecture, block** | ✅ Live | Each element is one shape (a group when it has several coloured parts, such as a C4 person or an architecture service icon) with its texts; relationships are glued connectors with their labels; architecture groups are containers. |
+| **Requirement, mindmap, kanban, use case, swimlane, agent flow** | 🟡 Live, less polished | Nodes and glued connectors map; type-specific decoration may be simplified. |
+| **Sequence diagrams** | 🟡 Mostly | Every participant kind (box, stick figure, boundary, control, entity, database, collections, queue) as one named shape; lifelines; messages with captions and the right arrowheads; activations; notes; loop/alt/opt/par/critical/break frames as one grouped shape; autonumber badges; group boxes and highlights. Messages are lines, not glued to lifelines. |
+| **Pie, Gantt, XY chart, quadrant, Sankey, timeline, journey, git graph, packet, radar, treemap, tree view, Venn, Ishikawa, Wardley, Cynefin, railroad, event modeling** | 🟦 Static drawing | Drawn as individual editable shapes and text boxes in the right places and colours. Nothing is connected: moving a box does not move its lines. |
 
-> If you convert an unsupported type, you'll see a
-> `Warning: no shapes extracted` message naming the detected diagram type.
-> Native serializers for these types (especially sequence diagrams) are the
-> main item on the roadmap.
+"Static drawing" means every bar, slice, line and label is its own Visio shape
+you can recolour, move or delete, but the file does not know that, say, an
+arrow joins two boxes.
 
 Flowcharts support:
 - **Subgraphs**, as Visio containers that move their members

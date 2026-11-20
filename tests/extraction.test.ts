@@ -3,6 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { parseMermaid } from '../src/parser';
 import { pathBounds } from '../src/core/normalize';
+import { VsdxGenerator } from '../src/vsdx';
+import { validateVsdx } from '../src/validate';
+import { unzipPage } from './helpers';
 
 const fixture = (name: string) => fs.readFileSync(path.join(process.cwd(), 'tests', 'fixtures', 'mermaid', name), 'utf8');
 const edgeKey = (e: { startId?: string; endId?: string }) => `${e.startId}->${e.endId}`;
@@ -198,6 +201,208 @@ describe('sequence extraction', () => {
         expect(msg['dashed arrow'].arrowEnd).toBe(true);
         expect(msg['cross'].arrowEndKind).toBe('arrow_cross');
         expect([msg['both ways'].arrowStart, msg['both ways'].arrowEnd]).toEqual([true, true]);
+    }, 60000);
+});
+
+// Shapes and connectors are read from different parts of the SVG. They must
+// end up in one coordinate system: every glued edge has to start and end on
+// (or within a couple of pixels of) the outline of the shape it joins.
+describe('edges meet the shapes they connect', () => {
+    const onBoundary = (p: { x: number; y: number }, n: { x: number; y: number; width: number; height: number }, slack = 3) => {
+        const inside = p.x >= n.x - slack && p.x <= n.x + n.width + slack && p.y >= n.y - slack && p.y <= n.y + n.height + slack;
+        const deep = p.x > n.x + slack + 6 && p.x < n.x + n.width - slack - 6 && p.y > n.y + slack + 6 && p.y < n.y + n.height - slack - 6;
+        return inside && !deep;
+    };
+    const ends = (d: string) => {
+        const nums = (d.match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g) || []).map(parseFloat);
+        return { start: { x: nums[0], y: nums[1] }, end: { x: nums[nums.length - 2], y: nums[nums.length - 1] } };
+    };
+    const check = async (src: string, minEdges: number) => {
+        const g = await parseMermaid(src);
+        const byId = new Map<string, any>([...g.nodes, ...g.clusters].map(n => [n.id, n]));
+        let checked = 0;
+        for (const e of g.edges) {
+            const a = byId.get(e.startId!), b = byId.get(e.endId!);
+            // Only rectangular outlines: for a diamond or circle the box
+            // corners are legitimately far from the outline.
+            if (!a || !b || a.type !== 'rectangle' || b.type !== 'rectangle') continue;
+            const { start, end } = ends(e.d);
+            expect(onBoundary(start, a)).toBe(true);
+            // The end stops short of the shape by the arrowhead's length.
+            expect(onBoundary(end, b, 8)).toBe(true);
+            checked++;
+        }
+        expect(checked).toBeGreaterThanOrEqual(minEdges);
+    };
+
+    it('in an ordinary flowchart', async () => {
+        await check('flowchart TD\n  A[One] --> B[Two]\n  B --> C[Three]\n  A --> C', 3);
+    }, 60000);
+
+    // A diagram wider than the browser window is scaled down to fit. That
+    // must not change where anything is.
+    it('in a diagram much wider than the browser window', async () => {
+        const nodes = Array.from({ length: 24 }, (_, i) => `N${i}[Node number ${i}]`);
+        await check('flowchart LR\n  ' + nodes.join(' --> '), 20);
+    }, 60000);
+
+    // Mermaid puts these edges in a nested group with its own offset.
+    it('inside a subgraph that has connections to the outside', async () => {
+        await check('flowchart TD\n  subgraph S [Group]\n    A[One] --> B[Two]\n  end\n  X[Out] --> S\n  B --> Y[After]', 2);
+    }, 60000);
+
+    it('inside a composite state', async () => {
+        const g = await parseMermaid(fixture('state.mmd'));
+        const byId = new Map(g.nodes.map(n => [n.id, n]));
+        const heat = g.edges.find(e => e.text === 'heat')!;
+        const { start, end } = ends(heat.d);
+        expect(onBoundary(start, byId.get('Warm')!)).toBe(true);
+        expect(onBoundary(end, byId.get('Hot')!, 8)).toBe(true);
+        // The composite state itself is a container holding its sub-states.
+        expect(g.clusters.map(c => c.id)).toContain('Running');
+        expect(byId.get('Warm')!.parentId).toBe('Running');
+    }, 60000);
+});
+
+describe('shapes without parametric geometry', () => {
+    it('carry the outline Mermaid drew and where it put the text', async () => {
+        const g = await parseMermaid(fixture('flowchart-shapes.mmd'));
+        const byId = Object.fromEntries(g.nodes.map(n => [n.id, n]));
+        for (const id of ['a', 'e', 'f', 'g', 'h', 'k', 'l', 'm', 'n']) {
+            const n = byId[id];
+            expect(n.type).toBe('path');
+            expect(n.paths!.length).toBeGreaterThan(0);
+            // Outline points lie within the node's box.
+            for (const piece of n.paths!) for (const sub of piece.subpaths) for (const [x, y] of sub) {
+                expect(x).toBeGreaterThanOrEqual(-1);
+                expect(y).toBeGreaterThanOrEqual(-1);
+                expect(x).toBeLessThanOrEqual(n.width + 1);
+                expect(y).toBeLessThanOrEqual(n.height + 1);
+            }
+        }
+        // A fill path and its identical stroke path are one piece.
+        expect(byId.g.paths!.length).toBe(1);
+        expect(byId.g.paths![0]).toMatchObject({ fill: true, line: true });
+        // A triangle's label sits in its lower half.
+        const tri = byId.g;
+        expect(tri.textY! + tri.textHeight! / 2).toBeGreaterThan(tri.y + tri.height / 2);
+        // Parametric shapes keep their family; every edge is still attached.
+        expect(byId.b.type).toBe('hexagon');
+        expect(byId.j.type).toBe('circle');
+        expect(g.edges.every(e => byId[e.startId!] && byId[e.endId!])).toBe(true);
+    }, 60000);
+
+    it('are written as geometry that scales with the shape', async () => {
+        const g = await parseMermaid('flowchart TD\n  t@{ shape: tri, label: "T" }');
+        const xml = await unzipPage(await new VsdxGenerator().generate(g));
+        expect(xml).toMatch(/<Row T="LineTo" IX="\d+"><Cell N="X" V="[^"]+" F="Width\*[\d.]+"\/><Cell N="Y" V="[^"]+" F="Height\*[\d.]+"\/>/);
+        expect(xml).toMatch(/<Cell N="TxtPinY" V="[^"]+" F="Height\*[\d.]+"\/>/);
+        expect((await validateVsdx(await new VsdxGenerator().generate(g))).errors).toEqual([]);
+    }, 60000);
+});
+
+describe('nodes with several texts', () => {
+    it('keep every text in place and become a group', async () => {
+        const g = await parseMermaid(fixture('class.mmd'));
+        const animal = g.nodes.find(n => n.id === 'Animal')!;
+        expect(animal.children!.map(c => c.text)).toEqual(['Animal', '+String name', '#int age', '+eat() : void', '+sleep()']);
+        // Each text lies inside the class box, in reading order.
+        const ys = animal.children!.map(c => c.y);
+        expect([...ys].sort((a, b) => a - b)).toEqual(ys);
+        for (const c of animal.children!) {
+            expect(c.x).toBeGreaterThanOrEqual(animal.x);
+            expect(c.y + c.height).toBeLessThanOrEqual(animal.y + animal.height + 1);
+        }
+        // The outline includes the compartment dividers.
+        expect(animal.paths!.length).toBeGreaterThan(1);
+        // Multiplicities at the relationship ends are kept.
+        expect(g.labels.map(l => l.text)).toEqual(expect.arrayContaining(['1', '*']));
+
+        const bytes = await new VsdxGenerator().generate(g);
+        expect((await validateVsdx(bytes)).errors).toEqual([]);
+        const xml = await unzipPage(bytes);
+        const group = /<Shape ID="1" Type="Group">([\s\S]*?)<\/Shapes><\/Shape>/.exec(xml)![1];
+        expect(group).toContain('<Text>+String name</Text>');
+        // Sub-shapes are placed as fractions of the group, so they follow it.
+        expect(group).toMatch(/<Cell N="PinX" V="[^"]+" F="Sheet\.1!Width\*[\d.]+"\/>/);
+        // Ids stay unique across top-level shapes and sub-shapes.
+        const ids = [...xml.matchAll(/<Shape ID="(\d+)"/g)].map(m => m[1]);
+        expect(new Set(ids).size).toBe(ids.length);
+    }, 60000);
+});
+
+describe('chart-like diagrams become editable drawings', () => {
+    it('draws each pie slice as its own filled shape, with the legend and title as text', async () => {
+        const g = await parseMermaid(fixture('pie.mmd'));
+        // Slices (and legend swatches) are filled; three series, three colours.
+        const slices = g.nodes.filter(n => n.type === 'path' && n.paths![0].fill && n.height > 30);
+        expect(slices.length).toBeGreaterThanOrEqual(3);
+        expect(new Set(slices.map(s => s.style!.fill)).size).toBeGreaterThanOrEqual(3);
+        expect(g.labels.map(l => l.text)).toEqual(expect.arrayContaining(['Pets adopted', '79%']));
+        expect(g.edges).toEqual([]);
+    }, 60000);
+
+    it('ignores what lies outside the visible diagram', async () => {
+        // The "today" marker of a Gantt chart about January sits far off to
+        // the right for most of the year.
+        const g = await parseMermaid(fixture('gantt.mmd'));
+        expect(g.width).toBeLessThan(1500);
+    }, 60000);
+
+    it('keeps rotated axis titles rotated', async () => {
+        const g = await parseMermaid(fixture('xychart.mmd'));
+        const title = g.labels.find(l => l.text === 'Revenue')!;
+        expect(Math.abs(title.angle!)).toBeCloseTo(90, 0);
+        const xml = await unzipPage(await new VsdxGenerator().generate(g));
+        expect(xml).toMatch(/<Cell N="Angle" V="-?1\.5707\d*"\/>/);
+    }, 60000);
+});
+
+describe('C4, architecture and block diagrams have attached connectors', () => {
+    const attached = async (file: string) => {
+        const g = await parseMermaid(fixture(file));
+        const bytes = await new VsdxGenerator().generate(g);
+        expect((await validateVsdx(bytes)).errors).toEqual([]);
+        return { g, xml: await unzipPage(bytes) };
+    };
+    const pairs = (g: Awaited<ReturnType<typeof parseMermaid>>) => g.edges.map(e => `${e.startId}->${e.endId}`).sort();
+
+    it('C4: each element is one shape, each relationship glued and labelled', async () => {
+        const { g, xml } = await attached('c4.mmd');
+        expect(pairs(g)).toEqual(['customer->shop', 'shop->pay']);
+        expect(g.edges.map(e => e.text).sort()).toEqual(['Charges via', 'Uses']);
+        const customer = g.nodes.find(n => n.id === 'customer')!;
+        // A person is a head and a body: a group whose parts keep their colour,
+        // with the name, type and description as its texts.
+        expect(customer.type).toBe('group');
+        expect(customer.parts!.length).toBeGreaterThanOrEqual(2);
+        expect(customer.children!.map(c => c.text)).toEqual(expect.arrayContaining(['Customer', '[Person]', 'Buys things']));
+        expect((xml.match(/<Connect /g) || []).length).toBe(4);
+        // The relationship labels are not also left behind as loose text.
+        expect(g.labels.map(l => l.text)).not.toContain('Uses');
+    }, 60000);
+
+    it('architecture: services keep their icons, edges are glued, groups are containers', async () => {
+        const { g, xml } = await attached('architecture.mmd');
+        expect(pairs(g)).toEqual(['db->server', 'disk->server']);
+        const db = g.nodes.find(n => n.id === 'db')!;
+        expect(db.type).toBe('group');
+        expect(db.children!.map(c => c.text)).toEqual(['Database']);
+        // Icon pieces are separately coloured: blue tile, white glyph.
+        expect(new Set(db.parts!.map(p => p.style!.fill)).size).toBeGreaterThan(1);
+        expect(g.clusters.map(c => c.id)).toEqual(['api']);
+        // The group is a container listing its members (the three services,
+        // and its own icon and label drawn inside it).
+        expect(xml).toMatch(/<Row N="msvStructureType"><Cell N="Value" V="Container"/);
+        expect(xml).toMatch(/DEPENDSON\(1,Sheet\.\d+!SheetRef\(\),Sheet\.\d+!SheetRef\(\),Sheet\.\d+!SheetRef\(\)/);
+    }, 60000);
+
+    it('block: blocks and arrows come from the model, with heads only where drawn', async () => {
+        const { g } = await attached('block.mmd');
+        expect(g.nodes.map(n => [n.id, n.text])).toEqual([['a', 'Input'], ['b', 'Process'], ['c', 'Output'], ['d', 'Store']]);
+        expect(pairs(g)).toEqual(['a->b', 'b->c', 'b->d']);
+        // The model calls the plain start "arrow_open"; no head is drawn there.
+        for (const e of g.edges) expect([e.arrowStart, e.arrowEnd]).toEqual([false, true]);
     }, 60000);
 });
 

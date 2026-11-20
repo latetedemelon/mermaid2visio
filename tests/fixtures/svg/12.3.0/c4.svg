@@ -21,7 +21,7 @@
 </symbol>
 </defs>
 <g transform="translate(258, 251.97320556640625)">
-<g class="node c4-shape c4-person " id="m2v-probe-customer">
+<g class="node c4-shape c4-person" id="m2v-probe-customer">
 <g class="basic label-container">
 <rect x="-108" y="-0.02680000000000682" width="216" height="86" rx="38.232" ry="38.232" style="fill:#08427B !important;stroke:#073B6F !important">
 </rect>
@@ -69,7 +69,7 @@
 </g>
 </g>
 <g transform="translate(574, 209)">
-<g class="node c4-shape c4-system " id="m2v-probe-shop">
+<g class="node c4-shape c4-system" id="m2v-probe-shop">
 <rect class="basic label-container" style="fill:#1168BD !important;stroke:#3C7FC0 !important;rx:12px !important;ry:12px !important" rx="5" ry="5" x="-108" y="-43" width="216" height="86">
 </rect>
 <g class="label" style="color:#FFFFFF !important" transform="translate(-42.6417236328125, -22.999999523162842)">
@@ -115,7 +115,7 @@
 </g>
 </g>
 <g transform="translate(258, 480.9464111328125)">
-<g class="node c4-shape c4-external_system c4-external " id="m2v-probe-pay">
+<g class="node c4-shape c4-external_system c4-external" id="m2v-probe-pay">
 <rect class="basic label-container" style="fill:#999999 !important;stroke:#8A8A8A !important;rx:12px !important;ry:12px !important" rx="5" ry="5" x="-108" y="-43" width="216" height="86">
 </rect>
 <g class="label" style="color:#FFFFFF !important" transform="translate(-42.6417236328125, -22.999999523162842)">
@@ -191,7 +191,7 @@
 <text x="394.6020518180008" y="235.232415128364" dominant-baseline="middle" fill="#444444" style="text-anchor: middle; font-size: 12px; font-weight: normal; font-family: &quot;Open Sans&quot;, sans-serif;">
 <tspan dy="0" alignment-baseline="mathematical">Uses</tspan>
 </text>
-<path fill="none" stroke-width="1" stroke="#444444" d="M524.034273504849,252 Q470.0171367524245,344.97320556640625 307.965726495151,437.9464111328125 " marker-end="url(#m2v-probe-arrowhead)">
+<path fill="none" stroke-width="1" stroke="#444444" d="M524.034273504849,252 Q470.0171367524245,344.97320556640625 307.965726495151,437.9464111328125" marker-end="url(#m2v-probe-arrowhead)">
 </path>
 <text x="448" y="344.97320556640625" dominant-baseline="middle" fill="#444444" style="text-anchor: middle; font-size: 12px; font-weight: normal; font-family: &quot;Open Sans&quot;, sans-serif;">
 <tspan dy="0" alignment-baseline="mathematical">Charges via</tspan>

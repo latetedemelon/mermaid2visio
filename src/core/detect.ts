@@ -13,7 +13,10 @@ export function detectDiagramType(definition: string): string {
     return (/^([A-Za-z][\w-]*)/.exec(firstMeaningful)?.[1]) ?? 'unknown';
 }
 
-export type SupportLevel = 'full' | 'partial' | 'none';
+// full: everything maps to live Visio shapes and glued connectors.
+// partial: shapes and connectors map, some detail is lost.
+// static: drawn as editable shapes and text, but nothing is connected.
+export type SupportLevel = 'full' | 'partial' | 'static' | 'none';
 
 export interface DiagramKind {
     // Stable name used throughout this project.
@@ -33,34 +36,40 @@ export const DIAGRAM_KINDS: DiagramKind[] = [
     { kind: 'class', match: /^classDiagram(-v2)?$/, support: 'partial' },
     { kind: 'state', match: /^stateDiagram(-v2)?$/, support: 'partial' },
     { kind: 'er', match: /^erDiagram$/, support: 'partial' },
-    { kind: 'requirement', match: /^requirement(Diagram)?$/, support: 'none' },
-    { kind: 'mindmap', match: /^mindmap$/, support: 'none' },
-    { kind: 'kanban', match: /^kanban$/, support: 'none' },
-    { kind: 'c4', match: /^C4(Context|Container|Component|Dynamic|Deployment)$/, support: 'none' },
-    { kind: 'block', match: /^block(-beta)?$/, support: 'none' },
-    { kind: 'architecture', match: /^architecture(-beta)?$/, support: 'none' },
-    { kind: 'usecase', match: /^usecase(-beta)?$/i, support: 'none' },
-    { kind: 'swimlane', match: /^swimlane(-beta)?$/, support: 'none' },
-    { kind: 'agentflow', match: /^agentflow(-beta)?$/, support: 'none' },
-    { kind: 'eventmodeling', match: /^eventmodeling$/, support: 'none' },
-    { kind: 'pie', match: /^pie$/, support: 'none' },
-    { kind: 'gantt', match: /^gantt$/, support: 'none' },
-    { kind: 'journey', match: /^journey$/, support: 'none' },
-    { kind: 'gitGraph', match: /^gitGraph$/, support: 'none' },
-    { kind: 'timeline', match: /^timeline$/, support: 'none' },
-    { kind: 'quadrant', match: /^quadrantChart$/, support: 'none' },
-    { kind: 'xychart', match: /^xychart(-beta)?$/, support: 'none' },
-    { kind: 'sankey', match: /^sankey(-beta)?$/, support: 'none' },
-    { kind: 'packet', match: /^packet(-beta)?$/, support: 'none' },
-    { kind: 'radar', match: /^radar(-beta)?$/, support: 'none' },
-    { kind: 'treemap', match: /^treemap(-beta)?$/, support: 'none' },
-    { kind: 'treeView', match: /^treeView(-beta)?$/, support: 'none' },
-    { kind: 'venn', match: /^venn(-beta)?$/, support: 'none' },
-    { kind: 'ishikawa', match: /^ishikawa(-beta)?$/i, support: 'none' },
-    { kind: 'wardley', match: /^wardley(-beta)?$/i, support: 'none' },
-    { kind: 'cynefin', match: /^cynefin(-beta)?$/i, support: 'none' },
-    { kind: 'railroad', match: /^railroad(-(ebnf|abnf|peg))?(-beta)?$/i, support: 'none' },
+    { kind: 'requirement', match: /^requirement(Diagram)?$/, support: 'partial' },
+    { kind: 'mindmap', match: /^mindmap$/, support: 'partial' },
+    { kind: 'kanban', match: /^kanban$/, support: 'partial' },
+    { kind: 'c4', match: /^C4(Context|Container|Component|Dynamic|Deployment)$/, support: 'partial' },
+    { kind: 'block', match: /^block(-beta)?$/, support: 'partial' },
+    { kind: 'architecture', match: /^architecture(-beta)?$/, support: 'partial' },
+    { kind: 'usecase', match: /^usecase(-beta)?$/i, support: 'partial' },
+    { kind: 'swimlane', match: /^swimlane(-beta)?$/, support: 'partial' },
+    { kind: 'agentflow', match: /^agentflow(-beta)?$/, support: 'partial' },
+    { kind: 'eventmodeling', match: /^eventmodeling$/, support: 'static' },
+    { kind: 'pie', match: /^pie$/, support: 'static' },
+    { kind: 'gantt', match: /^gantt$/, support: 'static' },
+    { kind: 'journey', match: /^journey$/, support: 'static' },
+    { kind: 'gitGraph', match: /^gitGraph$/, support: 'static' },
+    { kind: 'timeline', match: /^timeline$/, support: 'static' },
+    { kind: 'quadrant', match: /^quadrantChart$/, support: 'static' },
+    { kind: 'xychart', match: /^xychart(-beta)?$/, support: 'static' },
+    { kind: 'sankey', match: /^sankey(-beta)?$/, support: 'static' },
+    { kind: 'packet', match: /^packet(-beta)?$/, support: 'static' },
+    { kind: 'radar', match: /^radar(-beta)?$/, support: 'static' },
+    { kind: 'treemap', match: /^treemap(-beta)?$/, support: 'static' },
+    { kind: 'treeView', match: /^treeView(-beta)?$/, support: 'static' },
+    { kind: 'venn', match: /^venn(-beta)?$/, support: 'static' },
+    { kind: 'ishikawa', match: /^ishikawa(-beta)?$/i, support: 'static' },
+    { kind: 'wardley', match: /^wardley(-beta)?$/i, support: 'static' },
+    { kind: 'cynefin', match: /^cynefin(-beta)?$/i, support: 'static' },
+    { kind: 'railroad', match: /^railroad(-(ebnf|abnf|peg))?(-beta)?$/i, support: 'static' },
 ];
+
+// Diagram kinds Mermaid draws with its unified renderer (shared node / edge /
+// cluster scaffold and a getData() model).
+export const UNIFIED_KINDS = new Set([
+    'flowchart', 'class', 'state', 'er', 'requirement', 'mindmap', 'kanban', 'usecase', 'swimlane', 'agentflow', 'block',
+]);
 
 // Resolve a detectDiagramType() token to its registry entry, if known.
 export function diagramKind(type: string): DiagramKind | undefined {

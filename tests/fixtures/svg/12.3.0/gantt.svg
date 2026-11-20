@@ -67,18 +67,18 @@
 </rect>
 </g>
 <g>
-<rect id="m2v-probe-d1" rx="3" ry="3" x="75" y="50" width="167" height="20" transform-origin="158.5px 60px" class="task done0 ">
+<rect id="m2v-probe-d1" rx="3" ry="3" x="75" y="50" width="167" height="20" transform-origin="158.5px 60px" class="task done0">
 </rect>
-<rect id="m2v-probe-d2" rx="3" ry="3" x="242" y="74" width="334" height="20" transform-origin="409px 84px" class="task active0 ">
+<rect id="m2v-probe-d2" rx="3" ry="3" x="242" y="74" width="334" height="20" transform-origin="409px 84px" class="task active0">
 </rect>
-<rect id="m2v-probe-t1" rx="3" ry="3" x="576" y="98" width="133" height="20" transform-origin="642.5px 108px" class="task crit1 ">
+<rect id="m2v-probe-t1" rx="3" ry="3" x="576" y="98" width="133" height="20" transform-origin="642.5px 108px" class="task crit1">
 </rect>
-<rect id="m2v-probe-task1" rx="3" ry="3" x="699" y="122" width="20" height="20" transform-origin="709px 132px" class="task milestone  task1 ">
+<rect id="m2v-probe-task1" rx="3" ry="3" x="699" y="122" width="20" height="20" transform-origin="709px 132px" class="task milestone  task1">
 </rect>
-<text id="m2v-probe-d1-text" font-size="11" x="158.5" y="63.5" text-height="20" class=" taskText taskText0  doneText0 width-34.25">Design      </text>
-<text id="m2v-probe-d2-text" font-size="11" x="409" y="87.5" text-height="20" class=" taskText taskText0 activeText0 width-51.359375">Implement   </text>
-<text id="m2v-probe-t1-text" font-size="11" x="642.5" y="111.5" text-height="20" class=" taskText taskText1  critText1 width-20.1875">Test        </text>
-<text id="m2v-probe-task1-text" font-size="11" x="694" y="135.5" text-height="20" class=" taskTextOutsideLeft taskTextOutside1  milestoneText">Launch      </text>
+<text id="m2v-probe-d1-text" font-size="11" x="158.5" y="63.5" class="taskText taskText0  doneText0 width-34.25">Design      </text>
+<text id="m2v-probe-d2-text" font-size="11" x="409" y="87.5" class="taskText taskText0 activeText0 width-51.359375">Implement   </text>
+<text id="m2v-probe-t1-text" font-size="11" x="642.5" y="111.5" class="taskText taskText1  critText1 width-20.1875">Test        </text>
+<text id="m2v-probe-task1-text" font-size="11" x="694" y="135.5" class="taskTextOutsideLeft taskTextOutside1  milestoneText">Launch      </text>
 </g>
 <g>
 <text dy="0em" x="10" y="74" font-size="11" class="sectionTitle sectionTitle0">
@@ -89,7 +89,7 @@
 </text>
 </g>
 <g class="today">
-<line x1="10713" x2="10713" y1="25" y2="171" class="today">
+<line x1="10733" x2="10733" y1="25" y2="171" class="today">
 </line>
 </g>
 <text x="392" y="25" class="titleText">Release plan</text>

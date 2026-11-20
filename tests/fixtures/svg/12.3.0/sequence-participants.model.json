@@ -1,0 +1,414 @@
+{
+ "mermaidType": "sequence",
+ "counts": {
+  "node": 0,
+  "edgePath": 0,
+  "cluster": 0,
+  "edgeLabel": 0,
+  "rect": 10,
+  "circle": 9,
+  "ellipse": 0,
+  "polygon": 3,
+  "path": 19,
+  "line": 52,
+  "text": 41,
+  "foreignObject": 0,
+  "image": 0
+ },
+ "data": null,
+ "getters": {
+  "getAccTitle": "",
+  "getAccDescription": "",
+  "getDiagramTitle": "",
+  "getMessages": [
+   {
+    "id": "0",
+    "from": "A",
+    "to": "P",
+    "message": "one",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "1",
+    "from": "P",
+    "to": "B",
+    "message": "two",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "2",
+    "from": "B",
+    "to": "C",
+    "message": "three",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "3",
+    "from": "C",
+    "to": "E",
+    "message": "four",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "4",
+    "from": "E",
+    "to": "D",
+    "message": "five",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "5",
+    "from": "D",
+    "to": "L",
+    "message": "six",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "6",
+    "from": "L",
+    "to": "Q",
+    "message": "seven",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "7",
+    "from": "Q",
+    "to": "S",
+    "message": "eight",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "8",
+    "from": null,
+    "to": null,
+    "message": "first",
+    "wrap": false,
+    "type": 19,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "9",
+    "from": "S",
+    "to": "A",
+    "message": "a",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "10",
+    "from": null,
+    "to": null,
+    "message": "second",
+    "wrap": false,
+    "type": 20,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "11",
+    "from": "S",
+    "to": "P",
+    "message": "b",
+    "wrap": false,
+    "type": 24,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "12",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 21,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "13",
+    "from": null,
+    "to": null,
+    "message": "check",
+    "wrap": false,
+    "type": 27,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "14",
+    "from": "P",
+    "to": "P",
+    "message": "self",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "15",
+    "from": null,
+    "to": null,
+    "message": "fail",
+    "wrap": false,
+    "type": 28,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "16",
+    "from": "P",
+    "to": "A",
+    "message": "no",
+    "wrap": false,
+    "type": 4,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "17",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 29,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "18",
+    "from": null,
+    "to": null,
+    "message": "stop",
+    "wrap": false,
+    "type": 30,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "19",
+    "from": "A",
+    "to": "P",
+    "message": "bye",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "20",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 31,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "21",
+    "from": null,
+    "to": null,
+    "message": "rgb(200, 220, 255)",
+    "wrap": false,
+    "type": 22,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "22",
+    "from": "P",
+    "to": "A",
+    "message": "highlighted",
+    "wrap": false,
+    "type": 0,
+    "activate": false,
+    "centralConnection": 0
+   },
+   {
+    "id": "23",
+    "from": null,
+    "to": null,
+    "message": "",
+    "wrap": false,
+    "type": 23,
+    "activate": false,
+    "centralConnection": 0
+   }
+  ],
+  "getBoxes": [
+   {
+    "name": "Backend",
+    "wrap": false,
+    "fill": "Aqua",
+    "actorKeys": [
+     "S"
+    ]
+   }
+  ],
+  "getActors": {
+   "P": {
+    "box": null,
+    "name": "P",
+    "description": "Plain",
+    "wrap": false,
+    "prevActor": null,
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "participant",
+    "nextActor": "A"
+   },
+   "A": {
+    "box": null,
+    "name": "A",
+    "description": "Person",
+    "wrap": false,
+    "prevActor": "P",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "actor",
+    "nextActor": "B"
+   },
+   "B": {
+    "box": null,
+    "name": "B",
+    "description": "Boundary",
+    "wrap": false,
+    "prevActor": "A",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "boundary",
+    "nextActor": "C"
+   },
+   "C": {
+    "box": null,
+    "name": "C",
+    "description": "Control",
+    "wrap": false,
+    "prevActor": "B",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "control",
+    "nextActor": "E"
+   },
+   "E": {
+    "box": null,
+    "name": "E",
+    "description": "Entity",
+    "wrap": false,
+    "prevActor": "C",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "entity",
+    "nextActor": "D"
+   },
+   "D": {
+    "box": null,
+    "name": "D",
+    "description": "Store",
+    "wrap": false,
+    "prevActor": "E",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "database",
+    "nextActor": "L"
+   },
+   "L": {
+    "box": null,
+    "name": "L",
+    "description": "Items",
+    "wrap": false,
+    "prevActor": "D",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "collections",
+    "nextActor": "Q"
+   },
+   "Q": {
+    "box": null,
+    "name": "Q",
+    "description": "Jobs",
+    "wrap": false,
+    "prevActor": "L",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "queue",
+    "nextActor": "S"
+   },
+   "S": {
+    "box": {
+     "name": "Backend",
+     "wrap": false,
+     "fill": "Aqua",
+     "actorKeys": [
+      "S"
+     ]
+    },
+    "name": "S",
+    "description": "Service",
+    "wrap": false,
+    "prevActor": "Q",
+    "links": {},
+    "properties": {},
+    "actorCnt": null,
+    "rectData": null,
+    "type": "participant"
+   }
+  },
+  "getCreatedActors": {},
+  "getDestroyedActors": {},
+  "getActorKeys": [
+   "P",
+   "A",
+   "B",
+   "C",
+   "E",
+   "D",
+   "L",
+   "Q",
+   "S"
+  ]
+ }
+}

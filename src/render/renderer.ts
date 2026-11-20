@@ -10,7 +10,7 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 
 import { buildMermaidConfig } from '../core/mermaidConfig.js';
-import { detectDiagramType, formatMermaidError, supportLevel } from '../core/detect.js';
+import { detectDiagramType, formatMermaidError } from '../core/detect.js';
 import type { ContentBounds } from '../core/normalize.js';
 import type { GraphData, MermaidConfig } from '../core/types.js';
 import type { ExtractorApi } from '../extract/page.js';
@@ -298,11 +298,7 @@ export class MermaidRenderer {
             // channel is stdout).
             const totalShapes = graph.nodes.length + graph.edges.length + graph.clusters.length + graph.labels.length;
             if (totalShapes === 0) {
-                const support = supportLevel(diagramType) !== 'none'
-                    ? `Expected shapes for "${diagramType}" but found none — the diagram may be empty or use unsupported syntax.`
-                    : `Diagram type "${diagramType}" is not supported by the geometry extractor ` +
-                      `(supported: flowchart/graph fully; sequence/class/state/ER partially). ` +
-                      `The generated VSDX will open but be blank.`;
+                const support = `Nothing was found to convert in this "${diagramType}" diagram; the generated VSDX will open but be blank.`;
                 console.warn(`[mermaid2visio] Warning: no shapes extracted. ${support}`);
             }
 
