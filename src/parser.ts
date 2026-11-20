@@ -7,7 +7,7 @@ import type { GraphData, MermaidConfig } from './core/types.js';
 
 export { translatePathD } from './core/normalize.js';
 export { detectDiagramType, formatMermaidError } from './core/detect.js';
-export { explainLaunchFailure, MermaidRenderer } from './render/renderer.js';
+export { explainLaunchFailure, launchBrowser, MermaidRenderer, RendererBusyError } from './render/renderer.js';
 export type {
     GraphNode, GraphEdge, GraphCluster, GraphLabel, GraphData, MermaidConfig,
 } from './core/types.js';

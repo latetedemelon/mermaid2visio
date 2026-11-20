@@ -97,6 +97,8 @@ Add this tool to your AI assistant (e.g., Claude Desktop) to give it "Visio Skil
 ```
 **Prompt:** *"Generate a system architecture diagram for a cloud app using ELK layout and save it as a Visio file."*
 
+The tool is `convert_mermaid_to_vsdx`. Arguments: `source` (Mermaid code) or `sourcePath` (a `.mmd`/`.md` file), optional `outputPath` (must end in `.vsdx`; defaults to `output/diagram_<timestamp>.vsdx`) and `overwrite`. To confine it to one folder, add `"env": { "M2V_MCP_ROOT": "/path/to/diagrams" }` to the server entry above.
+
 ### 4. Windows Context Menu
 Right-click any `.mmd` or `.md` file to convert.
 1. Run `install_context_menu.bat` as Administrator.
@@ -131,6 +133,15 @@ Flowcharts support:
 - **Smart Glue & Dynamic Routing** (Auto-rerouting connectors in Visio)
 - **ELK Layout Support** (Professional hierarchical & orthogonal layouts)
 - **Theme Variables** (Full customization)
+
+## Security
+
+Diagram source is treated as untrusted input.
+
+- **Rendering.** Mermaid runs at `securityLevel: strict` (no click callbacks; label HTML is sanitised). The headless page is cut off from the network: images a diagram references are replaced by a blank placeholder and every other request is blocked. Each render has a 60-second limit.
+- **Chromium sandbox.** On wherever it can run. It cannot run as root, and some containers lack the kernel support; in those cases the tool warns once and runs without it. Set `M2V_NO_SANDBOX=1` to opt out explicitly.
+- **Web GUI.** Binds to `127.0.0.1` unless `HOST` says otherwise and has no authentication, so do not expose it to networks you don't trust. `POST /convert` refuses cross-origin browser requests, caps request bodies at 1 MiB, and runs at most two conversions at once (further requests queue, then receive `503`).
+- **MCP server.** Reads only `.mmd`, `.mermaid` and `.md` files, writes only `.vsdx` files, and will not replace an existing file unless called with `overwrite: true`. Set `M2V_MCP_ROOT=/some/dir` to confine all reads and writes to that directory tree.
 
 ## Troubleshooting
 

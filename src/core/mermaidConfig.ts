@@ -93,7 +93,9 @@ export function buildMermaidConfig(config: MermaidConfig | undefined, definition
                 curve,
                 useMaxWidth: config?.flowchart?.useMaxWidth !== false,
             },
-            securityLevel: 'loose',
+            // Diagram text is untrusted input (the GUI and MCP server accept it
+            // from other parties): no click callbacks, labels sanitised.
+            securityLevel: 'strict',
         },
     };
 }
