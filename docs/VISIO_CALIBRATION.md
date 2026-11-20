@@ -1,12 +1,12 @@
 # Visio calibration check
 
 Nothing this tool generates had been opened in real Visio when these files were
-made. Each file below tests one construct, so the answers decide which XML the
+made. The files are committed in `docs/calibration/`. Each tests one construct, so the answers decide which XML the
 generator should write. Generate them with:
 
 ```bash
-node scripts/make-calibration.mjs            # writes calibration-out/*.vsdx
-node dist/index.js tests/fixtures/all_features.mmd -o calibration-out/01-current-output.vsdx
+node scripts/make-calibration.mjs docs/calibration
+node dist/index.js tests/fixtures/all_features.mmd -o docs/calibration/01-current-output.vsdx
 ```
 
 Open each file in desktop Visio. Every page has its own instructions at the top.

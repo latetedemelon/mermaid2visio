@@ -143,7 +143,7 @@ async function writePackage(outFile, { shapes, connects = '', rich = true, faceN
         zip.file('visio/masters/master1.xml', MASTER_CONTENTS);
     }
     if (png) zip.file('visio/media/image1.png', png);
-    fs.writeFileSync(outFile, await zip.generateAsync({ type: 'nodebuffer' }));
+    fs.writeFileSync(outFile, await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' }));
 }
 
 // ------------------------------------------------------------ shape helpers
