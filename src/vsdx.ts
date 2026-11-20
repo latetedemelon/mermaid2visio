@@ -1,1053 +1,707 @@
+// GraphData -> VSDX package. Browser-safe (JSZip only).
+//
+// The XML here follows what Visio itself writes (checked against files saved
+// by Visio) rather than the minimum the schema allows:
+//  - every 2-D shape has LocPinX/LocPinY formulas, so PinX/PinY is its centre;
+//  - connectors are 1-D shapes whose geometry is Mermaid's own route, glued
+//    with the dynamic-glue formulas Visio uses, so they open looking like the
+//    Mermaid diagram and re-route when a shape is moved;
+//  - fill, line and text properties are written explicitly on every shape
+//    instead of relying on style-sheet inheritance.
+
 import JSZip from 'jszip';
-import { create } from 'xmlbuilder2';
-import { GraphData } from './core/types.js';
+import type { GraphCluster, GraphData, GraphEdge, GraphLabel, GraphNode } from './core/types.js';
+import { parseColor } from './core/color.js';
+import { flattenPath, polylineMidpoint, simplifyPolyline, type Point } from './core/svgPath.js';
+
+const NS = 'http://schemas.microsoft.com/office/visio/2012/main';
+const RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const VREL = 'http://schemas.microsoft.com/visio/2010/relationships/';
+const XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+
+const DPI = 96;
+const MARGIN = 0.5; // inches of whitespace around the diagram on every side
+
+// ------------------------------------------------------------------ XML
+
+const esc = (s: unknown): string =>
+    String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Numbers are written with at most six decimals. A non-finite value means a
+// coordinate was computed from something missing; Visio would silently drop
+// the cell, so fail loudly instead.
+function num(v: number): string {
+    if (!Number.isFinite(v)) throw new Error(`VSDX generator produced a non-finite value (${v})`);
+    const r = Math.round(v * 1e6) / 1e6;
+    return String(r === 0 ? 0 : r);
+}
+
+function cell(name: string, value: number | string, formula?: string, unit?: string): string {
+    const v = typeof value === 'number' ? num(value) : esc(value);
+    return `<Cell N="${name}" V="${v}"${formula ? ` F="${esc(formula)}"` : ''}${unit ? ` U="${unit}"` : ''}/>`;
+}
+
+// A geometry coordinate: its value now, and the formula that keeps it right
+// when the shape is resized.
+interface Coord { v: number; f?: string }
+
+function row(type: string, ix: number, cells: Record<string, Coord>): string {
+    return `<Row T="${type}" IX="${ix}">` +
+        Object.entries(cells).map(([n, c]) => cell(n, c.v, c.f)).join('') + `</Row>`;
+}
+
+function geometry(ix: number, rows: Array<[string, Record<string, Coord>]>, options: { noFill?: boolean; noLine?: boolean } = {}): string {
+    return `<Section N="Geometry" IX="${ix}">` +
+        cell('NoFill', options.noFill ? 1 : 0) + cell('NoLine', options.noLine ? 1 : 0) +
+        rows.map(([type, cells], i) => row(type, i + 1, cells)).join('') + `</Section>`;
+}
+
+// ---------------------------------------------------------------- style
+
+// Visio line patterns: 1 solid, 2 dashed, 3 dotted.
+const LINE_SOLID = 1;
+const LINE_DASHED = 2;
+const LINE_DOTTED = 3;
+
+function linePattern(pattern: GraphEdge['pattern'] | undefined, dasharray: string | undefined): number {
+    if (pattern === 'dotted') return LINE_DOTTED;
+    if (pattern === 'dashed') return LINE_DASHED;
+    if (pattern === 'solid') return LINE_SOLID;
+    if (!dasharray || dasharray === 'none') return LINE_SOLID;
+    const first = parseFloat(dasharray);
+    // "0", "0px", "0 0" all mean solid.
+    if (!Number.isFinite(first) || first === 0) return LINE_SOLID;
+    return first <= 2 ? LINE_DOTTED : LINE_DASHED;
+}
+
+// Mermaid edge-end names -> Visio line-end codes.
+const LINE_END: Record<string, number> = {
+    none: 0,
+    arrow_point: 13, arrow_barb: 13, point: 13,
+    arrow_open: 3, dependency: 3, requirement_arrow: 3,
+    arrow_circle: 10, circle: 10,
+    lollipop: 20,
+    extension: 16,
+    aggregation: 22,
+    composition: 11,
+    only_one: 25,
+    zero_or_one: 30,
+    one_or_more: 28,
+    zero_or_more: 29,
+    // No Visio line end resembles a cross; leave the end plain.
+    arrow_cross: 0, cross: 0,
+};
+const DEFAULT_ARROW = 13;
+
+function lineEnd(kind: string | undefined, present: boolean | undefined, fallback: boolean): number {
+    if (kind !== undefined) return LINE_END[kind] ?? (kind && kind !== 'none' ? DEFAULT_ARROW : 0);
+    return (present ?? fallback) ? DEFAULT_ARROW : 0;
+}
+
+const px = (value: string | undefined, fallback: number): number => {
+    const n = parseFloat(value ?? '');
+    return Number.isFinite(n) ? n : fallback;
+};
+
+function isBold(weight: string | undefined): boolean {
+    if (!weight) return false;
+    if (weight === 'bold' || weight === 'bolder') return true;
+    const n = parseInt(weight, 10);
+    return Number.isFinite(n) && n >= 600;
+}
+
+// Fonts Visio can be told about by name. The first family in a CSS font
+// stack that appears here is used; generic families map to nothing.
+const KNOWN_FONTS = [
+    'Calibri', 'Arial', 'Segoe UI', 'Times New Roman', 'Courier New', 'Verdana', 'Tahoma',
+    'Georgia', 'Trebuchet MS', 'Consolas', 'Cambria', 'Helvetica',
+];
+const CALIBRI_FACE = `<FaceName NameU="Calibri" UnicodeRanges="-469750017 -1073732485 9 0" CharSets="536871423 0" Panose="2 15 5 2 2 2 4 3 2 4" Flags="325"/>`;
+
+export function resolveFont(stack: string | undefined): string | undefined {
+    for (const raw of (stack ?? '').split(',')) {
+        const name = raw.trim().replace(/^["']|["']$/g, '').toLowerCase();
+        const hit = KNOWN_FONTS.find(f => f.toLowerCase() === name);
+        if (hit) return hit === 'Helvetica' ? 'Arial' : hit;
+    }
+    return undefined;
+}
+
+interface TextStyle {
+    color?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    fontStyle?: string;
+    fontFamily?: string;
+}
+
+export interface VsdxOptions {
+    // Write each text's font family (and the document's font table). Off by
+    // default until the font table has been confirmed against desktop Visio.
+    fonts?: boolean;
+}
+
+// The "No Style" style sheet with the defaults Visio writes itself.
+const NO_STYLE_SHEET = `<StyleSheets><StyleSheet ID="0" NameU="No Style" IsCustomNameU="1" Name="No Style" IsCustomName="1">` +
+    ([['EnableLineProps', 1], ['EnableFillProps', 1], ['EnableTextProps', 1], ['HideForApply', 0],
+      ['LineWeight', 0.010417], ['LineColor', 0], ['LinePattern', 1], ['Rounding', 0],
+      ['EndArrowSize', 2], ['BeginArrow', 0], ['EndArrow', 0], ['LineCap', 0], ['BeginArrowSize', 2],
+      ['LineColorTrans', 0], ['CompoundType', 0], ['FillForegnd', 1], ['FillBkgnd', 0], ['FillPattern', 1],
+      ['ShdwForegnd', 0], ['ShdwPattern', 0], ['FillForegndTrans', 0], ['FillBkgndTrans', 0],
+      ['LeftMargin', 0], ['RightMargin', 0], ['TopMargin', 0], ['BottomMargin', 0], ['VerticalAlign', 1],
+      ['TextBkgnd', 0], ['DefaultTabStop', 0.5], ['TextDirection', 0], ['TextBkgndTrans', 0],
+    ] as Array<[string, number]>).map(([n, v]) => cell(n, v)).join('') +
+    `<Section N="Character"><Row IX="0">${cell('Font', 'Calibri')}${cell('Color', 0)}${cell('Style', 0)}${cell('Case', 0)}${cell('Pos', 0)}${cell('FontScale', 1)}${cell('Size', 0.166667)}</Row></Section>` +
+    `<Section N="Paragraph"><Row IX="0">${cell('IndFirst', 0)}${cell('IndLeft', 0)}${cell('IndRight', 0)}${cell('SpLine', -1.2)}${cell('SpBefore', 0)}${cell('SpAfter', 0)}${cell('HorzAlign', 1)}${cell('Bullet', 0)}</Row></Section>` +
+    `</StyleSheet></StyleSheets>`;
+
+function relationships(items: Array<[id: string, type: string, target: string]>): string {
+    return XML_DECL + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+        items.map(([id, type, target]) => `<Relationship Id="${id}" Type="${type}" Target="${target}"/>`).join('') +
+        `</Relationships>`;
+}
+
+// ------------------------------------------------------------ generator
 
 export class VsdxGenerator {
-    private zip: JSZip;
-    private pageHeight: number = 11; // inches
-    private pageWidth: number = 8.5; // inches
-    private dpi: number = 96;
-    private margin: number = 0.5; // inches — whitespace around diagram content on all four sides
+    private pageHeight = 11; // inches
+    private pageWidth = 8.5; // inches
+    private readonly options: VsdxOptions;
+    private readonly fontsUsed = new Set<string>();
 
-    constructor() {
-        this.zip = new JSZip();
+    constructor(options: VsdxOptions = {}) {
+        this.options = options;
     }
 
-    // Convert SVG-space X (pixels, left-origin) to Visio page X (inches, left-origin + margin).
+    // SVG-space X (pixels, left origin) -> page X (inches, left origin + margin).
     private toVisioX(svgPx: number): number {
-        return this.margin + svgPx / this.dpi;
+        return MARGIN + svgPx / DPI;
     }
 
-    // Convert SVG-space Y (pixels, top-origin, y-down) to Visio page Y (inches, bottom-origin, y-up).
+    // SVG-space Y (pixels, top origin, y down) -> page Y (inches, bottom origin, y up).
     private toVisioY(svgPx: number): number {
-        return this.pageHeight - this.margin - svgPx / this.dpi;
+        return this.pageHeight - MARGIN - svgPx / DPI;
     }
 
-    // Visio rejects CSS `rgb(r, g, b)` syntax (and named colors) in cell values;
-    // it wants `#RRGGBB`. Mermaid's rendered SVG uses rgb(...) for almost all
-    // computed styles, so normalize everything here.
+    // Any CSS colour -> the #rrggbb Visio needs, or undefined when there is
+    // nothing to paint. Public for tests; treat as internal.
     public static normalizeColor(c: string | undefined | null): string | undefined {
-        if (!c) return undefined;
-        const t = String(c).trim();
-        if (!t || t === 'none' || t === 'transparent') return undefined;
-        if (/^#[0-9a-fA-F]{6}$/.test(t)) return t.toLowerCase();
-        if (/^#[0-9a-fA-F]{3}$/.test(t)) {
-            const r = t[1], g = t[2], b = t[3];
-            return ('#' + r + r + g + g + b + b).toLowerCase();
-        }
-        const m = t.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-        if (m) {
-            const toHex = (s: string) => Math.max(0, Math.min(255, parseInt(s, 10))).toString(16).padStart(2, '0');
-            return ('#' + toHex(m[1]) + toHex(m[2]) + toHex(m[3])).toLowerCase();
-        }
-        return undefined;
+        return parseColor(c)?.hex;
     }
 
     public async generate(graph: GraphData, mermaidSource?: string): Promise<Uint8Array> {
-        // Page must be large enough to hold content plus margin on all four sides.
-        // The plan formula: pageSize = max(default, contentSizeIn + 2*margin).
-        const graphWidthIn  = graph.width  / this.dpi;
-        const graphHeightIn = graph.height / this.dpi;
-        this.pageWidth  = Math.max(this.pageWidth,  graphWidthIn  + 2 * this.margin);
-        this.pageHeight = Math.max(this.pageHeight, graphHeightIn + 2 * this.margin);
+        // The page must hold the content plus a margin on all four sides.
+        this.pageWidth = Math.max(8.5, graph.width / DPI + 2 * MARGIN);
+        this.pageHeight = Math.max(11, graph.height / DPI + 2 * MARGIN);
+        this.fontsUsed.clear();
 
-        this.addContentTypes();
-        this.addRels();
-        this.addDocProps();
-        this.addDocumentXml();
-        this.addWindowsXml();
-        this.addPagesXml();
-        this.addPageXml(graph);
+        const zip = new JSZip();
+        // Built first: it records which fonts the document needs.
+        const pageXml = this.pageXml(graph);
 
-        // Store the original Mermaid source inside the VSDX package so the
-        // diagram can be round-tripped (re-opened and re-generated) without
-        // reverse-engineering geometry back into Mermaid syntax.
-        if (mermaidSource) {
-            this.zip.file('mermaid/source.mmd', mermaidSource);
+        zip.file('[Content_Types].xml', XML_DECL +
+            `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+            `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+            `<Default Extension="xml" ContentType="application/xml"/>` +
+            // The round-trip source is a package part too, and OPC requires
+            // every part to have a content type.
+            `<Default Extension="mmd" ContentType="text/plain"/>` +
+            `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>` +
+            `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>` +
+            `<Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>` +
+            `<Override PartName="/visio/windows.xml" ContentType="application/vnd.ms-visio.windows+xml"/>` +
+            `<Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>` +
+            `<Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>` +
+            `</Types>`);
+
+        zip.file('_rels/.rels', relationships([
+            ['rId1', VREL + 'document', 'visio/document.xml'],
+            ['rId2', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties', 'docProps/app.xml'],
+            ['rId3', 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties', 'docProps/core.xml'],
+        ]));
+
+        zip.file('docProps/app.xml', XML_DECL +
+            `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">` +
+            `<Application>Microsoft Visio</Application><ScaleCrop>false</ScaleCrop><LinksUpToDate>false</LinksUpToDate>` +
+            `<SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0000</AppVersion></Properties>`);
+        // A fixed timestamp keeps generated files byte-identical run to run.
+        zip.file('docProps/core.xml', XML_DECL +
+            `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
+            `<dc:creator>mermaid2visio</dc:creator><cp:lastModifiedBy>mermaid2visio</cp:lastModifiedBy>` +
+            `<dcterms:created xsi:type="dcterms:W3CDTF">1970-01-01T00:00:00Z</dcterms:created>` +
+            `<dcterms:modified xsi:type="dcterms:W3CDTF">1970-01-01T00:00:00Z</dcterms:modified></cp:coreProperties>`);
+
+        zip.file('visio/document.xml', this.documentXml());
+        zip.file('visio/_rels/document.xml.rels', relationships([
+            ['rId1', VREL + 'pages', 'pages/pages.xml'],
+            ['rId2', VREL + 'windows', 'windows.xml'],
+        ]));
+        zip.file('visio/windows.xml', this.windowsXml());
+        zip.file('visio/pages/pages.xml', this.pagesXml());
+        zip.file('visio/pages/_rels/pages.xml.rels', relationships([['rId1', VREL + 'page', 'page1.xml']]));
+        zip.file('visio/pages/page1.xml', pageXml);
+
+        // Keep the original Mermaid source inside the package so the diagram
+        // can be regenerated without reverse-engineering its geometry.
+        if (mermaidSource) zip.file('mermaid/source.mmd', mermaidSource);
+
+        // 'uint8array' keeps this browser-safe; in Node a Buffer is one too.
+        return zip.generateAsync({ type: 'uint8array' });
+    }
+
+    // ------------------------------------------------------ package parts
+
+    private documentXml(): string {
+        // FaceNames must not be present-but-empty, so it is only written
+        // when fonts are in use. Calibri carries Visio's own metadata.
+        let faces = '';
+        if (this.options.fonts) {
+            faces = `<FaceNames>${CALIBRI_FACE}` +
+                [...this.fontsUsed].filter(f => f !== 'Calibri').sort().map(f => `<FaceName NameU="${esc(f)}"/>`).join('') +
+                `</FaceNames>`;
         }
-
-        // 'uint8array' (vs 'nodebuffer') so the output is browser-safe; in
-        // Node, Buffer IS-A Uint8Array, so all existing callers — fs.writeFileSync,
-        // JSZip.loadAsync, HTTP res.end — accept it without changes.
-        return await this.zip.generateAsync({ type: 'uint8array' });
+        return XML_DECL +
+            `<VisioDocument xmlns="${NS}" xmlns:r="${RNS}">` +
+            `<DocumentSettings TopPage="0" DefaultTextStyle="0" DefaultLineStyle="0" DefaultFillStyle="0"><DynamicGridEnabled>1</DynamicGridEnabled></DocumentSettings>` +
+            `<Colors><ColorEntry IX="0" RGB="#000000"/><ColorEntry IX="1" RGB="#FFFFFF"/></Colors>` +
+            faces + NO_STYLE_SHEET +
+            `</VisioDocument>`;
     }
 
-    private addContentTypes() {
-        const xml = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Types', { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' })
-                .ele('Default', { Extension: 'rels', ContentType: 'application/vnd.openxmlformats-package.relationships+xml' }).up()
-                .ele('Default', { Extension: 'xml', ContentType: 'application/xml' }).up()
-                // The round-trip source (mermaid/source.mmd) is a package part too;
-                // OPC requires every part to have a content type or the package is
-                // invalid (a 1400015 trigger). Declare .mmd as plain text.
-                .ele('Default', { Extension: 'mmd', ContentType: 'text/plain' }).up()
-                .ele('Override', { PartName: '/docProps/app.xml', ContentType: 'application/vnd.openxmlformats-officedocument.extended-properties+xml' }).up()
-                .ele('Override', { PartName: '/docProps/core.xml', ContentType: 'application/vnd.openxmlformats-package.core-properties+xml' }).up()
-                .ele('Override', { PartName: '/visio/document.xml', ContentType: 'application/vnd.ms-visio.drawing.main+xml' }).up()
-                .ele('Override', { PartName: '/visio/windows.xml', ContentType: 'application/vnd.ms-visio.windows+xml' }).up()
-                .ele('Override', { PartName: '/visio/pages/pages.xml', ContentType: 'application/vnd.ms-visio.pages+xml' }).up()
-                .ele('Override', { PartName: '/visio/pages/page1.xml', ContentType: 'application/vnd.ms-visio.page+xml' }).up()
-            .up();
-        this.zip.file('[Content_Types].xml', xml.end({ prettyPrint: true }));
+    private windowsXml(): string {
+        return XML_DECL +
+            `<Windows xmlns="${NS}" ClientWidth="1024" ClientHeight="768">` +
+            `<Window ID="0" WindowType="Drawing" WindowState="1073741824" WindowLeft="0" WindowTop="0" WindowWidth="1024" WindowHeight="768" ContainerType="Page" Page="0" ViewScale="-1" ViewCenterX="${num(this.pageWidth / 2)}" ViewCenterY="${num(this.pageHeight / 2)}">` +
+            `<ShowRulers>1</ShowRulers><ShowGrid>1</ShowGrid><ShowPageBreaks>0</ShowPageBreaks><ShowGuides>1</ShowGuides>` +
+            `<ShowConnectionPoints>1</ShowConnectionPoints><GlueSettings>9</GlueSettings><SnapSettings>65847</SnapSettings>` +
+            `<SnapExtensions>34</SnapExtensions><SnapAngles/><DynamicGridEnabled>1</DynamicGridEnabled><TabSplitterPos>0.5</TabSplitterPos>` +
+            `</Window></Windows>`;
     }
 
-    private addRels() {
-        // Root _rels/.rels: Visio's loader expects the usual OOXML trio
-        // (document + core-properties + extended-properties). Missing
-        // core/app props is one of the triggers for error 1400015/0x10F.
-        const xml = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
-                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/document', Target: 'visio/document.xml' }).up()
-                .ele('Relationship', { Id: 'rId2', Type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties', Target: 'docProps/app.xml' }).up()
-                .ele('Relationship', { Id: 'rId3', Type: 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties', Target: 'docProps/core.xml' }).up()
-            .up();
-        this.zip.folder('_rels')?.file('.rels', xml.end({ prettyPrint: true }));
+    private pagesXml(): string {
+        return XML_DECL +
+            `<Pages xmlns="${NS}" xmlns:r="${RNS}">` +
+            `<Page ID="0" NameU="Page-1" Name="Page-1" ViewScale="1" ViewCenterX="${num(this.pageWidth / 2)}" ViewCenterY="${num(this.pageHeight / 2)}">` +
+            `<PageSheet LineStyle="0" FillStyle="0" TextStyle="0">` +
+            cell('PageWidth', this.pageWidth) + cell('PageHeight', this.pageHeight) +
+            cell('ShdwOffsetX', 0.125) + cell('ShdwOffsetY', -0.125) +
+            cell('PageScale', 1, undefined, 'IN_F') + cell('DrawingScale', 1, undefined, 'IN_F') +
+            cell('DrawingSizeType', 0) + cell('DrawingScaleType', 0) + cell('InhibitSnap', 0) +
+            `</PageSheet><Rel r:id="rId1"/></Page></Pages>`;
     }
 
-    private addDocProps() {
-        // docProps/app.xml: OOXML extended properties. The Application string
-        // is what Visio reads to recognize its own files in some code paths.
-        const app = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Properties', {
-                xmlns: 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
-                'xmlns:vt': 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes',
-            })
-                .ele('Application').txt('Microsoft Visio').up()
-                .ele('ScaleCrop').txt('false').up()
-                .ele('LinksUpToDate').txt('false').up()
-                .ele('SharedDoc').txt('false').up()
-                .ele('HyperlinksChanged').txt('false').up()
-                .ele('AppVersion').txt('16.0000').up()
-            .up();
-        this.zip.folder('docProps')?.file('app.xml', app.end({ prettyPrint: true }));
+    // ---------------------------------------------------------- the page
 
-        // docProps/core.xml: Dublin Core metadata. Timestamps use the static
-        // epoch so generated files are byte-identical run-to-run, which keeps
-        // the structural tests deterministic.
-        const iso = '1970-01-01T00:00:00Z';
-        const core = create({ encoding: 'UTF-8', standalone: true })
-            .ele('cp:coreProperties', {
-                'xmlns:cp': 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties',
-                'xmlns:dc': 'http://purl.org/dc/elements/1.1/',
-                'xmlns:dcterms': 'http://purl.org/dc/terms/',
-                'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance',
-            })
-                .ele('dc:creator').txt('mermaid2visio').up()
-                .ele('cp:lastModifiedBy').txt('mermaid2visio').up()
-                .ele('dcterms:created', { 'xsi:type': 'dcterms:W3CDTF' }).txt(iso).up()
-                .ele('dcterms:modified', { 'xsi:type': 'dcterms:W3CDTF' }).txt(iso).up()
-            .up();
-        this.zip.folder('docProps')?.file('core.xml', core.end({ prettyPrint: true }));
-    }
+    private pageXml(graph: GraphData): string {
+        const clusters = this.orderClusters(graph.clusters ?? []);
+        const parents = this.resolveParents(graph.nodes, clusters);
 
-    private addDocumentXml() {
-        // Note: the <Pages> collection belongs in visio/pages/pages.xml, not
-        // inline here. Visio rejects (or silently drops) documents that list
-        // pages in document.xml.
-        //
-        // We deliberately omit empty <FaceNames/>, <StyleSheets/>,
-        // <DocumentSheet/>, <Masters/> — they're all optional in the VSDX
-        // schema but INVALID when present-but-empty, which was the
-        // 1400015/0x10F culprit in prior builds.
-        const xml = create({ encoding: 'UTF-8', standalone: true })
-            .ele('VisioDocument', { xmlns: 'http://schemas.microsoft.com/office/visio/2012/main' })
-                .ele('DocumentSettings')
-                    .ele('DynamicGridEnabled').txt('1').up()
-                .up()
-                .ele('Colors')
-                    .ele('ColorEntry', { IX: '0', RGB: '#000000' }).up()
-                    .ele('ColorEntry', { IX: '1', RGB: '#FFFFFF' }).up()
-                .up()
-            .up();
+        // Shape ids, in drawing order: subgraphs (outermost first), nodes,
+        // connectors, then free-standing labels.
+        let nextId = 1;
+        const shapeIdOf = new Map<string, number>();
+        for (const c of clusters) shapeIdOf.set(c.id, nextId++);
+        for (const n of graph.nodes) shapeIdOf.set(n.id, nextId++);
 
-        this.zip.folder('visio')?.file('document.xml', xml.end({ prettyPrint: true }));
-
-        // Document rels: pages.xml (drawing pages) and windows.xml (saved
-        // view/zoom state). Visio treats a missing windows.xml relationship
-        // as "this file wasn't written by Visio" and sometimes refuses to
-        // open it entirely.
-        const rels = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
-                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/pages', Target: 'pages/pages.xml' }).up()
-                .ele('Relationship', { Id: 'rId2', Type: 'http://schemas.microsoft.com/visio/2010/relationships/windows', Target: 'windows.xml' }).up()
-            .up();
-        this.zip.folder('visio')?.folder('_rels')?.file('document.xml.rels', rels.end({ prettyPrint: true }));
-    }
-
-    private addWindowsXml() {
-        // visio/windows.xml: persisted view state (zoom, scroll position,
-        // which page is current). Visio writes this on every save; we emit
-        // a minimal single Drawing window centered on Page-1.
-        const cx = String(this.pageWidth / 2);
-        const cy = String(this.pageHeight / 2);
-        const xml = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Windows', {
-                xmlns: 'http://schemas.microsoft.com/office/visio/2012/main',
-                ClientWidth: '1024',
-                ClientHeight: '768',
-            })
-                .ele('Window', {
-                    ID: '0',
-                    WindowType: 'Drawing',
-                    WindowState: '1073741824',
-                    WindowLeft: '0',
-                    WindowTop: '0',
-                    WindowWidth: '1024',
-                    WindowHeight: '768',
-                    ContainerType: 'Page',
-                    Page: '0',
-                    ViewScale: '-1',
-                    ViewCenterX: cx,
-                    ViewCenterY: cy,
-                })
-                    .ele('ShowRulers').txt('1').up()
-                    .ele('ShowGrid').txt('1').up()
-                    .ele('ShowPageBreaks').txt('0').up()
-                    .ele('ShowGuides').txt('1').up()
-                    .ele('ShowConnectionPoints').txt('1').up()
-                    .ele('GlueSettings').txt('9').up()
-                    .ele('SnapSettings').txt('65847').up()
-                    .ele('SnapExtensions').txt('34').up()
-                    .ele('SnapAngles').up()
-                    .ele('DynamicGridEnabled').txt('1').up()
-                    .ele('TabSplitterPos').txt('0.5').up()
-                .up()
-            .up();
-        this.zip.folder('visio')?.file('windows.xml', xml.end({ prettyPrint: true }));
-    }
-
-    private addPagesXml() {
-        // The Pages collection: one <Page> per page file. The Rel child links
-        // to page1.xml via the relationship declared in pages.xml.rels.
-        const xml = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Pages', {
-                xmlns: 'http://schemas.microsoft.com/office/visio/2012/main',
-                'xmlns:r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
-            })
-                .ele('Page', { ID: '0', Name: 'Page-1', NameU: 'Page-1', ViewScale: '1', ViewCenterX: String(this.pageWidth / 2), ViewCenterY: String(this.pageHeight / 2) })
-                    .ele('PageSheet')
-                        .ele('Cell', { N: 'PageWidth',       V: String(this.pageWidth) }).up()
-                        .ele('Cell', { N: 'PageHeight',      V: String(this.pageHeight) }).up()
-                        .ele('Cell', { N: 'ShdwOffsetX',     V: '0.125' }).up()
-                        .ele('Cell', { N: 'ShdwOffsetY',     V: '-0.125' }).up()
-                        .ele('Cell', { N: 'PageScale',       V: '1', U: 'IN_F' }).up()
-                        .ele('Cell', { N: 'DrawingScale',    V: '1', U: 'IN_F' }).up()
-                        .ele('Cell', { N: 'DrawingSizeType', V: '0' }).up()
-                        .ele('Cell', { N: 'DrawingScaleType', V: '0' }).up()
-                        .ele('Cell', { N: 'InhibitSnap',     V: '0' }).up()
-                    .up()
-                    .ele('Rel', { 'r:id': 'rId1' }).up()
-                .up()
-            .up();
-        this.zip.folder('visio')?.folder('pages')?.file('pages.xml', xml.end({ prettyPrint: true }));
-
-        const rels = create({ encoding: 'UTF-8', standalone: true })
-            .ele('Relationships', { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' })
-                .ele('Relationship', { Id: 'rId1', Type: 'http://schemas.microsoft.com/visio/2010/relationships/page', Target: 'page1.xml' }).up()
-            .up();
-        this.zip.folder('visio')?.folder('pages')?.folder('_rels')?.file('pages.xml.rels', rels.end({ prettyPrint: true }));
-    }
-
-    private addPageXml(graph: GraphData) {
-        const root = create({ encoding: 'UTF-8', standalone: true })
-            .ele('PageContents', { xmlns: 'http://schemas.microsoft.com/office/visio/2012/main' })
-            .ele('Shapes');
-
-        let shapeId = 1;
-        const nodeIdToShapeId = new Map<string, number>();
-        const nodeIdToPin = new Map<string, { pinX: number, pinY: number }>();
-        const connects: Array<{ fromSheet: number, fromCell: string, toSheet: number, toCell: string }> = [];
-
-        // Helper for LinePattern
-        const getLinePattern = (dash: string | undefined) => {
-            if (!dash || dash === 'none') return null;
-            // "0px", "0", "0 0" all mean solid — parseFloat handles the unit suffix
-            if (parseFloat(dash) === 0) return null;
-            return '2';
+        // Every subgraph, direct or not, that contains each shape — and the
+        // reverse. Visio records container membership in both directions.
+        const ancestorsOf = (id: string): string[] => {
+            const out: string[] = [];
+            const seen = new Set<string>([id]);
+            for (let p = parents.get(id); p && !seen.has(p); p = parents.get(p)) { out.push(p); seen.add(p); }
+            return out;
         };
-
-        // Helper for Fonts
-        const getFontStyle = (weight?: string, style?: string) => {
-            let s = 0;
-            if (weight === 'bold' || weight === '700' || weight === '800') s |= 1; // Bold
-            if (style === 'italic') s |= 2; // Italic
-            return s;
-        };
-
-        // Character.Size is a spatial cell; Visio always reads its value in
-        // the document's internal unit (inches), regardless of the U
-        // attribute. Emitting "10.5" with U="PT" makes Visio render text at
-        // 10.5 inches tall, which is what caused shapes to disappear under
-        // giant letters. Convert px -> inches directly (px / 96) and leave U
-        // off so Visio uses the sheet-native unit.
-        const getFontSize = (sizeStr?: string) => {
-            if (!sizeStr) return null;
-            const px = parseFloat(sizeStr);
-            if (isNaN(px)) return null;
-            return (px / this.dpi).toFixed(4);
-        };
-
-        const getHorzAlign = (align?: string) => {
-            if (align === 'left') return '0';
-            if (align === 'right') return '2';
-            return '1'; // Center default
-        };
-
-        // Evaluate a ShapeSheet expression over known Width/Height so we can
-        // emit a concrete V alongside the F formula. Only supports the tokens
-        // this generator actually produces (Width, Height, constants, */-).
-        const evalDim = (expr: string, width: number, height: number): number => {
-            const replaced = expr.replace(/Width/g, String(width)).replace(/Height/g, String(height));
-            // Very small parser: strip whitespace, split on + and -, each term
-            // is a product. Only handles the patterns this generator produces.
-            const s = replaced.replace(/\s+/g, '');
-            let sign = 1;
-            let i = 0;
-            let total = 0;
-            if (s[0] === '-') { sign = -1; i = 1; }
-            else if (s[0] === '+') { i = 1; }
-            let termStart = i;
-            while (i <= s.length) {
-                const c = s[i];
-                if (i === s.length || c === '+' || c === '-') {
-                    const term = s.slice(termStart, i);
-                    const factors = term.split('*').map(Number);
-                    const product = factors.reduce((a, b) => a * b, 1);
-                    total += sign * product;
-                    sign = c === '-' ? -1 : 1;
-                    termStart = i + 1;
-                }
-                i++;
-            }
-            if (!isFinite(total)) throw new Error(`evalDim: expression "${expr}" evaluated to ${total}`);
-            return total;
-        };
-
-        // 1. Add Clusters (Subgraphs) - Draw first (background)
-        if (graph.clusters) {
-            for (const cluster of graph.clusters) {
-                const w = cluster.width / this.dpi;
-                const h = cluster.height / this.dpi;
-
-                const pinX = this.toVisioX(cluster.x + cluster.width  / 2);
-                const pinY = this.toVisioY(cluster.y + cluster.height / 2);
-
-                // Clusters can be edge endpoints too (`CH -->|...| S4` in
-                // Mermaid is perfectly legal). Register them in the same
-                // id -> pin/shape maps we use for nodes so the glue path
-                // fires for cluster-endpoint edges.
-                nodeIdToShapeId.set(cluster.id, shapeId);
-                nodeIdToPin.set(cluster.id, { pinX, pinY });
-
-                const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Group' });
-                
-                shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
-                shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
-                shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
-                shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
-                // DisplayLevel 0 = background band; clusters always render behind nodes.
-                shape.ele('Cell', { N: 'DisplayLevel', V: '0' }).up();
-
-                // Style
-                if (cluster.style) {
-                    const fill = VsdxGenerator.normalizeColor(cluster.style.fill);
-                    if (fill) shape.ele('Cell', { N: 'FillForegnd', V: fill }).up();
-                    const stroke = VsdxGenerator.normalizeColor(cluster.style.stroke);
-                    if (stroke) shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
-                    if (cluster.style.strokeWidth) {
-                        const px = parseFloat(cluster.style.strokeWidth) || 1;
-                        shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
-                    }
-                    const lp = getLinePattern(cluster.style.strokeDasharray);
-                    if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
-                }
-
-                // Geometry - Rectangle. Width/Height expressions are formulas
-                // referencing the shape's own Width/Height cells, so they must
-                // live in F attributes; V would be parsed as a literal value.
-                const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', F: 'Width', V: w.toString() }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', F: 'Width', V: w.toString() }).up().ele('Cell', { N: 'Y', F: 'Height', V: h.toString() }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', F: 'Height', V: h.toString() }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.up();
-
-                // TextBlock section - align text to top (VerticalAlign = 0).
-                // Visio's Shape schema is ordered: Cells, Sections, then Text.
-                // Emitting Text before a Section will cause Visio to reject the
-                // document, so all sections must land first.
-                if (cluster.text) {
-                    const txtXform = shape.ele('Section', { N: 'TextBlock', IX: '0' });
-                    txtXform.ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'VerticalAlign', V: '0' }).up() // Top
-                    .up().up();
-                }
-
-                // Make it a Container
-                const user = shape.ele('Section', { N: 'User', IX: '0' });
-                user.ele('Row', { N: 'msvStructureType', IX: '0' })
-                    .ele('Cell', { N: 'Value', V: '"Container"', U: 'STR' }).up()
-                .up().up();
-
-                // Text element goes LAST in the shape so Visio's ordered schema
-                // accepts the document.
-                if (cluster.text) {
-                    shape.ele('Text').txt(cluster.text).up();
-                }
-
-                shapeId++;
+        const membersOf = new Map<string, number[]>();
+        for (const id of [...clusters.map(c => c.id), ...graph.nodes.map(n => n.id)]) {
+            for (const ancestor of ancestorsOf(id)) {
+                if (!membersOf.has(ancestor)) membersOf.set(ancestor, []);
+                membersOf.get(ancestor)!.push(shapeIdOf.get(id)!);
             }
         }
+        const containerCell = (id: string): string => {
+            const containers = ancestorsOf(id).map(a => shapeIdOf.get(a)!).filter(Boolean);
+            const members = membersOf.get(id) ?? [];
+            const terms = [
+                ...(members.length ? [`DEPENDSON(1,${members.map(m => `Sheet.${m}!SheetRef()`).join(',')})`] : []),
+                ...(containers.length ? [`DEPENDSON(4,${containers.map(c => `Sheet.${c}!SheetRef()`).join(',')})`] : []),
+            ];
+            return terms.length ? cell('Relationships', 0, `SUM(${terms.join(',')})`) : '';
+        };
 
-        // 2. Add Nodes
-        for (const node of graph.nodes) {
-            // Register ID
-            nodeIdToShapeId.set(node.id, shapeId);
+        const shapes: string[] = [];
+        for (const c of clusters) shapes.push(this.clusterShape(shapeIdOf.get(c.id)!, c, containerCell(c.id)));
+        for (const n of graph.nodes) shapes.push(this.nodeShape(shapeIdOf.get(n.id)!, n, containerCell(n.id)));
 
-            // Convert to inches. node.x/node.y are bounding-box top-left in SVG coords
-            // (the parser normalizes both nodes and clusters to top-left). Visio PinX/PinY
-            // is the shape center in a bottom-left origin, so flip Y and add half-extents.
-            const w = node.width / this.dpi;
-            const h = node.height / this.dpi;
-            const pinX = this.toVisioX(node.x + node.width  / 2);
-            const pinY = this.toVisioY(node.y + node.height / 2);
-
-            nodeIdToPin.set(node.id, { pinX, pinY });
-
-            const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
-
-            // Transform
-            shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
-            shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
-            shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
-            shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
-            // DisplayLevel 1 = mid band; nodes always render in front of cluster rectangles.
-            shape.ele('Cell', { N: 'DisplayLevel', V: '1' }).up();
-
-            // Rounding
-            if (node.rounding && node.rounding > 0) {
-                // Convert px to inches
-                const rIn = node.rounding / this.dpi;
-                shape.ele('Cell', { N: 'Rounding', V: rIn.toString() }).up();
-            }
-
-            // Styles
-            if (node.style) {
-                const fill = VsdxGenerator.normalizeColor(node.style.fill);
-                if (fill) {
-                     shape.ele('Cell', { N: 'FillForegnd', V: fill }).up();
-                }
-                const stroke = VsdxGenerator.normalizeColor(node.style.stroke);
-                if (stroke) {
-                     shape.ele('Cell', { N: 'LineColor', V: stroke }).up();
-                }
-                if (node.style.strokeWidth) {
-                     const px = parseFloat(node.style.strokeWidth) || 1;
-                     shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
-                }
-                const lp = getLinePattern(node.style.strokeDasharray);
-                if (lp) shape.ele('Cell', { N: 'LinePattern', V: lp }).up();
-            }
-
-            // Paragraph (Alignment)
-            if (node.style && node.style.textAlign) {
-                shape.ele('Section', { N: 'Paragraph', IX: '0' })
-                    .ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'HorzAlign', V: getHorzAlign(node.style.textAlign) }).up()
-                    .up().up();
-            }
-
-            // Hyperlink
-            if (node.url) {
-                shape.ele('Section', { N: 'Hyperlink', IX: '0' })
-                    .ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'Address', V: node.url }).up()
-                    .up().up();
-            }
-
-            // Geometry. When an expression references Width/Height it's a
-            // formula and must live in the F attribute with the evaluated
-            // number in V. Putting "Width*0.5" in V makes Visio treat it as an
-            // un-parseable literal and the geometry silently drops out.
-            const xf = (fx: string) => ({ F: fx, V: evalDim(fx, w, h).toString() });
-            const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-
-            if (node.type === 'circle' || node.type === 'ellipse') {
-                geom.ele('Row', { T: 'Ellipse', IX: '1' })
-                    .ele('Cell', { N: 'X', ...xf('Width*0.5') }).up()
-                    .ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up()
-                    .ele('Cell', { N: 'A', ...xf('Width') }).up()
-                    .ele('Cell', { N: 'B', ...xf('Height*0.5') }).up()
-                    .ele('Cell', { N: 'C', ...xf('Width*0.5') }).up()
-                    .ele('Cell', { N: 'D', ...xf('Height') }).up().up();
-            } else if (node.type === 'diamond') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.5') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Width*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-            } else if (node.type === 'stadium') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width-Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width-Height*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().ele('Cell', { N: 'A', ...xf('Width') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Height*0.5') }).up().ele('Cell', { N: 'Y', V: '0' }).up().ele('Cell', { N: 'A', V: '0' }).up().up();
-            } else if (node.type === 'parallelogram') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.2') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width*0.8') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', ...xf('Width*0.2') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-            } else if (node.type === 'cylinder') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().ele('Cell', { N: 'A', ...xf('Width*0.2') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().up();
-                geom.ele('Row', { T: 'ArcTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().ele('Cell', { N: 'A', ...xf('-Width*0.2') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.15') }).up().up();
-
-                const geom2 = shape.ele('Section', { N: 'Geometry', IX: '1' });
-                geom2.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                geom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().up();
-                geom2.ele('Row', { T: 'ArcTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height*0.85') }).up().ele('Cell', { N: 'A', ...xf('Width*0.2') }).up().up();
-            } else if (node.type === 'subroutine') {
-                geom.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' }).ele('Cell', { N: 'X', ...xf('Width') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' }).ele('Cell', { N: 'X', V: '0' }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-
-                const subGeom1 = shape.ele('Section', { N: 'Geometry', IX: '1' });
-                subGeom1.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                subGeom1.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.1') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                subGeom1.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.1') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-
-                const subGeom2 = shape.ele('Section', { N: 'Geometry', IX: '2' });
-                subGeom2.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                subGeom2.ele('Row', { T: 'MoveTo', IX: '1' }).ele('Cell', { N: 'X', ...xf('Width*0.9') }).up().ele('Cell', { N: 'Y', V: '0' }).up().up();
-                subGeom2.ele('Row', { T: 'LineTo', IX: '2' }).ele('Cell', { N: 'X', ...xf('Width*0.9') }).up().ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-            } else {
-                // Default: Rectangle
-                geom.ele('Row', { T: 'MoveTo', IX: '1' })
-                    .ele('Cell', { N: 'X', V: '0' }).up()
-                    .ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '2' })
-                    .ele('Cell', { N: 'X', ...xf('Width') }).up()
-                    .ele('Cell', { N: 'Y', V: '0' }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '3' })
-                    .ele('Cell', { N: 'X', ...xf('Width') }).up()
-                    .ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '4' })
-                    .ele('Cell', { N: 'X', V: '0' }).up()
-                    .ele('Cell', { N: 'Y', ...xf('Height') }).up().up();
-                geom.ele('Row', { T: 'LineTo', IX: '5' })
-                    .ele('Cell', { N: 'X', V: '0' }).up()
-                    .ele('Cell', { N: 'Y', V: '0' }).up().up();
-            }
-            geom.up();
-
-            // Character section. Emitted before <Text> because Visio's Shape
-            // schema orders Cells -> Sections -> Text; emitting Text first
-            // makes the document invalid.
-            if (node.text) {
-                const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
-                const charRow = charSec.ele('Row', { IX: '0' });
-
-                if (node.style) {
-                    const color = VsdxGenerator.normalizeColor(node.style.color);
-                    if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
-
-                    const fs = getFontSize(node.style.fontSize);
-                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
-
-                    const st = getFontStyle(node.style.fontWeight, node.style.fontStyle);
-                    if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
-                }
-                charRow.up().up(); // Row, Section
-            }
-
-            // Connection Points. One row per cardinal side; each row needs
-            // DirX/DirY so Visio knows which way the connector should approach
-            // and Type=0 (inward) so dynamic glue can pick the best face.
-            // Row IX starts at 1 (the Connection section's indexing base);
-            // IX="0" made Visio ignore the row entirely.
-            const conn = shape.ele('Section', { N: 'Connection' });
-            const addConn = (ix: number, x: any, y: any, dirX: string, dirY: string) => {
-                const row = conn.ele('Row', { IX: ix.toString() });
-                row.ele('Cell', { N: 'X', ...x }).up();
-                row.ele('Cell', { N: 'Y', ...y }).up();
-                row.ele('Cell', { N: 'DirX', V: dirX }).up();
-                row.ele('Cell', { N: 'DirY', V: dirY }).up();
-                row.ele('Cell', { N: 'Type', V: '0' }).up();
-                row.up();
-            };
-            addConn(1, xf('Width*0.5'), { V: '0' },          '0',  '-1'); // bottom
-            addConn(2, xf('Width*0.5'), xf('Height'),        '0',  '1');  // top
-            addConn(3, { V: '0' },      xf('Height*0.5'),    '-1', '0');  // left
-            addConn(4, xf('Width'),     xf('Height*0.5'),    '1',  '0');  // right
-            conn.up();
-
-            // Text goes last (after all Sections).
-            if (node.text) {
-                shape.ele('Text').txt(node.text).up();
-            }
-
-            shapeId++;
+        const connects: string[] = [];
+        for (const edge of graph.edges ?? []) {
+            const xml = this.edgeShape(nextId, edge, shapeIdOf, connects);
+            if (!xml) continue;
+            shapes.push(xml);
+            nextId++;
         }
+        for (const label of graph.labels ?? []) shapes.push(this.labelShape(nextId++, label));
 
-        // 3. Add Connectors (Edges)
-        if (graph.edges) {
-            for (const edge of graph.edges) {
-                if (!edge.d) continue;
-
-                const startPin = edge.startId ? nodeIdToPin.get(edge.startId) : undefined;
-                const endPin = edge.endId ? nodeIdToPin.get(edge.endId) : undefined;
-                const startShapeId = edge.startId ? nodeIdToShapeId.get(edge.startId) : undefined;
-                const endShapeId = edge.endId ? nodeIdToShapeId.get(edge.endId) : undefined;
-                const glued = !!(startPin && endPin && startShapeId && endShapeId);
-
-                const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
-
-                if (glued) {
-                    // Visio 1D shapes: Width = Euclidean length, Height = 0,
-                    // Angle = atan2(dy, dx). This is the canonical representation
-                    // Visio uses internally for connectors. Width = endX - beginX
-                    // would be negative for right-to-left edges, which Visio rejects.
-                    const beginX = startPin!.pinX;
-                    const beginY = startPin!.pinY;
-                    const endX = endPin!.pinX;
-                    const endY = endPin!.pinY;
-                    const dx = endX - beginX;
-                    const dy = endY - beginY;
-                    const len = Math.sqrt(dx * dx + dy * dy) || 0.01;
-                    const angle = Math.atan2(dy, dx);
-
-                    shape.ele('Cell', { N: 'PinX', V: ((beginX + endX) / 2).toString() }).up();
-                    shape.ele('Cell', { N: 'PinY', V: ((beginY + endY) / 2).toString() }).up();
-                    shape.ele('Cell', { N: 'Width', V: len.toString() }).up();
-                    shape.ele('Cell', { N: 'Height', V: '0' }).up();
-                    shape.ele('Cell', { N: 'LocPinX', V: (len / 2).toString() }).up();
-                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
-                    shape.ele('Cell', { N: 'Angle', V: angle.toString() }).up();
-                    shape.ele('Cell', { N: 'BeginX', V: beginX.toString() }).up();
-                    shape.ele('Cell', { N: 'BeginY', V: beginY.toString() }).up();
-                    shape.ele('Cell', { N: 'EndX', V: endX.toString() }).up();
-                    shape.ele('Cell', { N: 'EndY', V: endY.toString() }).up();
-                } else {
-                    // Fallback: place shape at page origin and draw the raw SVG path in
-                    // absolute coordinates. No glue, but the line is still rendered.
-                    shape.ele('Cell', { N: 'PinX', V: '0' }).up();
-                    shape.ele('Cell', { N: 'PinY', V: '0' }).up();
-                    shape.ele('Cell', { N: 'Width', V: this.pageWidth.toString() }).up();
-                    shape.ele('Cell', { N: 'Height', V: this.pageHeight.toString() }).up();
-                    shape.ele('Cell', { N: 'LocPinX', V: '0' }).up();
-                    shape.ele('Cell', { N: 'LocPinY', V: '0' }).up();
-                }
-
-                shape.ele('Cell', { N: 'FillPattern', V: '0' }).up();
-                // Arrow direction: default end-arrow on; suppress if the edge has no arrowhead.
-                shape.ele('Cell', { N: 'EndArrow',   V: edge.arrowEnd   !== false ? '13' : '0' }).up();
-                if (edge.arrowStart) {
-                    shape.ele('Cell', { N: 'BeginArrow', V: '13' }).up();
-                }
-                // ObjType=2 marks the shape as a connector so Visio routes it dynamically.
-                shape.ele('Cell', { N: 'ObjType', V: '2' }).up();
-
-                const edgeStroke = VsdxGenerator.normalizeColor(edge.style?.stroke) || '#000000';
-                shape.ele('Cell', { N: 'LineColor', V: edgeStroke }).up();
-                if (edge.style?.strokeWidth) {
-                    const px = parseFloat(edge.style.strokeWidth) || 1;
-                    shape.ele('Cell', { N: 'LineWeight', V: (px / this.dpi).toString() }).up();
-                } else {
-                    shape.ele('Cell', { N: 'LineWeight', V: (1 / this.dpi).toString() }).up();
-                }
-                const edgeLp = getLinePattern(edge.style?.strokeDasharray);
-                if (edgeLp) shape.ele('Cell', { N: 'LinePattern', V: edgeLp }).up();
-
-                if (glued) {
-                    // For a Visio 1D shape, local X points along the connector
-                    // (Begin at 0, End at Width). Height is 0 (line has no
-                    // geometric height). Y is always 0 in local space.
-                    const dx2 = endPin!.pinX - startPin!.pinX;
-                    const dy2 = endPin!.pinY - startPin!.pinY;
-                    const connLen = Math.sqrt(dx2 * dx2 + dy2 * dy2) || 0.01;
-                    const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-                    geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                    geom.ele('Row', { T: 'MoveTo', IX: '1' })
-                        .ele('Cell', { N: 'X', V: '0' }).up()
-                        .ele('Cell', { N: 'Y', V: '0' }).up().up();
-                    geom.ele('Row', { T: 'LineTo', IX: '2' })
-                        .ele('Cell', { N: 'X', F: 'Width', V: connLen.toString() }).up()
-                        .ele('Cell', { N: 'Y', V: '0' }).up().up();
-                    geom.up();
-
-                    connects.push({ fromSheet: shapeId, fromCell: 'BeginX', toSheet: startShapeId!, toCell: 'PinX' });
-                    connects.push({ fromSheet: shapeId, fromCell: 'EndX', toSheet: endShapeId!, toCell: 'PinX' });
-                } else {
-                    const geom = shape.ele('Section', { N: 'Geometry', IX: '0' });
-                    geom.ele('Cell', { N: 'NoFill', V: '1' }).up();
-                    this.parsePathToVisio(edge.d, geom);
-                    geom.up();
-                }
-
-                // Routing Style (2 = Curved, matching Mermaid's default curve:basis)
-                shape.ele('Section', { N: 'ShapeLayout', IX: '0' })
-                    .ele('Row', { IX: '0' })
-                        .ele('Cell', { N: 'ConLineRouteExt', V: '2' }).up()
-                    .up().up();
-
-                // Edge label styling: a Character section (before <Text>, per
-                // Visio's Cells->Sections->Text order) carries the Mermaid
-                // label's color/size/weight so the caption matches the diagram
-                // instead of inheriting Visio's default font.
-                if (edge.text && edge.labelStyle) {
-                    const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
-                    const charRow = charSec.ele('Row', { IX: '0' });
-                    const color = VsdxGenerator.normalizeColor(edge.labelStyle.color);
-                    if (color) charRow.ele('Cell', { N: 'Color', V: color }).up();
-                    const fs = getFontSize(edge.labelStyle.fontSize);
-                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
-                    const st = getFontStyle(edge.labelStyle.fontWeight, edge.labelStyle.fontStyle);
-                    if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
-                    charRow.up().up();
-                }
-
-                // Embed edge label text directly in the connector shape so
-                // the label follows the connector when nodes are moved.
-                if (edge.text) {
-                    shape.ele('Text').txt(edge.text).up();
-                }
-
-                shapeId++;
-            }
-        }
-
-        // 4. Add Edge Labels
-        if (graph.labels) {
-            for (const label of graph.labels) {
-                const w = (label.width || 10) / this.dpi;
-                const h = (label.height || 10) / this.dpi;
-                // label.x/y is the top-left of the text box in SVG-space.
-                const pinX = this.toVisioX(label.x + (label.width  || 10) / 2);
-                const pinY = this.toVisioY(label.y + (label.height || 10) / 2);
-
-                const shape = root.ele('Shape', { ID: shapeId.toString(), Type: 'Shape' });
-                
-                shape.ele('Cell', { N: 'PinX', V: pinX.toString() }).up();
-                shape.ele('Cell', { N: 'PinY', V: pinY.toString() }).up();
-                shape.ele('Cell', { N: 'Width', V: w.toString() }).up();
-                shape.ele('Cell', { N: 'Height', V: h.toString() }).up();
-                // DisplayLevel 2 = foreground band; labels render in front of nodes.
-                shape.ele('Cell', { N: 'DisplayLevel', V: '2' }).up();
-
-                // Invisible line; FillPattern depends on whether a background is requested.
-                shape.ele('Cell', { N: 'LinePattern', V: '0' }).up();
-                const labelFill = VsdxGenerator.normalizeColor(label.style?.fill);
-                const hasBackground = !!labelFill;
-                shape.ele('Cell', { N: 'FillPattern', V: hasBackground ? '1' : '0' }).up();
-                if (hasBackground) {
-                    shape.ele('Cell', { N: 'FillForegnd', V: labelFill! }).up();
-                }
-
-                // Character section first, then Text (Visio enforces
-                // Cells -> Sections -> Text order).
-                const charSec = shape.ele('Section', { N: 'Character', IX: '0' });
-                const charRow = charSec.ele('Row', { IX: '0' });
-
-                 if (label.style) {
-                    const lblColor = VsdxGenerator.normalizeColor(label.style.color);
-                    if (lblColor) charRow.ele('Cell', { N: 'Color', V: lblColor }).up();
-
-                    const fs = getFontSize(label.style.fontSize);
-                    if (fs) charRow.ele('Cell', { N: 'Size', V: fs }).up();
-
-                    const st = getFontStyle(label.style.fontWeight, label.style.fontStyle);
-                    if (st > 0) charRow.ele('Cell', { N: 'Style', V: st.toString() }).up();
-                }
-                charRow.up().up();
-
-                shape.ele('Text').txt(label.text).up();
-
-                shapeId++;
-            }
-        }
-        
-        // 5. Add Connections
-        // xmlbuilder2's ele() returns the child node, not `this`, so `root`
-        // permanently points to <Shapes>. Use root.up() to obtain <PageContents>
-        // and emit <Connects> as its sibling, not as a child of <Shapes>.
-        if (connects.length > 0) {
-            const pageContents = root.up();
-            const connXml = pageContents.ele('Connects');
-            for (const c of connects) {
-                connXml.ele('Connect', { FromSheet: c.fromSheet.toString(), FromCell: c.fromCell, ToSheet: c.toSheet.toString(), ToCell: c.toCell }).up();
-            }
-        }
-
-        // root.end() serializes from the document root regardless of cursor.
-        this.zip.folder('visio')?.folder('pages')?.file('page1.xml', root.end({ prettyPrint: true }));
+        return XML_DECL +
+            `<PageContents xmlns="${NS}" xmlns:r="${RNS}">\n<Shapes>\n${shapes.join('\n')}\n</Shapes>\n` +
+            (connects.length ? `<Connects>\n${connects.join('\n')}\n</Connects>\n` : '') +
+            `</PageContents>`;
     }
 
-    // Exported for unit testing.
-    public parsePathToVisio(d: string, geomXml: any) {
-        const commands = this.tokenizeSvgPath(d);
-
-        let currentX = 0;
-        let currentY = 0;
-        let startX = 0;
-        let startY = 0;
-        let rowIx = 1;
-
-        // Use the same margin-aware transforms as every other shape. The raw
-        // SVG `d` coordinates are in the parser's translated SVG space (the
-        // same space node x/y live in), so the fallback path must apply the
-        // identical mapping or unglued edges land offset by the page margin
-        // (0.5") and a half-page in Y relative to the nodes they connect.
-        const toVisioY = (y: number) => this.toVisioY(y);
-        const toVisioX = (x: number) => this.toVisioX(x);
-
-        const moveTo = (x: number, y: number) => {
-            geomXml.ele('Row', { T: 'MoveTo', IX: rowIx.toString() })
-                .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
-                .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
-            rowIx++;
+    // Outer subgraphs must be drawn before the ones inside them.
+    private orderClusters(clusters: GraphCluster[]): GraphCluster[] {
+        const byId = new Map(clusters.map(c => [c.id, c]));
+        const depth = (c: GraphCluster): number => {
+            let d = 0;
+            const seen = new Set<string>([c.id]);
+            for (let p = c.parentId; p && byId.has(p) && !seen.has(p); p = byId.get(p)!.parentId) { d++; seen.add(p); }
+            return d;
         };
-        const lineTo = (x: number, y: number) => {
-            geomXml.ele('Row', { T: 'LineTo', IX: rowIx.toString() })
-                .ele('Cell', { N: 'X', V: toVisioX(x).toString() }).up()
-                .ele('Cell', { N: 'Y', V: toVisioY(y).toString() }).up().up();
-            rowIx++;
-        };
-        // Emit a NURBSTo row that encodes a single cubic Bézier segment.
-        // Visio's NURBSTo (Nonuniform Rational B-Spline) can represent
-        // exact cubics: degree=3, two internal knots at 0 and 1, weights=1.
-        // The NURBS formula for a cubic with control pts P0-P3 is:
-        //   knotVector=[0,0,0,0,1,1,1,1], weights=[1,1,1,1]
-        //   data = "3 0 1 0 x1,y1,1 x2,y2,1 x3,y3,1" where x1..x3 are the
-        //   three internal control points (P1, P2, P3) normalised to [0,1].
-        // Simpler: use SplineStart + SplineKnot rows (Visio Geometry type 8).
-        // Even simpler: keep the polyline approximation but reduce to 4 steps
-        // (sufficient for UI-quality curves) which keeps the XML compact.
-        const cubicBezTo = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
-            // 4-segment Casteljau subdivision is visually smooth at diagram scale
-            // and produces far fewer XML rows than 10.
-            const steps = 4;
-            for (let s = 1; s <= steps; s++) {
-                const t = s / steps;
-                const mt = 1 - t;
-                const bx = mt*mt*mt*currentX + 3*mt*mt*t*x1 + 3*mt*t*t*x2 + t*t*t*x;
-                const by = mt*mt*mt*currentY + 3*mt*mt*t*y1 + 3*mt*t*t*y2 + t*t*t*y;
-                lineTo(bx, by);
+        return clusters
+            .map((c, i) => ({ c, i, d: depth(c), area: c.width * c.height }))
+            .sort((a, b) => a.d - b.d || b.area - a.area || a.i - b.i)
+            .map(x => x.c);
+    }
+
+    // Which subgraph directly contains each node and subgraph. Uses the
+    // extractor's parentId where given; otherwise the smallest subgraph
+    // whose frame contains the shape's centre.
+    private resolveParents(nodes: GraphNode[], clusters: GraphCluster[]): Map<string, string> {
+        const ids = new Set(clusters.map(c => c.id));
+        const parents = new Map<string, string>();
+        const enclosing = (item: { id: string; x: number; y: number; width: number; height: number }): string | undefined => {
+            const cx = item.x + item.width / 2, cy = item.y + item.height / 2;
+            let best: GraphCluster | undefined;
+            for (const c of clusters) {
+                if (c.id === item.id) continue;
+                if (cx < c.x || cx > c.x + c.width || cy < c.y || cy > c.y + c.height) continue;
+                // A subgraph can't sit inside one that is not larger than it.
+                if (ids.has(item.id) && c.width * c.height <= item.width * item.height) continue;
+                if (!best || c.width * c.height < best.width * best.height) best = c;
             }
+            return best?.id;
         };
-        const quadBezTo = (x1: number, y1: number, x: number, y: number) => {
-            const steps = 4;
-            for (let s = 1; s <= steps; s++) {
-                const t = s / steps;
-                const mt = 1 - t;
-                const bx = mt*mt*currentX + 2*mt*t*x1 + t*t*x;
-                const by = mt*mt*currentY + 2*mt*t*y1 + t*t*y;
-                lineTo(bx, by);
-            }
+        for (const item of [...clusters, ...nodes]) {
+            const parent = item.parentId && ids.has(item.parentId) ? item.parentId : enclosing(item);
+            if (parent && parent !== item.id) parents.set(item.id, parent);
+        }
+        return parents;
+    }
+
+    // ------------------------------------------------------------ shapes
+
+    private transform(x: number, y: number, width: number, height: number): { w: number; h: number; xml: string } {
+        const w = Math.max(width, 0.01) / DPI;
+        const h = Math.max(height, 0.01) / DPI;
+        return {
+            w, h,
+            xml: cell('PinX', this.toVisioX(x + width / 2)) + cell('PinY', this.toVisioY(y + height / 2)) +
+                cell('Width', w) + cell('Height', h) +
+                cell('LocPinX', w / 2, 'Width*0.5') + cell('LocPinY', h / 2, 'Height*0.5'),
         };
-        // Flatten an SVG elliptical-arc command (A rx ry rot largeArc sweep x y)
-        // into a polyline using the endpoint-to-center parameterization from the
-        // SVG spec (Implementation Notes F.6). Start point is (currentX, currentY);
-        // (x, y) is the absolute endpoint. Emits ~one segment per 15 degrees so the
-        // curve reads as smooth at diagram scale. Replaces the old straight-line
-        // fallback, which visibly cut the corner on cylinder/looped edges.
-        const arcTo = (
-            rx: number, ry: number, rotDeg: number,
-            largeArc: number, sweep: number, x: number, y: number,
-        ) => {
-            const x1 = currentX, y1 = currentY, x2 = x, y2 = y;
-            // Degenerate radii or coincident endpoints: SVG says draw a straight line.
-            if (rx === 0 || ry === 0 || (x1 === x2 && y1 === y2)) { lineTo(x2, y2); return; }
-            rx = Math.abs(rx); ry = Math.abs(ry);
-            const phi = (rotDeg % 360) * Math.PI / 180;
-            const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
-            const dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
-            const x1p = cosPhi * dx + sinPhi * dy;
-            const y1p = -sinPhi * dx + cosPhi * dy;
-            let rx2 = rx * rx, ry2 = ry * ry;
-            // Scale radii up if they're too small to span the endpoints.
-            const lambda = (x1p * x1p) / rx2 + (y1p * y1p) / ry2;
-            if (lambda > 1) { const s = Math.sqrt(lambda); rx *= s; ry *= s; rx2 = rx * rx; ry2 = ry * ry; }
-            const sign = largeArc !== sweep ? 1 : -1;
-            const num = Math.max(0, rx2 * ry2 - rx2 * y1p * y1p - ry2 * x1p * x1p);
-            const denom = rx2 * y1p * y1p + ry2 * x1p * x1p;
-            const coef = sign * Math.sqrt(num / denom);
-            const cxp = coef * (rx * y1p / ry);
-            const cyp = coef * (-ry * x1p / rx);
-            const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
-            const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
-            const angleBetween = (ux: number, uy: number, vx: number, vy: number) => {
-                const dot = ux * vx + uy * vy;
-                const len = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy)) || 1;
-                let a = Math.acos(Math.min(1, Math.max(-1, dot / len)));
-                if (ux * vy - uy * vx < 0) a = -a;
-                return a;
-            };
-            const ux = (x1p - cxp) / rx, uy = (y1p - cyp) / ry;
-            const vx = (-x1p - cxp) / rx, vy = (-y1p - cyp) / ry;
-            const theta1 = angleBetween(1, 0, ux, uy);
-            let dTheta = angleBetween(ux, uy, vx, vy);
-            if (!sweep && dTheta > 0) dTheta -= 2 * Math.PI;
-            else if (sweep && dTheta < 0) dTheta += 2 * Math.PI;
-            const segs = Math.max(2, Math.ceil(Math.abs(dTheta) / (Math.PI / 12)));
-            for (let i = 1; i <= segs; i++) {
-                const t = theta1 + dTheta * (i / segs);
-                const ex = cx + rx * Math.cos(t) * cosPhi - ry * Math.sin(t) * sinPhi;
-                const ey = cy + rx * Math.cos(t) * sinPhi + ry * Math.sin(t) * cosPhi;
-                lineTo(ex, ey);
+    }
+
+    private fillCells(fill: string | undefined): string {
+        const paint = parseColor(fill);
+        if (!paint) return cell('FillPattern', 0);
+        return cell('FillForegnd', paint.hex) + cell('FillPattern', 1) +
+            (paint.alpha < 1 ? cell('FillForegndTrans', 1 - paint.alpha) : '');
+    }
+
+    private lineCells(style: { stroke?: string; strokeWidth?: string; strokeDasharray?: string } | undefined,
+                      pattern?: GraphEdge['pattern'], fallbackColor?: string): string {
+        const paint = parseColor(style?.stroke) ?? parseColor(fallbackColor);
+        const width = px(style?.strokeWidth, 1);
+        if (!paint || width <= 0) return cell('LinePattern', 0);
+        return cell('LineColor', paint.hex) + cell('LineWeight', width / DPI) +
+            cell('LinePattern', linePattern(pattern, style?.strokeDasharray)) +
+            (paint.alpha < 1 ? cell('LineColorTrans', 1 - paint.alpha) : '');
+    }
+
+    private characterSection(style: TextStyle | undefined): string {
+        if (!style) return '';
+        const cells: string[] = [];
+        if (this.options.fonts) {
+            const font = resolveFont(style.fontFamily);
+            if (font) { this.fontsUsed.add(font); cells.push(cell('Font', font)); }
+        }
+        const color = parseColor(style.color);
+        if (color) cells.push(cell('Color', color.hex));
+        // Character.Size is read in inches whatever unit is stated, so
+        // convert px -> inches and state none.
+        const size = parseFloat(style.fontSize ?? '');
+        if (Number.isFinite(size) && size > 0) cells.push(`<Cell N="Size" V="${(size / DPI).toFixed(4)}"/>`);
+        const bits = (isBold(style.fontWeight) ? 1 : 0) | (style.fontStyle === 'italic' || style.fontStyle === 'oblique' ? 2 : 0);
+        if (bits) cells.push(cell('Style', bits));
+        return cells.length ? `<Section N="Character"><Row IX="0">${cells.join('')}</Row></Section>` : '';
+    }
+
+    private clusterShape(id: number, cluster: GraphCluster, membership: string): string {
+        const t = this.transform(cluster.x, cluster.y, cluster.width, cluster.height);
+        const W: Coord = { v: t.w, f: 'Width' };
+        const H: Coord = { v: t.h, f: 'Height' };
+        const zero: Coord = { v: 0 };
+        return `<Shape ID="${id}" Type="Shape">` +
+            t.xml +
+            this.fillCells(cluster.style?.fill) +
+            this.lineCells(cluster.style, undefined, '#000000') +
+            // The title sits at the top of the frame, as in Mermaid.
+            cell('VerticalAlign', 0) +
+            membership +
+            geometry(0, [['MoveTo', { X: zero, Y: zero }], ['LineTo', { X: W, Y: zero }], ['LineTo', { X: W, Y: H }], ['LineTo', { X: zero, Y: H }], ['LineTo', { X: zero, Y: zero }]]) +
+            // Marks the shape as a Visio container, so moving it moves its members.
+            `<Section N="User">` +
+            `<Row N="msvStructureType">${cell('Value', 'Container', undefined, 'STR')}</Row>` +
+            `<Row N="msvSDContainerMargin">${cell('Value', 0.125)}</Row>` +
+            `<Row N="msvSDContainerResize">${cell('Value', 0)}</Row>` +
+            `</Section>` +
+            (cluster.text ? this.characterSection({ color: cluster.style?.color, fontSize: cluster.style?.fontSize }) : '') +
+            (cluster.text ? `<Text>${esc(cluster.text)}</Text>` : '') +
+            `</Shape>`;
+    }
+
+    private nodeShape(id: number, node: GraphNode, membership: string): string {
+        const t = this.transform(node.x, node.y, node.width, node.height);
+        const rounding = node.rounding && node.rounding > 0 ? cell('Rounding', node.rounding / DPI) : '';
+        const align = node.style?.textAlign === 'left' ? 0 : node.style?.textAlign === 'right' ? 2 : 1;
+
+        const hyperlink = node.url
+            ? `<Section N="Hyperlink"><Row N="Row_1">${cell('Description', '')}${cell('Address', node.url)}${cell('SubAddress', '')}${cell('NewWindow', 0)}${cell('Default', 0)}${cell('Invisible', 0)}</Row></Section>`
+            : '';
+
+        // Four connection points, one per side, in the form Visio writes.
+        const points: Array<[Coord, Coord, number, number]> = [
+            [{ v: t.w / 2, f: 'Width*0.5' }, { v: 0 }, 0, -1],
+            [{ v: t.w / 2, f: 'Width*0.5' }, { v: t.h, f: 'Height' }, 0, 1],
+            [{ v: 0 }, { v: t.h / 2, f: 'Height*0.5' }, -1, 0],
+            [{ v: t.w, f: 'Width' }, { v: t.h / 2, f: 'Height*0.5' }, 1, 0],
+        ];
+        const connections = `<Section N="Connection">` + points.map(([x, y, dx, dy], i) =>
+            `<Row T="Connection" IX="${i}">${cell('X', x.v, x.f)}${cell('Y', y.v, y.f)}${cell('DirX', dx)}${cell('DirY', dy)}${cell('Type', 0)}</Row>`).join('') +
+            `</Section>`;
+
+        return `<Shape ID="${id}" Type="Shape">` +
+            t.xml + rounding +
+            this.fillCells(node.style?.fill) +
+            this.lineCells(node.style) +
+            membership +
+            this.nodeGeometry(node, t.w, t.h) +
+            (node.text ? this.characterSection(node.style) : '') +
+            // Centred is the default; only say so when it isn't.
+            (align !== 1 ? `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', align)}</Row></Section>` : '') +
+            hyperlink + connections +
+            (node.text ? `<Text>${esc(node.text)}</Text>` : '') +
+            `</Shape>`;
+    }
+
+    // Outline of a node in its own coordinate system: origin at the
+    // bottom-left corner, y up, extent Width x Height.
+    private nodeGeometry(node: GraphNode, w: number, h: number): string {
+        const zero: Coord = { v: 0 };
+        const W = (k = 1): Coord => ({ v: w * k, f: k === 1 ? 'Width' : `Width*${num(k)}` });
+        const H = (k = 1): Coord => ({ v: h * k, f: k === 1 ? 'Height' : `Height*${num(k)}` });
+        const polygon = (pts: Array<[Coord, Coord]>): string =>
+            geometry(0, [...pts, pts[0]].map(([X, Y], i) => [i === 0 ? 'MoveTo' : 'LineTo', { X, Y }]));
+        const ellipse = (ix: number, inset: number, noFill: boolean): string =>
+            geometry(ix, [['Ellipse', {
+                X: W(0.5), Y: H(0.5),
+                A: { v: w - inset, f: inset ? `Width-${num(inset)}` : 'Width' }, B: H(0.5),
+                C: W(0.5), D: { v: h - inset, f: inset ? `Height-${num(inset)}` : 'Height' },
+            }]], { noFill });
+
+        switch (node.type) {
+            case 'circle':
+            case 'ellipse': {
+                const double = node.shape === 'doublecircle' || node.shape === 'dbl-circ' || node.shape === 'double-circle';
+                const inset = Math.min(5 / DPI, w * 0.15, h * 0.15);
+                return ellipse(0, 0, false) + (double ? ellipse(1, inset, true) : '');
             }
-        };
-
-        let prevControlX: number | null = null;
-        let prevControlY: number | null = null;
-        let prevCmd = '';
-
-        for (const { cmd, args } of commands) {
-            const relative = cmd >= 'a' && cmd <= 'z';
-            const upper = cmd.toUpperCase();
-
-            if (upper === 'M') {
-                for (let i = 0; i < args.length; i += 2) {
-                    const x = relative ? currentX + args[i] : args[i];
-                    const y = relative ? currentY + args[i + 1] : args[i + 1];
-                    if (i === 0) {
-                        moveTo(x, y);
-                        startX = x;
-                        startY = y;
-                    } else {
-                        // Subsequent pairs after M are implicit L.
-                        lineTo(x, y);
-                    }
-                    currentX = x;
-                    currentY = y;
-                }
-                prevControlX = prevControlY = null;
-            } else if (upper === 'L') {
-                for (let i = 0; i < args.length; i += 2) {
-                    const x = relative ? currentX + args[i] : args[i];
-                    const y = relative ? currentY + args[i + 1] : args[i + 1];
-                    lineTo(x, y);
-                    currentX = x;
-                    currentY = y;
-                }
-                prevControlX = prevControlY = null;
-            } else if (upper === 'H') {
-                for (let i = 0; i < args.length; i++) {
-                    const x = relative ? currentX + args[i] : args[i];
-                    lineTo(x, currentY);
-                    currentX = x;
-                }
-                prevControlX = prevControlY = null;
-            } else if (upper === 'V') {
-                for (let i = 0; i < args.length; i++) {
-                    const y = relative ? currentY + args[i] : args[i];
-                    lineTo(currentX, y);
-                    currentY = y;
-                }
-                prevControlX = prevControlY = null;
-            } else if (upper === 'C') {
-                for (let i = 0; i < args.length; i += 6) {
-                    const x1 = relative ? currentX + args[i] : args[i];
-                    const y1 = relative ? currentY + args[i + 1] : args[i + 1];
-                    const x2 = relative ? currentX + args[i + 2] : args[i + 2];
-                    const y2 = relative ? currentY + args[i + 3] : args[i + 3];
-                    const x  = relative ? currentX + args[i + 4] : args[i + 4];
-                    const y  = relative ? currentY + args[i + 5] : args[i + 5];
-                    cubicBezTo(x1, y1, x2, y2, x, y);
-                    prevControlX = x2;
-                    prevControlY = y2;
-                    currentX = x;
-                    currentY = y;
-                }
-            } else if (upper === 'S') {
-                for (let i = 0; i < args.length; i += 4) {
-                    // Smooth cubic: first control is reflection of prev cubic's second control.
-                    const reflect = (prevCmd.toUpperCase() === 'C' || prevCmd.toUpperCase() === 'S')
-                        && prevControlX !== null && prevControlY !== null;
-                    const x1 = reflect ? 2 * currentX - (prevControlX as number) : currentX;
-                    const y1 = reflect ? 2 * currentY - (prevControlY as number) : currentY;
-                    const x2 = relative ? currentX + args[i] : args[i];
-                    const y2 = relative ? currentY + args[i + 1] : args[i + 1];
-                    const x  = relative ? currentX + args[i + 2] : args[i + 2];
-                    const y  = relative ? currentY + args[i + 3] : args[i + 3];
-                    cubicBezTo(x1, y1, x2, y2, x, y);
-                    prevControlX = x2;
-                    prevControlY = y2;
-                    currentX = x;
-                    currentY = y;
-                }
-            } else if (upper === 'Q') {
-                for (let i = 0; i < args.length; i += 4) {
-                    const x1 = relative ? currentX + args[i] : args[i];
-                    const y1 = relative ? currentY + args[i + 1] : args[i + 1];
-                    const x  = relative ? currentX + args[i + 2] : args[i + 2];
-                    const y  = relative ? currentY + args[i + 3] : args[i + 3];
-                    quadBezTo(x1, y1, x, y);
-                    prevControlX = x1;
-                    prevControlY = y1;
-                    currentX = x;
-                    currentY = y;
-                }
-            } else if (upper === 'T') {
-                for (let i = 0; i < args.length; i += 2) {
-                    const reflect = (prevCmd.toUpperCase() === 'Q' || prevCmd.toUpperCase() === 'T')
-                        && prevControlX !== null && prevControlY !== null;
-                    const x1 = reflect ? 2 * currentX - (prevControlX as number) : currentX;
-                    const y1 = reflect ? 2 * currentY - (prevControlY as number) : currentY;
-                    const x  = relative ? currentX + args[i] : args[i];
-                    const y  = relative ? currentY + args[i + 1] : args[i + 1];
-                    quadBezTo(x1, y1, x, y);
-                    prevControlX = x1;
-                    prevControlY = y1;
-                    currentX = x;
-                    currentY = y;
-                }
-            } else if (upper === 'Z') {
-                lineTo(startX, startY);
-                currentX = startX;
-                currentY = startY;
-                prevControlX = prevControlY = null;
-            } else if (upper === 'A') {
-                // Elliptical arc: flatten to a polyline via arcTo. Only the final
-                // x/y pair is a coordinate (and may be relative); rx/ry/rotation
-                // and the two flags are scalars regardless of case.
-                for (let i = 0; i < args.length; i += 7) {
-                    const rx = args[i], ry = args[i + 1], rot = args[i + 2];
-                    const largeArc = args[i + 3], sweep = args[i + 4];
-                    const x = relative ? currentX + args[i + 5] : args[i + 5];
-                    const y = relative ? currentY + args[i + 6] : args[i + 6];
-                    arcTo(rx, ry, rot, largeArc, sweep, x, y);
-                    currentX = x;
-                    currentY = y;
-                }
-                prevControlX = prevControlY = null;
+            case 'diamond':
+                return polygon([[W(0.5), zero], [W(), H(0.5)], [W(0.5), H()], [zero, H(0.5)]]);
+            case 'hexagon': {
+                // Mermaid insets the side points by a quarter of the height.
+                const s = Math.min(h / 4, w / 4);
+                const L: Coord = { v: s, f: `Height*0.25` };
+                const R: Coord = { v: w - s, f: `Width-Height*0.25` };
+                const fixed = s !== h / 4;
+                const l = fixed ? { v: s } : L, r = fixed ? { v: w - s } : R;
+                return polygon([[l, zero], [r, zero], [W(), H(0.5)], [r, H()], [l, H()], [zero, H(0.5)]]);
             }
-            prevCmd = cmd;
+            case 'parallelogram':
+            case 'trapezoid':
+            case 'inv_trapezoid': {
+                // Mermaid slants these sides by half the height.
+                const s = Math.min(h / 2, w / 4);
+                const fixed = s !== h / 2;
+                const l: Coord = fixed ? { v: s } : { v: s, f: 'Height*0.5' };
+                const r: Coord = fixed ? { v: w - s } : { v: w - s, f: 'Width-Height*0.5' };
+                if (node.type === 'trapezoid') return polygon([[zero, zero], [W(), zero], [r, H()], [l, H()]]);
+                if (node.type === 'inv_trapezoid') return polygon([[l, zero], [r, zero], [W(), H()], [zero, H()]]);
+                const leanLeft = /left|lean-l|out-in/.test(node.shape ?? '');
+                return leanLeft
+                    ? polygon([[l, zero], [W(), zero], [r, H()], [zero, H()]])
+                    : polygon([[zero, zero], [r, zero], [W(), H()], [l, H()]]);
+            }
+            case 'stadium': {
+                // A rectangle with semicircular ends. Taller than wide, it is
+                // just an ellipse.
+                if (h >= w) return ellipse(0, 0, false);
+                const l: Coord = { v: h / 2, f: 'Height*0.5' };
+                const r: Coord = { v: w - h / 2, f: 'Width-Height*0.5' };
+                const one: Coord = { v: 1 };
+                return geometry(0, [
+                    ['MoveTo', { X: l, Y: zero }],
+                    ['LineTo', { X: r, Y: zero }],
+                    ['EllipticalArcTo', { X: r, Y: H(), A: W(), B: H(0.5), C: zero, D: one }],
+                    ['LineTo', { X: l, Y: H() }],
+                    ['EllipticalArcTo', { X: l, Y: zero, A: zero, B: H(0.5), C: zero, D: one }],
+                ]);
+            }
+            case 'cylinder': {
+                // Elliptical rims of half-height ry at top and bottom.
+                const ry = Math.min(h * 0.12, w * 0.45);
+                const ratio: Coord = { v: (w / 2) / ry };
+                const top: Coord = { v: h - ry };
+                const bottom: Coord = { v: ry };
+                return geometry(0, [
+                    ['MoveTo', { X: zero, Y: top }],
+                    ['EllipticalArcTo', { X: W(), Y: top, A: W(0.5), B: H(), C: zero, D: ratio }],
+                    ['LineTo', { X: W(), Y: bottom }],
+                    ['EllipticalArcTo', { X: zero, Y: bottom, A: W(0.5), B: zero, C: zero, D: ratio }],
+                    ['LineTo', { X: zero, Y: top }],
+                ]) + geometry(1, [
+                    // Front edge of the top rim.
+                    ['MoveTo', { X: zero, Y: top }],
+                    ['EllipticalArcTo', { X: W(), Y: top, A: W(0.5), B: { v: h - 2 * ry }, C: zero, D: ratio }],
+                ], { noFill: true });
+            }
+            case 'subroutine': {
+                // A rectangle with a vertical bar inset from each side.
+                const inset = Math.min(8 / DPI, w * 0.2);
+                const bar = (ix: number, x: Coord): string =>
+                    geometry(ix, [['MoveTo', { X: x, Y: zero }], ['LineTo', { X: x, Y: H() }]], { noFill: true });
+                return polygon([[zero, zero], [W(), zero], [W(), H()], [zero, H()]]) +
+                    bar(1, { v: inset }) + bar(2, { v: w - inset, f: `Width-${num(inset)}` });
+            }
+            default:
+                return polygon([[zero, zero], [W(), zero], [W(), H()], [zero, H()]]);
         }
     }
 
-    private tokenizeSvgPath(d: string): Array<{ cmd: string, args: number[] }> {
-        const out: Array<{ cmd: string, args: number[] }> = [];
-        const re = /([MmLlHhVvCcSsQqTtAaZz])([^MmLlHhVvCcSsQqTtAaZz]*)/g;
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(d)) !== null) {
-            const cmd = m[1];
-            const rest = m[2].trim();
-            const nums: number[] = [];
-            if (rest.length > 0) {
-                const numRe = /-?\d*\.?\d+(?:[eE][-+]?\d+)?/g;
-                let nm: RegExpExecArray | null;
-                while ((nm = numRe.exec(rest)) !== null) {
-                    nums.push(parseFloat(nm[0]));
-                }
-            }
-            out.push({ cmd, args: nums });
+    // Every edge is a 1-D shape: Begin and End are the ends of Mermaid's
+    // route and the geometry is that route, relative to Begin. An edge whose
+    // two ends resolve to different shapes is also glued to them.
+    private edgeShape(id: number, edge: GraphEdge, shapeIdOf: Map<string, number>, connects: string[]): string {
+        if (!edge.d) return '';
+        const route = flattenPath(edge.d).find(p => p.length >= 2);
+        if (!route) return '';
+        const pts: Point[] = simplifyPolyline(route, 0.35).map(p => ({ x: this.toVisioX(p.x), y: this.toVisioY(p.y) }));
+        const begin = pts[0];
+        const end = { ...pts[pts.length - 1] };
+        // A 1-D shape needs some length.
+        if (Math.abs(end.x - begin.x) < 1e-4 && Math.abs(end.y - begin.y) < 1e-4) end.x += 0.001;
+        const w = end.x - begin.x;
+        const h = end.y - begin.y;
+
+        const from = edge.startId !== undefined ? shapeIdOf.get(edge.startId) : undefined;
+        const to = edge.endId !== undefined ? shapeIdOf.get(edge.endId) : undefined;
+        // A self-loop can't be glued at both ends to one shape by dynamic
+        // glue; it keeps its drawn route.
+        const glued = from !== undefined && to !== undefined && from !== to;
+
+        const guard = (f: string) => (glued ? `GUARD(${f})` : f);
+        let cells =
+            cell('PinX', (begin.x + end.x) / 2, guard('(BeginX+EndX)/2')) +
+            cell('PinY', (begin.y + end.y) / 2, guard('(BeginY+EndY)/2')) +
+            cell('Width', w, guard('EndX-BeginX')) +
+            cell('Height', h, guard('EndY-BeginY')) +
+            cell('LocPinX', w / 2, guard('Width*0.5')) +
+            cell('LocPinY', h / 2, guard('Height*0.5'));
+        if (glued) {
+            // Dynamic glue, exactly as Visio writes it for a connector that
+            // walks around the shapes it joins.
+            cells += cell('Angle', 0, 'GUARD(0DA)') +
+                cell('BeginX', begin.x, '_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)') +
+                cell('BeginY', begin.y, '_WALKGLUE(BegTrigger,EndTrigger,WalkPreference)') +
+                cell('EndX', end.x, '_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)') +
+                cell('EndY', end.y, '_WALKGLUE(EndTrigger,BegTrigger,WalkPreference)') +
+                cell('BegTrigger', 2, `_XFTRIGGER(Sheet.${from}!EventXFMod)`) +
+                cell('EndTrigger', 2, `_XFTRIGGER(Sheet.${to}!EventXFMod)`) +
+                // ObjType 2 marks a routable connector; route at right
+                // angles, drawn curved when Mermaid's own route is.
+                cell('ObjType', 2) + cell('GlueType', 2) + cell('NoAlignBox', 1) + cell('DynFeedback', 2) +
+                cell('ShapeSplittable', 1) + cell('ShapeRouteStyle', 1) +
+                cell('ConLineRouteExt', /[CcSsQqTt]/.test(edge.d) ? 2 : 1);
+            connects.push(
+                `<Connect FromSheet="${id}" FromCell="BeginX" FromPart="9" ToSheet="${from}" ToCell="PinX" ToPart="3"/>`,
+                `<Connect FromSheet="${id}" FromCell="EndX" FromPart="12" ToSheet="${to}" ToCell="PinX" ToPart="3"/>`,
+            );
+        } else {
+            cells += cell('BeginX', begin.x) + cell('BeginY', begin.y) + cell('EndX', end.x) + cell('EndY', end.y);
         }
-        return out;
+
+        cells += cell('FillPattern', 0) + this.lineCells(edge.style, edge.pattern, '#000000');
+        const beginArrow = lineEnd(edge.arrowStartKind, edge.arrowStart, false);
+        const endArrow = lineEnd(edge.arrowEndKind, edge.arrowEnd, true);
+        cells += cell('BeginArrow', beginArrow) + cell('EndArrow', endArrow) +
+            cell('BeginArrowSize', 2) + cell('EndArrowSize', 2);
+
+        let sections = '';
+        if (edge.text) {
+            // Place the caption where Mermaid put it; without that, halfway
+            // along the route.
+            const hasBox = edge.labelX !== undefined && edge.labelY !== undefined;
+            const centre = hasBox
+                ? { x: this.toVisioX(edge.labelX! + (edge.labelWidth ?? 0) / 2), y: this.toVisioY(edge.labelY! + (edge.labelHeight ?? 0) / 2) }
+                : polylineMidpoint(pts);
+            const tx = centre.x - begin.x;
+            const ty = centre.y - begin.y;
+            const lines = edge.text.split('\n');
+            const fontIn = px(edge.labelStyle?.fontSize, 14) / DPI;
+            const tw = Math.max((edge.labelWidth ?? 0) / DPI, Math.max(...lines.map(l => l.length)) * fontIn * 0.6, 0.2) + 0.1;
+            const th = Math.max((edge.labelHeight ?? 0) / DPI, lines.length * fontIn * 1.3) + 0.04;
+            cells += cell('TxtPinX', tx, glued ? 'SETATREF(Controls.TextPosition)' : undefined) +
+                cell('TxtPinY', ty, glued ? 'SETATREF(Controls.TextPosition.Y)' : undefined) +
+                cell('TxtWidth', tw) + cell('TxtHeight', th) +
+                cell('TxtLocPinX', tw / 2, 'TxtWidth*0.5') + cell('TxtLocPinY', th / 2, 'TxtHeight*0.5') +
+                // White behind the caption so the line doesn't strike through it.
+                cell('TextBkgnd', 2);
+            if (glued) {
+                // The yellow handle that lets the caption be dragged.
+                sections += `<Section N="Control"><Row N="TextPosition">` +
+                    cell('X', tx) + cell('Y', ty) +
+                    cell('XDyn', tx, 'Controls.TextPosition') + cell('YDyn', ty, 'Controls.TextPosition.Y') +
+                    cell('XCon', 0) + cell('YCon', 0) + cell('CanGlue', 0) +
+                    `</Row></Section>`;
+            }
+        }
+
+        sections += geometry(0, pts.map((p, i): [string, Record<string, Coord>] => [
+            i === 0 ? 'MoveTo' : 'LineTo',
+            // The last row is pinned to the shape's far corner so the line
+            // still reaches End after Visio moves it.
+            i === pts.length - 1
+                ? { X: { v: w, f: 'Width' }, Y: { v: h, f: 'Height' } }
+                : { X: { v: p.x - begin.x }, Y: { v: p.y - begin.y } },
+        ]), { noFill: true });
+
+        if (edge.text) sections += this.characterSection(edge.labelStyle);
+
+        return `<Shape ID="${id}" Type="Shape">` + cells + sections +
+            (edge.text ? `<Text>${esc(edge.text)}</Text>` : '') + `</Shape>`;
+    }
+
+    // Free-standing text: a rectangle with no outline.
+    private labelShape(id: number, label: GraphLabel): string {
+        const t = this.transform(label.x, label.y, label.width || 10, label.height || 10);
+        const W: Coord = { v: t.w, f: 'Width' };
+        const H: Coord = { v: t.h, f: 'Height' };
+        const zero: Coord = { v: 0 };
+        const hasFill = !!parseColor(label.style?.fill);
+        return `<Shape ID="${id}" Type="Shape">` +
+            t.xml + cell('LinePattern', 0) + this.fillCells(label.style?.fill) +
+            geometry(0, [['MoveTo', { X: zero, Y: zero }], ['LineTo', { X: W, Y: zero }], ['LineTo', { X: W, Y: H }], ['LineTo', { X: zero, Y: H }], ['LineTo', { X: zero, Y: zero }]],
+                { noFill: !hasFill, noLine: true }) +
+            this.characterSection(label.style) +
+            `<Text>${esc(label.text)}</Text></Shape>`;
     }
 }

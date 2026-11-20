@@ -75,6 +75,8 @@ Options:
 - `-o, --output <path>` — output file (defaults to the input name with a `.vsdx` extension)
 - `-l, --layout <engine>` — `dagre` (default), `elk`, or an ELK algorithm such as `elk.stress` or `elk.mrtree`
 - `-t, --theme <name>` — `default`, `forest`, `dark`, or `neutral`
+- `--validate` — structurally check the result; nothing is written if it fails
+- `--fonts` — also write each text's font family (experimental)
 - `-v, --verbose` — diagnostic logging (layout selection, parsed graph summary, render errors)
 
 Accepts a `.mmd` file or a `.md` file containing a ```` ```mermaid ```` fenced block.
@@ -113,8 +115,8 @@ Visio; the table below describes how much of it comes across as editable shapes.
 
 | Diagram type | Support | Notes |
 |---|---|---|
-| **Flowcharts** (`flowchart`, `graph` TD/LR/RL/BT) | ✅ Full | Nodes, edges, subgraphs, shape types, styling, hyperlinks, glued connectors |
-| **Sequence diagrams** | 🟡 Partial | Actor boxes, lifelines, and messages (with labels, dashed/solid, arrowheads) map to shapes/connectors. Activations, notes, loops/alt boxes are not yet extracted. |
+| **Flowcharts** (`flowchart`, `graph` TD/LR/RL/BT) | ✅ Full | Nodes, edges, subgraphs, shape types, styling, hyperlinks, glued connectors. Newer shapes not listed below are drawn as rectangles. |
+| **Sequence diagrams** | 🟡 Partial | Participant boxes, lifelines, activations, notes and messages (captions, dashed/solid, arrowheads) map to shapes and lines. Loop/alt frames and stick-figure actors are not yet extracted. |
 | **Class diagrams** | 🟡 Partial | Class boxes and relationships map; member/method detail is limited |
 | **State diagrams** (`stateDiagram-v2`) | 🟡 Partial | States and transitions map |
 | **ER diagrams** | 🟡 Partial | Entities and relationships map |
@@ -126,13 +128,13 @@ Visio; the table below describes how much of it comes across as editable shapes.
 > main item on the roadmap.
 
 Flowcharts support:
-- **Subgraphs** (mapped to Containers)
-- **Multiple shape types** (Rectangle, Rounded, Cylinder, Rhombus, Stadium, Subroutine, Circle)
-- **Styling** (`fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`)
+- **Subgraphs**, as Visio containers that move their members
+- **Shapes**: rectangle, rounded, stadium, cylinder, diamond, hexagon, parallelogram (both leans), trapezoid (both ways), subroutine, circle, double circle
+- **Connectors** that open on Mermaid's own route and re-route when a shape is moved, with their captions where Mermaid placed them
+- **Edge ends** (arrow, circle, none, both) and **line styles** (solid, dotted, thick)
+- **Styling** (`fill`, `stroke`, `stroke-width`, `stroke-dasharray`, `color`, transparency)
 - **Hyperlinks** (`click` directive)
-- **Smart Glue & Dynamic Routing** (Auto-rerouting connectors in Visio)
-- **ELK Layout Support** (Professional hierarchical & orthogonal layouts)
-- **Theme Variables** (Full customization)
+- **ELK layout** on request, and Mermaid theme variables
 
 ## Security
 

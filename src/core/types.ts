@@ -10,7 +10,15 @@ export interface GraphNode {
     width: number;
     height: number;
     text?: string;
+    // Geometry family the generator draws: rectangle, circle, ellipse,
+    // diamond, stadium, parallelogram, trapezoid, inv_trapezoid, hexagon,
+    // cylinder, subroutine.
     type?: string;
+    // Mermaid's own name for the shape (e.g. "lean_right", "hexagon"), from
+    // its parsed model. Absent when the model was unavailable.
+    shape?: string;
+    // Id of the subgraph/group that directly contains this node, if any.
+    parentId?: string;
     rounding?: number;
     url?: string;
     style?: {
@@ -33,7 +41,18 @@ export interface GraphEdge {
     endId?: string;
     arrowStart?: boolean;
     arrowEnd?: boolean;
+    // What sits at each end, in Mermaid's vocabulary: "arrow_point",
+    // "arrow_circle", "arrow_cross", "aggregation", "only_one", ... or "none".
+    arrowStartKind?: string;
+    arrowEndKind?: string;
+    // Line pattern from the model, when known.
+    pattern?: 'solid' | 'dashed' | 'dotted';
     text?: string;
+    // Where Mermaid placed the label (top-left corner and size, SVG pixels).
+    labelX?: number;
+    labelY?: number;
+    labelWidth?: number;
+    labelHeight?: number;
     style?: {
         stroke?: string;
         strokeWidth?: string;
@@ -57,6 +76,8 @@ export interface GraphCluster {
     width: number;
     height: number;
     text?: string;
+    // Id of the enclosing subgraph, for nested subgraphs.
+    parentId?: string;
     style?: {
         fill?: string;
         stroke?: string;

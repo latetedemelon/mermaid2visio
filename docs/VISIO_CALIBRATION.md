@@ -6,7 +6,11 @@ generator should write. Generate them with:
 
 ```bash
 node scripts/make-calibration.mjs docs/calibration
+# 01 was made with the converter as it stood before the generator fixes; 12-14 with it as it is now.
 node dist/index.js tests/fixtures/all_features.mmd -o docs/calibration/01-current-output.vsdx
+node dist/index.js tests/fixtures/all_features.mmd -o docs/calibration/12-new-output-flowchart.vsdx
+node dist/index.js tests/fixtures/rob_test.mmd -o docs/calibration/13-new-output-architecture.vsdx
+node dist/index.js tests/fixtures/mermaid/sequence.mmd -o docs/calibration/14-new-output-sequence.vsdx
 ```
 
 Open each file in desktop Visio. Every page has its own instructions at the top.
@@ -26,6 +30,9 @@ open" is a useful answer too.
 | `09-geometry.vsdx` | Hexagon, ellipse, stadium look right; 50% transparent fill, no fill and dashed border behave as labelled. |
 | `10-image.vsdx` | The checkerboard image shows. |
 | `11-minimal-skeleton.vsdx` | A file with no style sheets opens without a repair prompt. |
+| `12-new-output-flowchart.vsdx` | The same flowchart as 01, from the rewritten generator. Compare with 01: shapes sit where their connectors meet them, connectors follow curved routes and re-route on drag, labels sit on their lines, the subgraph moves its members. |
+| `13-new-output-architecture.vsdx` | A large real-world flowchart (ELK layout, nested subgraphs, emoji, long labels). Anything misplaced, any text that overflows its box? |
+| `14-new-output-sequence.vsdx` | A sequence diagram: message captions above their lines, arrowheads only where the message has one. |
 
 ## Optional: a reference file from Visio
 

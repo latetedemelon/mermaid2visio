@@ -15,9 +15,10 @@ program
   .version(packageJson.version)
   .argument('<input>', 'Path to the input .mmd or .md file')
   .option('-o, --output <path>', 'Path to the output .vsdx file')
-  .option('-l, --layout <engine>', 'Layout engine: dagre (default) or elk')
+  .option('-l, --layout <engine>', 'Layout engine: dagre (default), elk, or an ELK algorithm such as elk.stress')
   .option('-t, --theme <name>', 'Mermaid theme: default, forest, dark, or neutral')
   .option('--validate', 'Run a structural check on the generated .vsdx and report any issues')
+  .option('--fonts', "Write each text's font family into the .vsdx (experimental)")
   .option('-v, --verbose', 'Enable verbose logging')
   .action(async (inputFile, options) => {
     try {
@@ -58,7 +59,7 @@ program
         }
 
         console.log("Generating VSDX...");
-        const generator = new VsdxGenerator();
+        const generator = new VsdxGenerator({ fonts: !!options.fonts });
         const buffer = await generator.generate(graph, definition);
 
         if (options.validate) {
@@ -66,8 +67,9 @@ program
             if (result.ok) {
                 console.log('✓ Structural validation passed.');
             } else {
-                console.warn('⚠ Structural validation found issues:');
-                for (const err of result.errors) console.warn(`  - ${err}`);
+                console.error('❌ Structural validation failed; no file written:');
+                for (const err of result.errors) console.error(`  - ${err}`);
+                process.exit(1);
             }
         }
 

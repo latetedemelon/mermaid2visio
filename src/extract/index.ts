@@ -6,8 +6,9 @@
 
 import type { GraphData } from '../core/types.js';
 import { normalizeContentBounds, type ContentBounds } from '../core/normalize.js';
-import { extractFlowchart } from './flowchart.js';
+import { readRawModel, toUnifiedModel, type UnifiedModel } from './model.js';
 import { extractSequence } from './sequence.js';
+import { extractUnified } from './unified.js';
 
 // Prefix on errors thrown by a failed mermaid.render(), so callers can tell a
 // diagram syntax error from a bug in the extraction code.
@@ -20,13 +21,14 @@ export interface PipelineResult {
 }
 
 // Extract a GraphData, still in raw SVG coordinates, from a rendered diagram.
-export function extractGraph(svg: SVGSVGElement, diagramType: string): GraphData {
+// `model` is Mermaid's parsed model for the same source, when available.
+export function extractGraph(svg: SVGSVGElement, diagramType: string, model: UnifiedModel | null = null): GraphData {
     const viewBox = svg.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
     const graphWidth = viewBox[2] || parseFloat(svg.getAttribute('width') || '0');
     const graphHeight = viewBox[3] || parseFloat(svg.getAttribute('height') || '0');
 
     if (diagramType === 'sequenceDiagram') return extractSequence(svg, graphWidth, graphHeight);
-    return extractFlowchart(svg, graphWidth, graphHeight);
+    return extractUnified(svg, graphWidth, graphHeight, model);
 }
 
 let renderCounter = 0;
@@ -55,7 +57,9 @@ export async function renderAndExtract(
     const svg = host.querySelector('svg') as SVGSVGElement | null;
     if (!svg) throw new Error('Mermaid produced no <svg> element');
 
-    const graph = extractGraph(svg, diagramType);
+    // Parsed after rendering, so the parse can't disturb the render's state.
+    const model = toUnifiedModel(await readRawModel(mermaid, definition));
+    const graph = extractGraph(svg, diagramType, model);
     const bounds = normalizeContentBounds(graph);
     return { graph, bounds };
 }
