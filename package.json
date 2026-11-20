@@ -4,12 +4,13 @@
   "description": "",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc && copyfiles -u 1 src/public/**/* dist && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
+    "build": "tsc && node scripts/build-extractor.mjs && copyfiles -u 1 src/public/**/* dist && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
     "build:browser": "esbuild src/browser/app.ts --bundle --format=esm --target=es2020 --outfile=dist/browser/app.js && copyfiles -u 2 src/browser/index.html dist/browser",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
     "install:browser": "puppeteer browsers install chrome",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "build:extractor": "node scripts/build-extractor.mjs"
   },
   "keywords": [
     "mermaid",

@@ -1,167 +1,16 @@
-// Render + extract — the two functions that touch the DOM. Lifted to module
-// scope so:
-//   (a) Puppeteer can serialize them by reference for page.evaluate (the Node
-//       parseMermaid path injects mermaid + ELK into a page, then calls
-//       page.evaluate(renderMermaidToDom, def) and
-//       page.evaluate(extractGraphFromDom, dtype));
-//   (b) a browser build can import them and run them against the real
-//       document — no Puppeteer, no Node modules.
-//
-// Both functions reference ONLY their parameter and browser globals
-// (document, window, console, Math, Array, parseFloat, parseInt, regex
-// literals, language built-ins). They MUST NOT import or close over anything
-// else, or the page.evaluate serialization breaks.
+// Flowchart-oriented extractor: nodes (.node), edges (.edgePaths path),
+// subgraphs (.cluster) and edge labels (g.edgeLabel). Also what class, state
+// and ER diagrams currently fall through to, since Mermaid renders them with
+// the same node/edge scaffolding.
 
-import type { GraphData } from './types.js';
+import type { GraphData } from '../core/types.js';
 
-// Renders Mermaid source into the host DOM. The `mermaid` global must already
-// be available (the Node path injects it via Puppeteer addScriptTag; the
-// browser build imports it normally before calling this).
-export async function renderMermaidToDom(def: string): Promise<void> {
-    try {
-        // @ts-ignore - mermaid is a page/window global
-        const { svg } = await mermaid.render('graphDiv', def);
-        document.body.innerHTML = svg;
-    } catch (renderErr: any) {
-        // Tagged so parseMermaid can recognise a Mermaid render failure
-        // (vs. a DOM bug in our extraction code) and apply formatMermaidError.
-        const msg = renderErr?.message ?? String(renderErr);
-        throw new Error('__MERMAID_RENDER_ERROR__:' + msg);
-    }
-}
-
-// Extracts a GraphData (still in raw SVG coordinates — normalizeContentBounds
-// translates to top-left origin) from the rendered SVG in document.body.
-// Branches on diagram type so sequence diagrams (different SVG structure)
-// hit a dedicated path.
-export function extractGraphFromDom(dtype: string): GraphData {
-    const svgElement = document.querySelector('svg');
-    const viewBox = svgElement?.getAttribute('viewBox')?.split(' ').map(parseFloat) || [0, 0, 0, 0];
-    const graphWidth = viewBox[2] || parseFloat(svgElement?.getAttribute('width') || '0');
-    const graphHeight = viewBox[3] || parseFloat(svgElement?.getAttribute('height') || '0');
-
-    // Sequence diagrams have a wholly different SVG structure than
-    // flowcharts (actor boxes + lifelines + message lines, not
-    // .node/.edgePaths). Extract them into the same IR: actor boxes
-    // become rectangle nodes; lifelines and messages become unglued
-    // edges with a synthesized `d` (the generator's path fallback then
-    // draws them in the shared coordinate space).
-    if (dtype === 'sequenceDiagram') {
-        const num = (el: Element | null, attr: string) => parseFloat(el?.getAttribute(attr) || '0');
-        const actorRects = Array.from(document.querySelectorAll('rect.actor-top, rect.actor-bottom')) as SVGGraphicsElement[];
-        const allText = Array.from(document.querySelectorAll('text')) as SVGGraphicsElement[];
-        // Pair an actor box with the text whose centre falls inside it.
-        const textInside = (x: number, y: number, w: number, h: number) => {
-            for (const t of allText) {
-                const b = t.getBBox();
-                const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-                if (cx >= x && cx <= x + w && cy >= y && cy <= y + h) return t;
-            }
-            return null;
-        };
-        const seqNodes: any[] = actorRects.map((r, i) => {
-            const x = num(r, 'x'), y = num(r, 'y'), width = num(r, 'width'), height = num(r, 'height');
-            const tEl = textInside(x, y, width, height);
-            const cs = window.getComputedStyle(r);
-            const ts = tEl ? window.getComputedStyle(tEl) : null;
-            return {
-                id: `seq-actor-${i}`, x, y, width, height,
-                text: tEl?.textContent?.trim() || '',
-                type: 'rectangle', rounding: 0,
-                style: {
-                    fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth,
-                    color: ts ? ts.color : '#000000',
-                    fontSize: ts ? ts.fontSize : undefined,
-                    fontFamily: ts ? ts.fontFamily : undefined,
-                    textAlign: 'center',
-                },
-            };
-        });
-
-        // Activation bars: thin rectangles on a lifeline, no label.
-        for (const a of Array.from(document.querySelectorAll('rect[class*="activation"]')) as SVGGraphicsElement[]) {
-            const x = num(a, 'x'), y = num(a, 'y'), width = num(a, 'width'), height = num(a, 'height');
-            const cs = window.getComputedStyle(a);
-            seqNodes.push({
-                id: `seq-activation-${seqNodes.length}`, x, y, width, height,
-                text: '', type: 'rectangle', rounding: 0,
-                style: { fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth, color: '#000000' },
-            });
-        }
-        // Notes: boxes with text, paired with their noteText by containment.
-        const noteTexts = Array.from(document.querySelectorAll('text.noteText')) as SVGGraphicsElement[];
-        for (const n of Array.from(document.querySelectorAll('rect.note')) as SVGGraphicsElement[]) {
-            const x = num(n, 'x'), y = num(n, 'y'), width = num(n, 'width'), height = num(n, 'height');
-            let txt = '';
-            let ts: CSSStyleDeclaration | null = null;
-            for (const t of noteTexts) {
-                const b = t.getBBox();
-                const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-                if (cx >= x && cx <= x + width && cy >= y && cy <= y + height) {
-                    txt = t.textContent?.trim() || ''; ts = window.getComputedStyle(t); break;
-                }
-            }
-            const cs = window.getComputedStyle(n);
-            seqNodes.push({
-                id: `seq-note-${seqNodes.length}`, x, y, width, height,
-                text: txt, type: 'rectangle', rounding: 0,
-                style: {
-                    fill: cs.fill, stroke: cs.stroke, strokeWidth: cs.strokeWidth,
-                    color: ts ? ts.color : '#000000',
-                    fontSize: ts ? ts.fontSize : undefined,
-                    textAlign: 'center',
-                },
-            });
-        }
-
-        const seqEdges: any[] = [];
-        // Lifelines: dashed vertical lines, no arrowhead.
-        for (const ll of Array.from(document.querySelectorAll('line.actor-line')) as Element[]) {
-            const x1 = num(ll, 'x1'), y1 = num(ll, 'y1'), x2 = num(ll, 'x2'), y2 = num(ll, 'y2');
-            seqEdges.push({
-                d: `M ${x1} ${y1} L ${x2} ${y2}`,
-                arrowStart: false, arrowEnd: false,
-                style: { stroke: '#999999', strokeWidth: '1px', strokeDasharray: '3,3' },
-            });
-        }
-        // Messages: solid (messageLine0) or dashed (messageLine1) lines
-        // with an arrowhead at the end; labels matched by DOM order.
-        const msgLines = Array.from(document.querySelectorAll('line.messageLine0, line.messageLine1, path.messageLine0, path.messageLine1')) as Element[];
-        const msgTexts = Array.from(document.querySelectorAll('text.messageText')) as SVGGraphicsElement[];
-        msgLines.forEach((ml, i) => {
-            const dashed = (ml.getAttribute('class') || '').includes('messageLine1');
-            const x1 = num(ml, 'x1'), y1 = num(ml, 'y1'), x2 = num(ml, 'x2'), y2 = num(ml, 'y2');
-            const d = ml.getAttribute('d') || `M ${x1} ${y1} L ${x2} ${y2}`;
-            const cs = window.getComputedStyle(ml);
-            const tEl = msgTexts[i];
-            const ts = tEl ? window.getComputedStyle(tEl) : null;
-            seqEdges.push({
-                d,
-                arrowStart: false, arrowEnd: true,
-                text: tEl?.textContent?.trim() || undefined,
-                labelStyle: tEl ? {
-                    color: ts?.color, fontSize: ts?.fontSize,
-                    fontWeight: ts?.fontWeight, fontStyle: ts?.fontStyle,
-                } : undefined,
-                style: {
-                    stroke: cs.stroke || '#333333',
-                    strokeWidth: cs.strokeWidth || '1px',
-                    strokeDasharray: dashed ? '3,3' : undefined,
-                },
-            });
-        });
-
-        return {
-            width: graphWidth, height: graphHeight,
-            nodes: seqNodes, edges: seqEdges, clusters: [], labels: [],
-        };
-    }
-
-    const nodes = Array.from(document.querySelectorAll('.node'));
-    const edges = Array.from(document.querySelectorAll('.edgePaths path'));
+export function extractFlowchart(svg: SVGSVGElement, graphWidth: number, graphHeight: number): GraphData {
+    const nodes = Array.from(svg.querySelectorAll('.node'));
+    const edges = Array.from(svg.querySelectorAll('.edgePaths path'));
 
     // Clusters (Subgraphs)
-    const clusters = Array.from(document.querySelectorAll('.cluster')).map(cluster => {
+    const clusters = Array.from(svg.querySelectorAll('.cluster')).map(cluster => {
         const id = cluster.id;
         const rect = cluster.querySelector('rect, polygon, path');
         const bbox = rect ? (rect as SVGGraphicsElement).getBBox() : { width: 0, height: 0, x: 0, y: 0 };
@@ -174,11 +23,11 @@ export function extractGraphFromDom(dtype: string): GraphData {
         // inner cluster lands near (0,0) instead of its true position.
         let x = 0;
         let y = 0;
-        if (rect && svgElement) {
+        if (rect && svg) {
             const ctm = (rect as SVGGraphicsElement).getCTM();
-            const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+            const svgCTM = svg.getScreenCTM();
             if (ctm && svgCTM) {
-                const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                const pt = svg.createSVGPoint();
                 pt.x = bbox.x;
                 pt.y = bbox.y;
                 const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
@@ -220,7 +69,7 @@ export function extractGraphFromDom(dtype: string): GraphData {
     // be matched to edge paths by index. Mermaid emits one g.edgeLabel
     // per edge (even if the label is empty), in the same order as the
     // .edgePaths path elements, so rawEdgeLabels[i] corresponds to edges[i].
-    const rawEdgeLabels = Array.from(document.querySelectorAll('g.edgeLabel')).map(labelG => {
+    const rawEdgeLabels = Array.from(svg.querySelectorAll('g.edgeLabel')).map(labelG => {
         // Select foreignObject (SVG element, has getBBox) or SVG text;
         // avoid selecting the HTML <div> inside foreignObject (no getBBox).
         const contentEl = labelG.querySelector('foreignObject, text') as SVGGraphicsElement | null;
@@ -229,9 +78,9 @@ export function extractGraphFromDom(dtype: string): GraphData {
         let x = 0;
         let y = 0;
         const ctm = (labelG as SVGGraphicsElement).getCTM();
-        const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+        const svgCTM = svg.getScreenCTM();
         if (ctm && svgCTM) {
-            const pt = (svgElement as SVGSVGElement).createSVGPoint();
+            const pt = svg.createSVGPoint();
             pt.x = 0; pt.y = 0;
             const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));
             x = abs.x + ((bbox as any).x || 0);
@@ -296,11 +145,11 @@ export function extractGraphFromDom(dtype: string): GraphData {
             // transforms and gives the correct absolute result.
             let x = 0;
             let y = 0;
-            if (rect && svgElement) {
+            if (rect && svg) {
                 const ctm = (rect as SVGGraphicsElement).getCTM();
-                const svgCTM = (svgElement as SVGSVGElement).getScreenCTM();
+                const svgCTM = svg.getScreenCTM();
                 if (ctm && svgCTM) {
-                    const pt = (svgElement as SVGSVGElement).createSVGPoint();
+                    const pt = svg.createSVGPoint();
                     pt.x = bbox.x;
                     pt.y = bbox.y;
                     const abs = pt.matrixTransform(svgCTM.inverse().multiply(ctm));

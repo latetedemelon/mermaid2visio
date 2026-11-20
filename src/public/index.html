@@ -193,8 +193,14 @@
             color: #a4373a;
         }
     </style>
+    <!-- Served by the GUI server from node_modules / dist: the exact Mermaid
+         build and config builder the converter uses, so the preview matches
+         the generated file and works offline. -->
+    <script src="/vendor/mermaid/mermaid.min.js"></script>
+    <script src="/vendor/m2v/extractor.iife.js"></script>
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        const mermaid = window.mermaid;
+        const { buildMermaidConfig } = window.__m2v;
 
         // Mermaid 11 ships ELK as a separate package that must be registered
         // before `initialize`. The GUI server vendors the bundle under
@@ -263,14 +269,7 @@
                     if (!ok) effectiveLayout = 'dagre';
                 }
 
-                mermaid.initialize({
-                    startOnLoad: false,
-                    theme: currentConfig.theme,
-                    layout: effectiveLayout,
-                    themeVariables: currentConfig.themeVariables,
-                    flowchart: currentConfig.flowchart,
-                    securityLevel: 'loose'
-                });
+                mermaid.initialize(buildMermaidConfig({ ...currentConfig, layout: effectiveLayout }, code).init);
 
                 const { svg } = await mermaid.render('graphDiv_' + Date.now(), code);
                 previewEl.innerHTML = svg;
@@ -351,7 +350,6 @@
         curveInput.addEventListener('change', window.updateConfig);
         
         // Initial load
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
         window.updatePreview();
     </script>
 </head>

@@ -142,4 +142,18 @@ describe('GUI HTTP server', () => {
             await stop();
         }
     });
+
+    it('serves the Mermaid build and extractor bundle the converter itself uses', async () => {
+        const { base, stop } = await startServer();
+        try {
+            for (const p of ['/vendor/mermaid/mermaid.min.js', '/vendor/m2v/extractor.iife.js']) {
+                const res = await request(`${base}${p}`);
+                expect(res.status).toBe(200);
+                expect(res.headers['content-type']).toBe('application/javascript');
+                expect(res.body.length).toBeGreaterThan(1000);
+            }
+        } finally {
+            await stop();
+        }
+    });
 });
