@@ -117,9 +117,10 @@ Every diagram type Mermaid 12.3 renders converts to a non-blank `.vsdx`. How
 | **Class diagrams** | ✅ Live | Each class is a group: outline with compartment dividers, and every member as its own text. Relationships are glued, with UML line ends and multiplicities. |
 | **State diagrams** | ✅ Live | States, transitions, start/end/choice nodes; composite states are containers. |
 | **ER diagrams** | ✅ Live | Entities with their attribute rows; relationships glued, with crow's-foot ends. |
+| **C4, architecture, block** | ✅ Live | Each element is one shape (a group when it has several coloured parts, such as a C4 person or an architecture service icon) with its texts; relationships are glued connectors with their labels; architecture groups are containers. |
 | **Requirement, mindmap, kanban, use case, swimlane, agent flow** | 🟡 Live, less polished | Nodes and glued connectors map; type-specific decoration may be simplified. |
-| **Sequence diagrams** | 🟡 Partial | Participant boxes, lifelines, activations, notes and messages (captions, dashed/solid, arrowheads). Loop/alt frames and stick-figure actors are not yet extracted; nothing is glued. |
-| **Pie, Gantt, XY chart, quadrant, Sankey, timeline, journey, git graph, C4, block, architecture, packet, radar, treemap, tree view, Venn, Ishikawa, Wardley, Cynefin, railroad, event modeling** | 🟦 Static drawing | Drawn as individual editable shapes and text boxes in the right places and colours. Nothing is connected: moving a box does not move its lines. |
+| **Sequence diagrams** | 🟡 Mostly | Every participant kind (box, stick figure, boundary, control, entity, database, collections, queue) as one named shape; lifelines; messages with captions and the right arrowheads; activations; notes; loop/alt/opt/par/critical/break frames as one grouped shape; autonumber badges; group boxes and highlights. Messages are lines, not glued to lifelines. |
+| **Pie, Gantt, XY chart, quadrant, Sankey, timeline, journey, git graph, packet, radar, treemap, tree view, Venn, Ishikawa, Wardley, Cynefin, railroad, event modeling** | 🟦 Static drawing | Drawn as individual editable shapes and text boxes in the right places and colours. Nothing is connected: moving a box does not move its lines. |
 
 "Static drawing" means every bar, slice, line and label is its own Visio shape
 you can recolour, move or delete, but the file does not know that, say, an

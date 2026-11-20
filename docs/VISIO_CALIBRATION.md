@@ -15,6 +15,9 @@ node dist/index.js tests/fixtures/mermaid/class.mmd -o docs/calibration/15-new-o
 node dist/index.js tests/fixtures/mermaid/flowchart-shapes.mmd -o docs/calibration/16-new-output-shapes.vsdx
 node dist/index.js tests/fixtures/mermaid/gantt.mmd -o docs/calibration/17-new-output-gantt.vsdx
 node dist/index.js tests/fixtures/mermaid/pie.mmd -o docs/calibration/18-new-output-pie.vsdx
+node dist/index.js tests/fixtures/mermaid/sequence-participants.mmd -o docs/calibration/19-new-output-sequence-kinds.vsdx
+node dist/index.js tests/fixtures/mermaid/c4.mmd -o docs/calibration/20-new-output-c4.vsdx
+node dist/index.js tests/fixtures/mermaid/architecture.mmd -o docs/calibration/21-new-output-architecture.vsdx
 ```
 
 Open each file in desktop Visio. Every page has its own instructions at the top.
@@ -41,6 +44,9 @@ open" is a useful answer too.
 | `16-new-output-shapes.vsdx` | Newer flowchart shapes (document, cloud, triangle, flag...) drawn from Mermaid's own outlines. Do the outlines look right, is the text inside, do they resize sensibly? |
 | `17-new-output-gantt.vsdx` | A Gantt chart as a static drawing: bars, grid lines and labels in place, each individually selectable. |
 | `18-new-output-pie.vsdx` | A pie chart as a static drawing: three slices in three colours, legend and percentages. |
+| `19-new-output-sequence-kinds.vsdx` | Every sequence participant kind, frames (par, critical, break), a group box and a highlight. Each participant should be one shape with its name; each frame one group. |
+| `20-new-output-c4.vsdx` | A C4 context diagram. Drag the Customer: its head, body and texts move together and the "Uses" arrow follows. |
+| `21-new-output-architecture.vsdx` | An architecture diagram. Service icons in colour; drag a service and its line follows; drag the API group and the services move with it. |
 
 ## Optional: a reference file from Visio
 

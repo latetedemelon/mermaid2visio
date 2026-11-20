@@ -10,15 +10,14 @@
 
 import type { GraphCluster, GraphData, GraphEdge, GraphLabel, GraphNode } from '../core/types.js';
 import type { ModelEdge, UnifiedModel } from './model.js';
-import { all, readLabel, rootBox, visiblePaint } from './dom.js';
-import { applyMatrix, outlinePaint, outlinePaths, rootMatrix, textLabels } from './primitives.js';
-import { flattenPath } from '../core/svgPath.js';
-import { translatePathD } from '../core/normalize.js';
+import { all, readLabel, rootBox, textColor, visiblePaint } from './dom.js';
+import { outlinePaint, outlinePaths, rootPathData, textLabels } from './primitives.js';
 
 // Mermaid shape name (and its aliases) -> the geometry family the generator
 // draws. Anything not listed is drawn from the outline Mermaid rendered.
 const SHAPE_TYPE: Record<string, string> = {
     rect: 'rectangle', squareRect: 'rectangle', roundedRect: 'rectangle', rounded: 'rectangle',
+    square: 'rectangle', round: 'rectangle',
     classBox: 'rectangle', erBox: 'rectangle', requirementBox: 'rectangle', kanbanItem: 'rectangle', note: 'rectangle',
     defaultMindmapNode: 'rectangle', roundedWithTitle: 'rectangle',
     stadium: 'stadium', pill: 'stadium', terminal: 'stadium',
@@ -75,7 +74,7 @@ function typeFromDom(node: Element, el: Element | null): string {
 // Recover an edge's endpoints from an auto-generated id "L_<start>_<end>_<n>".
 // Ids may themselves contain underscores, so try every split and keep the one
 // where both halves are ids that actually exist.
-function endpointsFromId(edgeId: string, known: Set<string>): { start?: string; end?: string } {
+export function endpointsFromId(edgeId: string, known: Set<string>): { start?: string; end?: string } {
     const body = /^L_(.+)_\d+$/.exec(edgeId)?.[1];
     if (!body) return {};
     for (let i = body.indexOf('_'); i > 0; i = body.indexOf('_', i + 1)) {
@@ -85,26 +84,6 @@ function endpointsFromId(edgeId: string, known: Set<string>): { start?: string; 
     }
     const greedy = /^(.+)_(.+)$/.exec(body);
     return greedy ? { start: greedy[1], end: greedy[2] } : {};
-}
-
-// An edge's path data in the root SVG's coordinates. The `d` attribute is in
-// the coordinates of the group the path sits in, and Mermaid nests groups
-// with their own offsets (inside composite states, and around subgraphs that
-// have outside connections), so it must be mapped like everything else.
-function rootPathData(svg: SVGSVGElement, path: Element): string {
-    const d = path.getAttribute('d') || '';
-    const m = rootMatrix(svg, path);
-    if (!m || !d) return d;
-    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
-    if (near(m.a, 1) && near(m.d, 1) && near(m.b, 0) && near(m.c, 0)) {
-        // A pure offset keeps the curve commands intact.
-        return near(m.e, 0) && near(m.f, 0) ? d : translatePathD(d, m.e, m.f);
-    }
-    // Anything else (scale, rotation): flatten and map point by point.
-    return flattenPath(d).map(sub => sub.map((p, i) => {
-        const q = applyMatrix(m, p.x, p.y);
-        return `${i === 0 ? 'M' : 'L'} ${q.x} ${q.y}`;
-    }).join(' ')).join(' ');
 }
 
 const isArrow = (kind: string | undefined): boolean => !!kind && kind !== 'none';
@@ -148,7 +127,7 @@ export function extractUnified(
                 stroke: frameStyle.stroke,
                 strokeWidth: frameStyle.strokeWidth,
                 strokeDasharray: frameStyle.strokeDasharray,
-                color: textStyle ? textStyle.color : '#000000',
+                color: label.styleEl ? textColor(label.styleEl) : '#000000',
             },
         };
     });
@@ -234,7 +213,7 @@ export function extractUnified(
                     strokeWidth: strokeStyle.strokeWidth,
                     strokeDasharray: strokeStyle.strokeDasharray,
                 }),
-                color: textStyle ? textStyle.color : '#000000',
+                color: label.styleEl ? textColor(label.styleEl) : '#000000',
                 fontSize: textStyle ? textStyle.fontSize : undefined,
                 fontFamily: textStyle ? textStyle.fontFamily : undefined,
                 fontWeight: textStyle ? textStyle.fontWeight : undefined,
@@ -265,7 +244,7 @@ export function extractUnified(
             height: box.height || 10,
             text: info.text,
             style: {
-                color: textStyle.color,
+                color: textColor(info.styleEl ?? labelG),
                 fill: visiblePaint(bgFill) ? bgFill : undefined,
                 fontSize: textStyle.fontSize,
                 fontFamily: textStyle.fontFamily,
@@ -285,15 +264,17 @@ export function extractUnified(
     const edges: GraphEdge[] = [];
     edgePaths.forEach((path, index) => {
         // data-id is the un-prefixed edge id; fall back to the element id.
-        const edgeId = path.getAttribute('data-id') || stripPrefix(path.getAttribute('id') || '');
+        const edgeId = stripPrefix(path.getAttribute('data-id') || path.getAttribute('id') || '');
         const modelEdge = model?.edgeById.get(edgeId);
 
         // `A ~~~ B` only influences layout; it is not drawn.
         if (modelEdge?.pattern === 'invisible' || path.classList.contains('edge-thickness-invisible')) return;
 
         const fromId = modelEdge ? { start: modelEdge.start, end: modelEdge.end } : endpointsFromId(edgeId, knownIds);
-        const startKind = modelEdge ? modelEdge.arrowTypeStart ?? 'none' : undefined;
-        const endKind = modelEdge ? modelEdge.arrowTypeEnd ?? 'none' : undefined;
+        // The model's end kind, but only where Mermaid actually drew a
+        // marker: a block diagram's model calls its plain start "arrow_open".
+        const startKind = modelEdge ? (path.getAttribute('marker-start') ? modelEdge.arrowTypeStart || 'none' : 'none') : undefined;
+        const endKind = modelEdge ? (path.getAttribute('marker-end') ? modelEdge.arrowTypeEnd || 'none' : 'none') : undefined;
 
         const label = labelByEdgeId.get(edgeId) ?? (rawLabels[index]?.edgeId ? undefined : rawLabels[index]);
         if (label) label.used = true;

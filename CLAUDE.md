@@ -12,7 +12,7 @@ Entry points:
 
 All four share:
 - **`src/core/`** — pure, environment-agnostic logic (`mermaidConfig`, `normalize`, `detect`, `types`).
-- **`src/extract/`** — the in-page pipeline (DOM code). `index.ts` owns initialise → render → extract → normalise and picks an extractor by diagram kind (`src/core/detect.ts` registry): `unified.ts` for everything on Mermaid's unified renderer (flowchart, class, state, ER, requirement, mindmap, kanban, usecase, swimlane, agentflow), `sequence.ts` for sequence diagrams, and `primitives.ts` as the generic fallback that turns every rendered SVG element into a free-form shape or text box (chart-like types). `model.ts` reads Mermaid's parsed model. `scripts/build-extractor.mjs` bundles `page.ts` into `dist/extractor.iife.js`, which the Node renderer injects into its headless page; the browser app imports the same modules directly. Both paths therefore run identical code.
+- **`src/extract/`** — the in-page pipeline (DOM code). `index.ts` owns initialise → render → extract → normalise and picks an extractor by diagram kind (`src/core/detect.ts` registry): `unified.ts` for everything on Mermaid's unified renderer (flowchart, class, state, ER, requirement, mindmap, kanban, usecase, swimlane, agentflow), `sequence.ts` for sequence diagrams, `drawn.ts` for C4 and architecture (boxes as groups of coloured parts, lines glued by id or by which box each end touches), and `primitives.ts` as the generic fallback that turns every rendered SVG element into a free-form shape or text box (chart-like types). `model.ts` reads Mermaid's parsed model. `scripts/build-extractor.mjs` bundles `page.ts` into `dist/extractor.iife.js`, which the Node renderer injects into its headless page; the browser app imports the same modules directly. Both paths therefore run identical code.
 - `src/vsdx.ts` and `src/validate.ts` (browser-safe).
 
 **`src/render/renderer.ts`** (`MermaidRenderer`) is the only Node-side browser code: it owns Chromium, opens a page per render, loads `mermaid.min.js` + the extractor bundle, and calls the pipeline. `src/parser.ts` is a thin `parseMermaid()` wrapper over it.
@@ -73,7 +73,9 @@ Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry 
 
 **ELK layout**: bundled with Mermaid 12 — no separate package or registration. Requested via `config.layout`, the GUI picker, or `layout: elk` in the diagram's YAML frontmatter (which Mermaid applies over `initialize()`, so it wins).
 
-**Sequence diagrams** (`sequence.ts`): participant boxes (`rect.actor-top`/`rect.actor-bottom`), activations and notes become rectangle nodes; lifelines and messages become unglued lines, with arrowheads read from their markers and captions placed where Mermaid drew them. Not yet handled: loop/alt/opt frames, stick-figure actors.
+**Sequence diagrams** (`sequence.ts`): keyed on Mermaid's `data-et` tags. Participants of every kind, top and bottom copies, become one shape each (a rectangle, or the drawn outline for stick figures and symbols, with the name where Mermaid put it); lifelines and messages become lines with arrowheads read from their markers and captions placed where drawn; activations and notes are rectangles; frames are one grouped shape (outline, separators, label box, labels); autonumber badges (a zero-length line whose start marker draws the circle) become numbered circles. Anything unrecognised is drawn by the generic fallback. Output is in document order, Mermaid's stacking order. Messages are not glued to lifelines.
+
+**Groups of coloured parts** (`type: 'group'`, `parts`): a node with no outline of its own whose `parts` are free-form sub-shapes with their own colours and whose `children` are its texts; written as a Visio group with sub-shapes positioned and sized as fractions of the group.
 
 **Empty-output warning**: if nothing at all is extracted (an empty diagram), the renderer emits a `console.warn` to stderr naming the detected diagram type, and the MCP tool repeats it in its result. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
 
@@ -161,7 +163,8 @@ The suite shares one Chromium, started by `tests/global-setup.mjs` (which also b
 ## Known Limitations / Future Work
 
 - **Chart-like diagram types are static drawings** (see the README matrix): shapes and text in place, nothing connected.
-- **Sequence diagrams are partial:** no loop/alt/opt frames or stick-figure actors, and messages are not glued to lifelines.
+- **Sequence messages are not glued to lifelines**, so moving a participant does not move its messages.
+- **Text colour of SVG labels** is read from the glyph-holding `tspan` (`textColor()` in `src/extract/dom.ts`): Mermaid often colours the `<text>` like its box and only the `tspan` in the text colour.
 - **Compound nodes have one fill and one line colour** (a Visio shape has one of each), so ER attribute rows lose their alternating shading.
 - **Font family is opt-in** (`--fonts`). Only Calibri's font-table entry carries Visio's full metadata; other families are listed by name only, which has not yet been confirmed to open without a warning in desktop Visio.
 - **A cross edge end (`--x`) is drawn plain**: Visio has no cross line end.

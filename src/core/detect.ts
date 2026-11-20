@@ -39,9 +39,9 @@ export const DIAGRAM_KINDS: DiagramKind[] = [
     { kind: 'requirement', match: /^requirement(Diagram)?$/, support: 'partial' },
     { kind: 'mindmap', match: /^mindmap$/, support: 'partial' },
     { kind: 'kanban', match: /^kanban$/, support: 'partial' },
-    { kind: 'c4', match: /^C4(Context|Container|Component|Dynamic|Deployment)$/, support: 'static' },
-    { kind: 'block', match: /^block(-beta)?$/, support: 'static' },
-    { kind: 'architecture', match: /^architecture(-beta)?$/, support: 'static' },
+    { kind: 'c4', match: /^C4(Context|Container|Component|Dynamic|Deployment)$/, support: 'partial' },
+    { kind: 'block', match: /^block(-beta)?$/, support: 'partial' },
+    { kind: 'architecture', match: /^architecture(-beta)?$/, support: 'partial' },
     { kind: 'usecase', match: /^usecase(-beta)?$/i, support: 'partial' },
     { kind: 'swimlane', match: /^swimlane(-beta)?$/, support: 'partial' },
     { kind: 'agentflow', match: /^agentflow(-beta)?$/, support: 'partial' },
@@ -68,7 +68,7 @@ export const DIAGRAM_KINDS: DiagramKind[] = [
 // Diagram kinds Mermaid draws with its unified renderer (shared node / edge /
 // cluster scaffold and a getData() model).
 export const UNIFIED_KINDS = new Set([
-    'flowchart', 'class', 'state', 'er', 'requirement', 'mindmap', 'kanban', 'usecase', 'swimlane', 'agentflow',
+    'flowchart', 'class', 'state', 'er', 'requirement', 'mindmap', 'kanban', 'usecase', 'swimlane', 'agentflow', 'block',
 ]);
 
 // Resolve a detectDiagramType() token to its registry entry, if known.

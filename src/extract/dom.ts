@@ -102,3 +102,18 @@ export function readLabel(root: Element | null | undefined): LabelInfo {
     }
     return { text: tidy(root.textContent || ''), styleEl: root, boxEl: null };
 }
+
+// The colour text is actually painted in. SVG text is painted with `fill`;
+// its CSS `color` is usually just the inherited default. HTML uses `color`.
+export function textColor(el: Element | null | undefined): string {
+    if (!el) return '#000000';
+    if (el instanceof SVGElement) {
+        // The glyphs are painted by the innermost tspan holding them, which
+        // can have its own fill: sequence actors colour their <text> like the
+        // box and only the tspan in the text colour.
+        const glyphs = Array.from(el.querySelectorAll('tspan')).find(t => (t.textContent || '').trim() && !t.querySelector('tspan')) ?? el;
+        const fill = window.getComputedStyle(glyphs).fill;
+        if (visiblePaint(fill)) return fill;
+    }
+    return window.getComputedStyle(el).color;
+}

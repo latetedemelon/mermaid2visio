@@ -12,7 +12,8 @@ export interface GraphNode {
     text?: string;
     // Geometry family the generator draws: rectangle, circle, ellipse,
     // diamond, stadium, parallelogram, trapezoid, inv_trapezoid, hexagon,
-    // cylinder, subroutine, or "path" (drawn from `paths`).
+    // cylinder, subroutine, "path" (drawn from `paths`) or "group"
+    // (drawn by its `parts`).
     type?: string;
     // Where Mermaid placed the text (top-left corner and size, SVG pixels).
     textX?: number;
@@ -28,6 +29,11 @@ export interface GraphNode {
     // When present the node is written as a group holding them, so they
     // move with it.
     children?: GraphLabel[];
+    // Drawn pieces that belong to this node, each with its own colours (a
+    // C4 person's head and body, an architecture service's icon). With type
+    // "group" the node has no outline of its own; it is a Visio group of
+    // these parts and its children.
+    parts?: GraphNode[];
     // Mermaid's own name for the shape (e.g. "lean_right", "hexagon"), from
     // its parsed model. Absent when the model was unavailable.
     shape?: string;

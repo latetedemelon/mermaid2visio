@@ -78,7 +78,9 @@ function linePattern(pattern: GraphEdge['pattern'] | undefined, dasharray: strin
 const LINE_END: Record<string, number> = {
     none: 0,
     arrow_point: 13, arrow_barb: 13, point: 13,
-    arrow_open: 3, dependency: 3, requirement_arrow: 3,
+    // Mermaid's "arrow_open" is an open link: no head at all.
+    arrow_open: 0,
+    open_head: 3, dependency: 3, requirement_arrow: 3,
     arrow_circle: 10, circle: 10,
     lollipop: 20,
     extension: 16,
@@ -495,6 +497,21 @@ export class VsdxGenerator {
         // A node with its own text boxes is a group: the boxes are sub-shapes
         // positioned as fractions of the group's size, so they move and
         // scale with it.
+        // Drawn parts, each a sub-shape with its own colours, placed and
+        // scaled relative to the group like the text boxes below.
+        const parts = (node.parts ?? []).map(part => {
+            const pw = Math.max(part.width, 0.01) / DPI;
+            const ph = Math.max(part.height, 0.01) / DPI;
+            const px = (part.x + part.width / 2 - node.x) / DPI;
+            const py = t.h - (part.y + part.height / 2 - node.y) / DPI;
+            return this.partShape(this.nextChildId++, part, {
+                pinX: px, pinY: py, width: pw, height: ph,
+                fx: t.w > 0.02 ? `Sheet.${id}!Width*${num(px / t.w)}` : undefined,
+                fy: t.h > 0.02 ? `Sheet.${id}!Height*${num(py / t.h)}` : undefined,
+                fw: t.w > 0.02 ? `Sheet.${id}!Width*${num(pw / t.w)}` : undefined,
+                fh: t.h > 0.02 ? `Sheet.${id}!Height*${num(ph / t.h)}` : undefined,
+            });
+        });
         const children = (node.children ?? []).map(child => {
             const cw = Math.max(child.width, 1) / DPI;
             const ch = Math.max(child.height, 1) / DPI;
@@ -506,7 +523,7 @@ export class VsdxGenerator {
                 fy: t.h > 0.02 ? `Sheet.${id}!Height*${num(cy / t.h)}` : undefined,
             });
         });
-        const isGroup = children.length > 0;
+        const isGroup = children.length > 0 || parts.length > 0;
 
         // Free-form outlines often keep their text off-centre (a triangle's
         // sits low, a document's high); put it where Mermaid did.
@@ -522,10 +539,10 @@ export class VsdxGenerator {
                 cell('TxtLocPinX', tw / 2, 'TxtWidth*0.5') + cell('TxtLocPinY', th / 2, 'TxtHeight*0.5');
         }
 
+        const paintless = node.type === 'group';
         return `<Shape ID="${id}" Type="${isGroup ? 'Group' : 'Shape'}">` +
             t.xml + textBlock + rounding +
-            this.fillCells(node.style?.fill) +
-            this.lineCells(node.style) + ends +
+            (paintless ? cell('FillPattern', 0) + cell('LinePattern', 0) : this.fillCells(node.style?.fill) + this.lineCells(node.style)) + ends +
             membership +
             this.nodeGeometry(node, t.w, t.h) +
             (node.text ? this.characterSection(node.style) : '') +
@@ -533,7 +550,7 @@ export class VsdxGenerator {
             (align !== 1 ? `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', align)}</Row></Section>` : '') +
             hyperlink + (drawingPiece ? '' : connections) +
             (node.text ? `<Text>${esc(node.text)}</Text>` : '') +
-            (isGroup ? `<Shapes>${children.join('')}</Shapes>` : '') +
+            (isGroup ? `<Shapes>${parts.join('')}${children.join('')}</Shapes>` : '') +
             `</Shape>`;
     }
 
@@ -553,6 +570,9 @@ export class VsdxGenerator {
             }]], { noFill });
 
         switch (node.type) {
+            case 'group':
+                // Drawn entirely by its sub-shapes.
+                return '';
             case 'path': {
                 // The outline exactly as Mermaid drew it: one geometry
                 // section per piece, scaled with the shape when resized.
@@ -756,6 +776,23 @@ export class VsdxGenerator {
 
         return `<Shape ID="${id}" Type="Shape">` + cells + sections +
             (edge.text ? `<Text>${esc(edge.text)}</Text>` : '') + `</Shape>`;
+    }
+
+    // A drawn piece inside a group, in the group's coordinates.
+    private partShape(id: number, part: GraphNode,
+                      at: { pinX: number; pinY: number; width: number; height: number; fx?: string; fy?: string; fw?: string; fh?: string }): string {
+        const ends = part.lineStart || part.lineEnd
+            ? cell('BeginArrow', lineEnd(part.lineStart, undefined, false)) + cell('EndArrow', lineEnd(part.lineEnd, undefined, false)) +
+              cell('BeginArrowSize', 2) + cell('EndArrowSize', 2)
+            : '';
+        return `<Shape ID="${id}" Type="Shape">` +
+            cell('PinX', at.pinX, at.fx) + cell('PinY', at.pinY, at.fy) +
+            cell('Width', at.width, at.fw) + cell('Height', at.height, at.fh) +
+            cell('LocPinX', at.width / 2, 'Width*0.5') + cell('LocPinY', at.height / 2, 'Height*0.5') +
+            this.fillCells(part.style?.fill) + this.lineCells(part.style) + ends +
+            this.nodeGeometry(part, at.width, at.height) +
+            (part.text ? this.characterSection(part.style) + `<Text>${esc(part.text)}</Text>` : '') +
+            `</Shape>`;
     }
 
     // Text on its own: a rectangle with no outline. `within` places it

@@ -6,9 +6,10 @@
 
 import type { GraphData, GraphLabel, GraphNode, OutlinePath } from '../core/types.js';
 import { flattenPath, type Point } from '../core/svgPath.js';
-import { all, readLabel, visiblePaint } from './dom.js';
+import { translatePathD } from '../core/normalize.js';
+import { all, readLabel, textColor, visiblePaint } from './dom.js';
 
-const DRAWABLE = 'path, rect, circle, ellipse, polygon, polyline, line';
+export const DRAWABLE = 'path, rect, circle, ellipse, polygon, polyline, line';
 // Content that is defined, not drawn.
 const NOT_RENDERED = 'defs, marker, clipPath, mask, pattern, symbol, style, title, desc, linearGradient, radialGradient';
 
@@ -28,7 +29,7 @@ export const applyMatrix = (m: Matrix, x: number, y: number): Point => ({ x: m.a
 const attr = (el: Element, name: string): number => parseFloat(el.getAttribute(name) || '0') || 0;
 
 // The element's outline as an SVG path string in its own coordinates.
-function localPath(el: Element): string {
+export function localPath(el: Element): string {
     switch (el.tagName.toLowerCase()) {
         case 'path':
             return el.getAttribute('d') || '';
@@ -213,6 +214,51 @@ function textBox(svg: SVGSVGElement, el: Element): { x: number; y: number; width
     };
 }
 
+// An edge's path data in the root SVG's coordinates. The `d` attribute is in
+// the coordinates of the group the path sits in, and Mermaid nests groups
+// with their own offsets (inside composite states, and around subgraphs that
+// have outside connections), so it must be mapped like everything else.
+export function rootPathData(svg: SVGSVGElement, path: Element): string {
+    // Lines and other basic shapes are converted to path data first.
+    const d = localPath(path);
+    const m = rootMatrix(svg, path);
+    if (!m || !d) return d;
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+    if (near(m.a, 1) && near(m.d, 1) && near(m.b, 0) && near(m.c, 0)) {
+        // A pure offset keeps the curve commands intact.
+        return near(m.e, 0) && near(m.f, 0) ? d : translatePathD(d, m.e, m.f);
+    }
+    // Anything else (scale, rotation): flatten and map point by point.
+    return flattenPath(d).map(sub => sub.map((p, i) => {
+        const q = applyMatrix(m, p.x, p.y);
+        return `${i === 0 ? 'M' : 'L'} ${q.x} ${q.y}`;
+    }).join(' ')).join(' ');
+}
+
+// One SVG element as a free-form shape, or null if it draws nothing.
+export function primitiveNode(svg: SVGSVGElement, el: Element, id: string): GraphNode | null {
+    // Text inside a foreignObject is HTML; any SVG nested there is decoration.
+    if (el.closest('foreignObject')) return null;
+    const drawn = draw(svg, el);
+    if (!drawn) return null;
+    const box = boundsOf(drawn.subpaths);
+    return {
+        id,
+        ...box,
+        text: '',
+        type: 'path',
+        paths: [{ subpaths: relative(drawn.subpaths, box.x, box.y), fill: drawn.fill !== 'none', line: drawn.stroke !== 'none' }],
+        lineStart: drawn.hasMarkerStart ? 'arrow_point' : undefined,
+        lineEnd: drawn.hasMarkerEnd ? 'arrow_point' : undefined,
+        style: {
+            fill: drawn.fill,
+            stroke: drawn.stroke,
+            strokeWidth: drawn.strokeWidth,
+            strokeDasharray: drawn.strokeDasharray,
+        },
+    };
+}
+
 // Every piece of text under `root`, as a positioned text box.
 export function textLabels(
     svg: SVGSVGElement,
@@ -247,7 +293,7 @@ export function textLabels(
             angle: Math.abs(box.angle) > 0.5 ? box.angle : undefined,
             style: {
                 // SVG text is painted with `fill`; HTML with `color`.
-                color: flatPaint(svg, isHtml ? cs.color : cs.fill, opacity),
+                color: flatPaint(svg, isHtml ? cs.color : textColor(el), opacity),
                 fontSize: cs.fontSize,
                 fontFamily: cs.fontFamily,
                 fontWeight: cs.fontWeight,
@@ -272,27 +318,10 @@ export function extractPrimitives(svg: SVGSVGElement, graphWidth: number, graphH
     const nodes: GraphNode[] = [];
     let counter = 0;
     for (const el of all(svg, DRAWABLE)) {
-        // Text inside a foreignObject is HTML; any SVG nested there is decoration.
-        if (el.closest('foreignObject')) continue;
-        const drawn = draw(svg, el);
-        if (!drawn) continue;
-        const box = boundsOf(drawn.subpaths);
-        if (!visible(box)) continue;
-        nodes.push({
-            id: `shape-${counter++}`,
-            ...box,
-            text: '',
-            type: 'path',
-            paths: [{ subpaths: relative(drawn.subpaths, box.x, box.y), fill: drawn.fill !== 'none', line: drawn.stroke !== 'none' }],
-            lineStart: drawn.hasMarkerStart ? 'arrow_point' : undefined,
-            lineEnd: drawn.hasMarkerEnd ? 'arrow_point' : undefined,
-            style: {
-                fill: drawn.fill,
-                stroke: drawn.stroke,
-                strokeWidth: drawn.strokeWidth,
-                strokeDasharray: drawn.strokeDasharray,
-            },
-        });
+        const node = primitiveNode(svg, el, `shape-${counter}`);
+        if (!node || !visible(node)) continue;
+        nodes.push(node);
+        counter++;
     }
 
     const labels = textLabels(svg, svg, visible);

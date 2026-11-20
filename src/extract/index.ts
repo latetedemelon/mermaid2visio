@@ -10,6 +10,7 @@ import { readRawModel, toUnifiedModel, type UnifiedModel } from './model.js';
 import { extractSequence } from './sequence.js';
 import { extractUnified } from './unified.js';
 import { extractPrimitives } from './primitives.js';
+import { ARCHITECTURE_SPEC, C4_SPEC, extractDrawnGraph } from './drawn.js';
 import { diagramKind, UNIFIED_KINDS } from '../core/detect.js';
 
 // Prefix on errors thrown by a failed mermaid.render(), so callers can tell a
@@ -31,6 +32,8 @@ export function extractGraph(svg: SVGSVGElement, diagramType: string, model: Uni
 
     const kind = diagramKind(diagramType)?.kind;
     if (kind === 'sequence') return extractSequence(svg, graphWidth, graphHeight);
+    if (kind === 'c4') return extractDrawnGraph(svg, graphWidth, graphHeight, C4_SPEC);
+    if (kind === 'architecture') return extractDrawnGraph(svg, graphWidth, graphHeight, ARCHITECTURE_SPEC);
     // Diagrams on the unified renderer have nodes and edges to map. If one
     // yields nothing (an unknown type that happens to match, an empty
     // diagram), or the type isn't a graph at all, draw what was rendered.

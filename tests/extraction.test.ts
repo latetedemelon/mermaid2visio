@@ -358,6 +358,54 @@ describe('chart-like diagrams become editable drawings', () => {
     }, 60000);
 });
 
+describe('C4, architecture and block diagrams have attached connectors', () => {
+    const attached = async (file: string) => {
+        const g = await parseMermaid(fixture(file));
+        const bytes = await new VsdxGenerator().generate(g);
+        expect((await validateVsdx(bytes)).errors).toEqual([]);
+        return { g, xml: await unzipPage(bytes) };
+    };
+    const pairs = (g: Awaited<ReturnType<typeof parseMermaid>>) => g.edges.map(e => `${e.startId}->${e.endId}`).sort();
+
+    it('C4: each element is one shape, each relationship glued and labelled', async () => {
+        const { g, xml } = await attached('c4.mmd');
+        expect(pairs(g)).toEqual(['customer->shop', 'shop->pay']);
+        expect(g.edges.map(e => e.text).sort()).toEqual(['Charges via', 'Uses']);
+        const customer = g.nodes.find(n => n.id === 'customer')!;
+        // A person is a head and a body: a group whose parts keep their colour,
+        // with the name, type and description as its texts.
+        expect(customer.type).toBe('group');
+        expect(customer.parts!.length).toBeGreaterThanOrEqual(2);
+        expect(customer.children!.map(c => c.text)).toEqual(expect.arrayContaining(['Customer', '[Person]', 'Buys things']));
+        expect((xml.match(/<Connect /g) || []).length).toBe(4);
+        // The relationship labels are not also left behind as loose text.
+        expect(g.labels.map(l => l.text)).not.toContain('Uses');
+    }, 60000);
+
+    it('architecture: services keep their icons, edges are glued, groups are containers', async () => {
+        const { g, xml } = await attached('architecture.mmd');
+        expect(pairs(g)).toEqual(['db->server', 'disk->server']);
+        const db = g.nodes.find(n => n.id === 'db')!;
+        expect(db.type).toBe('group');
+        expect(db.children!.map(c => c.text)).toEqual(['Database']);
+        // Icon pieces are separately coloured: blue tile, white glyph.
+        expect(new Set(db.parts!.map(p => p.style!.fill)).size).toBeGreaterThan(1);
+        expect(g.clusters.map(c => c.id)).toEqual(['api']);
+        // The group is a container listing its members (the three services,
+        // and its own icon and label drawn inside it).
+        expect(xml).toMatch(/<Row N="msvStructureType"><Cell N="Value" V="Container"/);
+        expect(xml).toMatch(/DEPENDSON\(1,Sheet\.\d+!SheetRef\(\),Sheet\.\d+!SheetRef\(\),Sheet\.\d+!SheetRef\(\)/);
+    }, 60000);
+
+    it('block: blocks and arrows come from the model, with heads only where drawn', async () => {
+        const { g } = await attached('block.mmd');
+        expect(g.nodes.map(n => [n.id, n.text])).toEqual([['a', 'Input'], ['b', 'Process'], ['c', 'Output'], ['d', 'Store']]);
+        expect(pairs(g)).toEqual(['a->b', 'b->c', 'b->d']);
+        // The model calls the plain start "arrow_open"; no head is drawn there.
+        for (const e of g.edges) expect([e.arrowStart, e.arrowEnd]).toEqual([false, true]);
+    }, 60000);
+});
+
 describe('pathBounds', () => {
     it('covers every coordinate of absolute path commands', () => {
         expect(pathBounds('M 10 20 L 30 5 H 50 V -4 C 0 0 60 60 40 40 Z')).toEqual({ minX: 0, minY: -4, maxX: 60, maxY: 60 });

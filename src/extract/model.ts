@@ -93,8 +93,22 @@ export interface UnifiedModel {
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined);
 
+// Block diagrams have no getData(); their database lists blocks and edges
+// in the same vocabulary.
+function blockData(db: any): any {
+    try {
+        if (typeof db?.getBlocksFlat !== 'function' || typeof db?.getEdges !== 'function') return null;
+        const nodes = (db.getBlocksFlat() as any[])
+            .filter(b => b && b.type !== 'space' && b.type !== 'composite' && b.id !== 'root')
+            .map(b => ({ id: b.id, label: b.label, shape: b.type, isGroup: false }));
+        return { nodes, edges: db.getEdges() };
+    } catch {
+        return null;
+    }
+}
+
 export function toUnifiedModel(raw: RawModel | null): UnifiedModel | null {
-    const data = raw?.data;
+    const data = raw?.data ?? blockData(raw?.db);
     if (!data || !Array.isArray(data.nodes)) return null;
 
     const nodes: ModelNode[] = [];

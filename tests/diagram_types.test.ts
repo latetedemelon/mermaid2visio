@@ -83,6 +83,7 @@ const EXPECTED_TEXT: Record<string, string[]> = {
     'requirement.mmd': ['login_req', 'auth_service', 'Users can sign in'],
     'sankey.mmd': ['Source A', 'Hub', 'Sink Y'],
     'sequence.mmd': ['Web', 'Database', 'Sign in', 'Shared cache'],
+    'sequence-participants.mmd': ['Plain', 'Person', 'Boundary', 'Control', 'Entity', 'Store', 'Items', 'Jobs', 'Service', 'Backend', 'par', '[first]', 'highlighted'],
     'state.mmd': ['Idle', 'Warm', 'Failed', 'retry'],
     'swimlane.mmd': ['Customer', 'Warehouse', 'Pick items', 'Raise invoice'],
     'timeline.mmd': ['Company history', 'Founded', 'Series A'],

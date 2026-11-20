@@ -53,9 +53,9 @@
 </circle>
 <circle cx="60" cy="88" r="10" class="commit feature commit1">
 </circle>
-<circle cx="110" cy="-2" r="10" class="commit 2-1834200 commit0">
+<circle cx="110" cy="-2" r="10" class="commit 2-a1273c6 commit0">
 </circle>
-<circle cx="110" cy="-2" r="6" class="commit commit-merge 2-1834200 commit0">
+<circle cx="110" cy="-2" r="6" class="commit commit-merge 2-a1273c6 commit0">
 </circle>
 <circle cx="160" cy="-2" r="10" class="commit hotfix commit0">
 </circle>

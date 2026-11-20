@@ -117,6 +117,11 @@ export function normalizeContentBounds(graph: GraphData): ContentBounds {
         if (n.textX !== undefined) n.textX -= minX;
         if (n.textY !== undefined) n.textY -= minY;
         for (const child of n.children ?? []) { child.x -= minX; child.y -= minY; }
+        for (const part of n.parts ?? []) {
+            part.x -= minX; part.y -= minY;
+            if (part.textX !== undefined) part.textX -= minX;
+            if (part.textY !== undefined) part.textY -= minY;
+        }
     }
     for (const c of graph.clusters) { c.x -= minX; c.y -= minY; }
     for (const l of graph.labels) { l.x -= minX; l.y -= minY; }
