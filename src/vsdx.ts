@@ -168,6 +168,7 @@ export class VsdxGenerator {
     private pageWidth = 8.5; // inches
     private readonly options: VsdxOptions;
     private readonly fontsUsed = new Set<string>();
+    private nextChildId = 0;
 
     constructor(options: VsdxOptions = {}) {
         this.options = options;
@@ -328,6 +329,10 @@ export class VsdxGenerator {
             return terms.length ? cell('Relationships', 0, `SUM(${terms.join(',')})`) : '';
         };
 
+        // Text boxes inside group nodes need ids too; they follow all the
+        // top-level shapes.
+        this.nextChildId = nextId + (graph.edges?.length ?? 0) + (graph.labels?.length ?? 0);
+
         const shapes: string[] = [];
         for (const c of clusters) shapes.push(this.clusterShape(shapeIdOf.get(c.id)!, c, containerCell(c.id)));
         for (const n of graph.nodes) shapes.push(this.nodeShape(shapeIdOf.get(n.id)!, n, containerCell(n.id)));
@@ -479,17 +484,56 @@ export class VsdxGenerator {
             `<Row T="Connection" IX="${i}">${cell('X', x.v, x.f)}${cell('Y', y.v, y.f)}${cell('DirX', dx)}${cell('DirY', dy)}${cell('Type', 0)}</Row>`).join('') +
             `</Section>`;
 
-        return `<Shape ID="${id}" Type="Shape">` +
-            t.xml + rounding +
+        // A free-form piece of a drawing (no text of its own) is not
+        // something to connect to.
+        const drawingPiece = node.type === 'path' && !node.text;
+        const ends = node.lineStart || node.lineEnd
+            ? cell('BeginArrow', lineEnd(node.lineStart, undefined, false)) + cell('EndArrow', lineEnd(node.lineEnd, undefined, false)) +
+              cell('BeginArrowSize', 2) + cell('EndArrowSize', 2)
+            : '';
+
+        // A node with its own text boxes is a group: the boxes are sub-shapes
+        // positioned as fractions of the group's size, so they move and
+        // scale with it.
+        const children = (node.children ?? []).map(child => {
+            const cw = Math.max(child.width, 1) / DPI;
+            const ch = Math.max(child.height, 1) / DPI;
+            const cx = (child.x + child.width / 2 - node.x) / DPI;
+            const cy = t.h - (child.y + child.height / 2 - node.y) / DPI;
+            return this.labelShape(this.nextChildId++, child, {
+                id, pinX: cx, pinY: cy, width: cw, height: ch,
+                fx: t.w > 0.02 ? `Sheet.${id}!Width*${num(cx / t.w)}` : undefined,
+                fy: t.h > 0.02 ? `Sheet.${id}!Height*${num(cy / t.h)}` : undefined,
+            });
+        });
+        const isGroup = children.length > 0;
+
+        // Free-form outlines often keep their text off-centre (a triangle's
+        // sits low, a document's high); put it where Mermaid did.
+        let textBlock = '';
+        if (node.type === 'path' && node.text && node.textX !== undefined && node.textY !== undefined) {
+            const tw = Math.max((node.textWidth ?? 0) / DPI * 1.3, 0.3);
+            const th = Math.max((node.textHeight ?? 0) / DPI, 0.15);
+            const tx = (node.textX + (node.textWidth ?? 0) / 2 - node.x) / DPI;
+            const ty = t.h - (node.textY + (node.textHeight ?? 0) / 2 - node.y) / DPI;
+            textBlock = cell('TxtPinX', tx, t.w > 0.02 ? `Width*${num(tx / t.w)}` : undefined) +
+                cell('TxtPinY', ty, t.h > 0.02 ? `Height*${num(ty / t.h)}` : undefined) +
+                cell('TxtWidth', tw) + cell('TxtHeight', th) +
+                cell('TxtLocPinX', tw / 2, 'TxtWidth*0.5') + cell('TxtLocPinY', th / 2, 'TxtHeight*0.5');
+        }
+
+        return `<Shape ID="${id}" Type="${isGroup ? 'Group' : 'Shape'}">` +
+            t.xml + textBlock + rounding +
             this.fillCells(node.style?.fill) +
-            this.lineCells(node.style) +
+            this.lineCells(node.style) + ends +
             membership +
             this.nodeGeometry(node, t.w, t.h) +
             (node.text ? this.characterSection(node.style) : '') +
             // Centred is the default; only say so when it isn't.
             (align !== 1 ? `<Section N="Paragraph"><Row IX="0">${cell('HorzAlign', align)}</Row></Section>` : '') +
-            hyperlink + connections +
+            hyperlink + (drawingPiece ? '' : connections) +
             (node.text ? `<Text>${esc(node.text)}</Text>` : '') +
+            (isGroup ? `<Shapes>${children.join('')}</Shapes>` : '') +
             `</Shape>`;
     }
 
@@ -509,6 +553,30 @@ export class VsdxGenerator {
             }]], { noFill });
 
         switch (node.type) {
+            case 'path': {
+                // The outline exactly as Mermaid drew it: one geometry
+                // section per piece, scaled with the shape when resized.
+                const X = (xPx: number): Coord => {
+                    const v = xPx / DPI;
+                    return w > 0.02 ? { v, f: `Width*${num(v / w)}` } : { v };
+                };
+                const Y = (yPx: number): Coord => {
+                    const v = h - yPx / DPI;
+                    return h > 0.02 ? { v, f: `Height*${num(v / h)}` } : { v };
+                };
+                let out = '';
+                let ix = 0;
+                for (const piece of node.paths ?? []) {
+                    for (const sub of piece.subpaths) {
+                        const pts = simplifyPolyline(sub.map(([x, y]) => ({ x, y })), 0.3);
+                        if (pts.length < 2) continue;
+                        out += geometry(ix++, pts.map((p, i): [string, Record<string, Coord>] =>
+                            [i === 0 ? 'MoveTo' : 'LineTo', { X: X(p.x), Y: Y(p.y) }]), { noFill: !piece.fill, noLine: !piece.line });
+                    }
+                }
+                if (out) return out;
+                return polygon([[zero, zero], [W(), zero], [W(), H()], [zero, H()]]);
+            }
             case 'circle':
             case 'ellipse': {
                 const double = node.shape === 'doublecircle' || node.shape === 'dbl-circ' || node.shape === 'double-circle';
@@ -690,15 +758,33 @@ export class VsdxGenerator {
             (edge.text ? `<Text>${esc(edge.text)}</Text>` : '') + `</Shape>`;
     }
 
-    // Free-standing text: a rectangle with no outline.
-    private labelShape(id: number, label: GraphLabel): string {
-        const t = this.transform(label.x, label.y, label.width || 10, label.height || 10);
+    // Text on its own: a rectangle with no outline. `within` places it
+    // inside a group, in that group's coordinates.
+    private labelShape(id: number, label: GraphLabel,
+                       within?: { id: number; pinX: number; pinY: number; width: number; height: number; fx?: string; fy?: string }): string {
+        const t = within
+            ? {
+                w: within.width, h: within.height,
+                xml: cell('PinX', within.pinX, within.fx) + cell('PinY', within.pinY, within.fy) +
+                    cell('Width', within.width) + cell('Height', within.height) +
+                    cell('LocPinX', within.width / 2, 'Width*0.5') + cell('LocPinY', within.height / 2, 'Height*0.5'),
+            }
+            : this.transform(label.x, label.y, label.width || 10, label.height || 10);
         const W: Coord = { v: t.w, f: 'Width' };
         const H: Coord = { v: t.h, f: 'Height' };
         const zero: Coord = { v: 0 };
         const hasFill = !!parseColor(label.style?.fill);
+        // The text block is wider than the box, so a font slightly wider
+        // than the one Mermaid measured with doesn't force a line break.
+        const tw = Math.max(t.w * 1.6, t.w + 0.3);
+        const textBlock =
+            cell('TxtPinX', t.w / 2, 'Width*0.5') + cell('TxtPinY', t.h / 2, 'Height*0.5') +
+            cell('TxtWidth', tw) + cell('TxtHeight', t.h, 'Height') +
+            cell('TxtLocPinX', tw / 2, 'TxtWidth*0.5') + cell('TxtLocPinY', t.h / 2, 'TxtHeight*0.5');
+        // Screen rotation is clockwise in degrees; Visio's is counter-clockwise in radians.
+        const angle = label.angle ? cell('Angle', -label.angle * Math.PI / 180) : '';
         return `<Shape ID="${id}" Type="Shape">` +
-            t.xml + cell('LinePattern', 0) + this.fillCells(label.style?.fill) +
+            t.xml + angle + textBlock + cell('LinePattern', 0) + this.fillCells(label.style?.fill) +
             geometry(0, [['MoveTo', { X: zero, Y: zero }], ['LineTo', { X: W, Y: zero }], ['LineTo', { X: W, Y: H }], ['LineTo', { X: zero, Y: H }], ['LineTo', { X: zero, Y: zero }]],
                 { noFill: !hasFill, noLine: true }) +
             this.characterSection(label.style) +

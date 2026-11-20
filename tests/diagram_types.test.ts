@@ -5,12 +5,12 @@ import { parseMermaid, detectDiagramType } from '../src/parser';
 import { DIAGRAM_KINDS, diagramKind, supportLevel } from '../src/core/detect';
 import { VsdxGenerator } from '../src/vsdx';
 import { validateVsdx } from '../src/validate';
+import { unzipPage } from './helpers';
 
-// Pins the *actual* support matrix so it can't silently regress and so the
-// docs stay honest. The extractor is flowchart-oriented; other types either
-// partially map (class/state/ER) or produce a blank-but-valid package
-// (sequence/pie/gantt). Every type must at least yield a structurally valid
-// VSDX — we never want a diagram type to produce a file Visio rejects.
+// Pins the support matrix so it can't silently regress and so the docs stay
+// honest. Graph-like diagrams map to shapes and glued connectors; chart-like
+// ones are drawn as static shapes and text. No type may produce a blank page
+// or a file that fails structural validation.
 
 describe('detectDiagramType', () => {
     it.each([
@@ -56,20 +56,73 @@ describe('diagram type registry', () => {
     });
 });
 
-// Every diagram type Mermaid can render must convert without throwing and
-// produce a structurally valid package, whether or not shapes are extracted.
-describe('every Mermaid diagram type converts to a valid package', () => {
+// Words that must survive conversion for each fixture: a sample of the text
+// a reader would look for in the Visio file.
+const EXPECTED_TEXT: Record<string, string[]> = {
+    'agentflow.mmd': ['Review Agent', 'Gather changes', 'Clean?'],
+    'architecture.mmd': ['API', 'Database', 'Server', 'Storage'],
+    'block.mmd': ['Input', 'Process', 'Output', 'Store'],
+    'c4.mmd': ['Customer', 'Web shop', 'Payments', 'Uses'],
+    'class.mmd': ['Animal', 'Dog', 'Owner', 'extends', '+String name', '+eat() : void', '«interface»'],
+    'cynefin.mmd': ['Incident Response', 'Restart service'],
+    'er.mmd': ['CUSTOMER', 'ORDER', 'places', 'customer_id', 'FK'],
+    'eventmodeling.mmd': ['CartUI', 'AddItem', 'ItemAdded'],
+    'flowchart.mmd': ['Start', 'Valid?', 'User DB', 'Services', 'yes'],
+    'flowchart-shapes.mmd': ['Document', 'Cloud', 'Triangle', 'Lean left'],
+    'gantt.mmd': ['Release plan', 'Design', 'Implement', 'Launch'],
+    'gitgraph.mmd': ['develop', 'v1.0'],
+    'ishikawa.mmd': ['Blurry', 'Photo', 'Shaky hands'],
+    'journey.mmd': ['Working day', 'Make tea', 'Commute'],
+    'kanban.mmd': ['To do', 'Write docs', 'Ship v1'],
+    'mindmap.mmd': ['Product', 'Research', 'Backend', 'Launch'],
+    'packet.mmd': ['Source Port', 'Sequence Number'],
+    'pie.mmd': ['Pets adopted', 'Dogs'],
+    'quadrant.mmd': ['Reach and engagement', 'Campaign A', 'Expand'],
+    'radar.mmd': ['Skills', 'Speed', 'Model X'],
+    'railroad.mmd': ['digit'],
+    'requirement.mmd': ['login_req', 'auth_service', 'Users can sign in'],
+    'sankey.mmd': ['Source A', 'Hub', 'Sink Y'],
+    'sequence.mmd': ['Web', 'Database', 'Sign in', 'Shared cache'],
+    'state.mmd': ['Idle', 'Warm', 'Failed', 'retry'],
+    'swimlane.mmd': ['Customer', 'Warehouse', 'Pick items', 'Raise invoice'],
+    'timeline.mmd': ['Company history', 'Founded', 'Series A'],
+    'treemap.mmd': ['Engineering', 'Backend', 'Marketing'],
+    'treeview.mmd': ['src', 'index.ts', 'README.md'],
+    'usecase.mmd': ['Customer', 'Place order', 'Order system'],
+    'venn.mmd': ['Desirable', 'Feasible', 'Ship it'],
+    'wardley.mmd': ['Cup of Tea', 'Kettle', 'Power'],
+    'xychart.mmd': ['Sales', 'Revenue', 'feb'],
+};
+
+// Every diagram type Mermaid can render must convert to a structurally valid
+// package that is not blank, sits on its page, and carries its text across.
+describe('every Mermaid diagram type converts to a non-blank, valid package', () => {
+    it('has expectations for every fixture', () => {
+        expect(fixtureFiles.filter(f => !EXPECTED_TEXT[f])).toEqual([]);
+    });
+
     it.each(fixtureFiles)('%s', async (file) => {
         const src = fs.readFileSync(path.join(FIXTURE_DIR, file), 'utf8');
-        const warn = console.warn;
-        console.warn = () => {};
-        try {
-            const graph = await parseMermaid(src);
-            const report = await validateVsdx(await new VsdxGenerator().generate(graph, src));
-            expect(report.errors).toEqual([]);
-        } finally {
-            console.warn = warn;
+        const graph = await parseMermaid(src);
+        const bytes = await new VsdxGenerator().generate(graph, src);
+        expect((await validateVsdx(bytes)).errors).toEqual([]);
+
+        expect(graph.nodes.length + graph.clusters.length + graph.labels.length).toBeGreaterThan(0);
+
+        // Everything lies on the page (content is normalised to start at 0,0).
+        for (const item of [...graph.nodes, ...graph.clusters, ...graph.labels]) {
+            expect(item.x).toBeGreaterThanOrEqual(-1);
+            expect(item.y).toBeGreaterThanOrEqual(-1);
+            expect(item.x + item.width).toBeLessThanOrEqual(graph.width + 1);
+            expect(item.y + item.height).toBeLessThanOrEqual(graph.height + 1);
         }
+        // A sane page: no stray element thousands of pixels away.
+        expect(graph.width).toBeLessThan(5000);
+        expect(graph.height).toBeLessThan(5000);
+
+        const page = await unzipPage(bytes);
+        const texts = [...page.matchAll(/<Text>([\s\S]*?)<\/Text>/g)].map(m => m[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')).join('\n');
+        for (const expected of EXPECTED_TEXT[file] ?? []) expect(texts).toContain(expected);
     }, 60000);
 });
 
@@ -81,7 +134,7 @@ describe('diagram type coverage (parse -> generate -> validate)', () => {
         [`stateDiagram-v2\n [*] --> Still\n Still --> Moving\n Moving --> [*]`, 'state', true],
         [`erDiagram\n CUSTOMER ||--o{ ORDER : places\n ORDER ||--|{ LINE : contains`, 'er', true],
         [`sequenceDiagram\n Alice->>John: Hello\n John-->>Alice: Hi`, 'sequence', true],
-        [`pie title Pets\n "Dogs" : 386\n "Cats" : 85`, 'pie', false],
+        [`pie title Pets\n "Dogs" : 386\n "Cats" : 85`, 'pie', true],
     ];
 
     it.each(cases)('%s — produces a structurally valid VSDX', async (src, label, expectShapes) => {
@@ -97,9 +150,6 @@ describe('diagram type coverage (parse -> generate -> validate)', () => {
         if (expectShapes) {
             expect(total).toBeGreaterThan(0);
         } else {
-            // Documents the known limitation: these types extract no geometry.
-            // If a future Mermaid/extractor change starts supporting them, this
-            // line will fail and prompt updating the support matrix + docs.
             expect(total).toBe(0);
         }
     }, 60000);

@@ -11,6 +11,10 @@ node dist/index.js tests/fixtures/all_features.mmd -o docs/calibration/01-curren
 node dist/index.js tests/fixtures/all_features.mmd -o docs/calibration/12-new-output-flowchart.vsdx
 node dist/index.js tests/fixtures/rob_test.mmd -o docs/calibration/13-new-output-architecture.vsdx
 node dist/index.js tests/fixtures/mermaid/sequence.mmd -o docs/calibration/14-new-output-sequence.vsdx
+node dist/index.js tests/fixtures/mermaid/class.mmd -o docs/calibration/15-new-output-class.vsdx
+node dist/index.js tests/fixtures/mermaid/flowchart-shapes.mmd -o docs/calibration/16-new-output-shapes.vsdx
+node dist/index.js tests/fixtures/mermaid/gantt.mmd -o docs/calibration/17-new-output-gantt.vsdx
+node dist/index.js tests/fixtures/mermaid/pie.mmd -o docs/calibration/18-new-output-pie.vsdx
 ```
 
 Open each file in desktop Visio. Every page has its own instructions at the top.
@@ -33,6 +37,10 @@ open" is a useful answer too.
 | `12-new-output-flowchart.vsdx` | The same flowchart as 01, from the rewritten generator. Compare with 01: shapes sit where their connectors meet them, connectors follow curved routes and re-route on drag, labels sit on their lines, the subgraph moves its members. |
 | `13-new-output-architecture.vsdx` | A large real-world flowchart (ELK layout, nested subgraphs, emoji, long labels). Anything misplaced, any text that overflows its box? |
 | `14-new-output-sequence.vsdx` | A sequence diagram: message captions above their lines, arrowheads only where the message has one. |
+| `15-new-output-class.vsdx` | A class diagram. Each class should be one group: drag it and its member text moves with it; relationships stay attached; hollow triangle / diamond ends look right. |
+| `16-new-output-shapes.vsdx` | Newer flowchart shapes (document, cloud, triangle, flag...) drawn from Mermaid's own outlines. Do the outlines look right, is the text inside, do they resize sensibly? |
+| `17-new-output-gantt.vsdx` | A Gantt chart as a static drawing: bars, grid lines and labels in place, each individually selectable. |
+| `18-new-output-pie.vsdx` | A pie chart as a static drawing: three slices in three colours, legend and percentages. |
 
 ## Optional: a reference file from Visio
 

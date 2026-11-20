@@ -12,7 +12,7 @@ Entry points:
 
 All four share:
 - **`src/core/`** — pure, environment-agnostic logic (`mermaidConfig`, `normalize`, `detect`, `types`).
-- **`src/extract/`** — the in-page pipeline (DOM code). `index.ts` owns initialise → render → extract → normalise; `flowchart.ts` and `sequence.ts` are the per-diagram extractors; `model.ts` reads Mermaid's parsed model. `scripts/build-extractor.mjs` bundles `page.ts` into `dist/extractor.iife.js`, which the Node renderer injects into its headless page; the browser app imports the same modules directly. Both paths therefore run identical code.
+- **`src/extract/`** — the in-page pipeline (DOM code). `index.ts` owns initialise → render → extract → normalise and picks an extractor by diagram kind (`src/core/detect.ts` registry): `unified.ts` for everything on Mermaid's unified renderer (flowchart, class, state, ER, requirement, mindmap, kanban, usecase, swimlane, agentflow), `sequence.ts` for sequence diagrams, and `primitives.ts` as the generic fallback that turns every rendered SVG element into a free-form shape or text box (chart-like types). `model.ts` reads Mermaid's parsed model. `scripts/build-extractor.mjs` bundles `page.ts` into `dist/extractor.iife.js`, which the Node renderer injects into its headless page; the browser app imports the same modules directly. Both paths therefore run identical code.
 - `src/vsdx.ts` and `src/validate.ts` (browser-safe).
 
 **`src/render/renderer.ts`** (`MermaidRenderer`) is the only Node-side browser code: it owns Chromium, opens a page per render, loads `mermaid.min.js` + the extractor bundle, and calls the pipeline. `src/parser.ts` is a thin `parseMermaid()` wrapper over it.
@@ -57,19 +57,25 @@ Headless Chromium (Puppeteer) renders the Mermaid diagram and extracts geometry 
 
 **Coordinate extraction** uses SVG CTM (`getCTM()`/`getScreenCTM()`) rather than parsing `transform` attributes. This correctly accumulates all ancestor transforms, which is essential for nodes inside nested subgraphs.
 
+**One coordinate system.** Everything is mapped into the root SVG's user space with `svg.getScreenCTM().inverse() × el.getScreenCTM()` (`toRootPoint`, `rootMatrix`). That includes edge paths, whose `d` is in the coordinates of whatever nested group Mermaid put them in (composite states, subgraphs with outside connections). An earlier version mixed `getCTM()` with `getScreenCTM()`, which offset every shape from its connectors by the page margin, and by far more when a wide diagram was scaled to fit the window.
+
+**Meaning from the model, geometry from the DOM** (`unified.ts`): node identity, edge endpoints, edge-end kinds, line pattern and shape names come from `db.getData()`, joined by id (`data-id` for edges; DOM ids with their scaffolding peeled for nodes). Shapes with a parametric Visio geometry get a `type`; any other shape is `type: 'path'` carrying the outline Mermaid drew (`paths`) and where it put the text. A node holding several texts (class, ER entity, requirement) becomes a `path` outline plus `children` text boxes, written as a Visio group. Composite states (`.statediagram-cluster`) are clusters.
+
+**Fallback** (`primitives.ts`): for non-graph diagrams, every rendered `path/rect/circle/ellipse/polygon/polyline/line` becomes a `path` node with its own fill and line, and every `text`/`foreignObject` a label (rotation kept). Elements outside the viewBox are dropped; gradients become their first stop; inherited opacity is folded into the colour.
+
 **Node IDs**: Mermaid wraps node IDs as `<svgId>-flowchart-<USERID>-<N>` (the `<svgId>-` prefix on every internal id arrived in 11.14). The extractor strips both the prefix and the scaffold so IDs match what edge paths carry (plain user IDs like `A`, `B`).
 
 **Edge endpoints**: Each `.edgePaths path` element carries `data-id="L_<src>_<dst>_<idx>"` (and the same value, svg-id-prefixed, as its `id`). The extractor reads `startId`/`endId` from `data-id`. Legacy fallback reads `LS-<id>`/`LE-<id>` classes on the parent `<g>`.
 
-**Edge labels**: `g.edgeLabel` groups appear in the same DOM order as `.edgePaths path` elements. The parser matches them by index, storing `text` directly on `GraphEdge`. This avoids needing IDs on label elements (they have none). Only `g.edgeLabel` is selected (not `.edgeLabel`) to avoid the HTML `<span class="edgeLabel">` inside foreignObject.
+**Edge labels**: each `g.edgeLabel` holds a `g.label[data-id]` naming its edge; labels are joined to edges by that id (DOM order is only a fallback) and their box is recorded on the edge.
 
 **Content normalization**: After extraction, all coordinates are translated by `(-minX, -minY)` so the top-left of actual content is at origin. Edge `d` strings are also translated via `translatePathD()`. This prevents off-page shapes when Mermaid/ELK places content with negative SVG coords.
 
 **ELK layout**: bundled with Mermaid 12 — no separate package or registration. Requested via `config.layout`, the GUI picker, or `layout: elk` in the diagram's YAML frontmatter (which Mermaid applies over `initialize()`, so it wins).
 
-**Sequence diagrams**: `parseMermaid` branches on `detectDiagramType`. For `sequenceDiagram` it runs a dedicated extractor (inside the page.evaluate) that maps actor boxes (`rect.actor-top`/`rect.actor-bottom`) to rectangle nodes — pairing each box with the `<text>` whose centre falls inside it — and lifelines (`line.actor-line`) plus messages (`line.messageLine0` solid / `line.messageLine1` dashed) to unglued edges with a synthesized `d`. Message labels (`text.messageText`) are matched to message lines by DOM order. The generator's margin-aware path fallback then draws them. Not yet handled: activations, notes, loop/alt/opt boxes.
+**Sequence diagrams** (`sequence.ts`): participant boxes (`rect.actor-top`/`rect.actor-bottom`), activations and notes become rectangle nodes; lifelines and messages become unglued lines, with arrowheads read from their markers and captions placed where Mermaid drew them. Not yet handled: loop/alt/opt frames, stick-figure actors.
 
-**Empty-output warning**: The extractor is flowchart-oriented. If it finds zero geometry (pie/gantt/etc.), `parseMermaid` emits a `console.warn` to stderr naming the detected diagram type (`detectDiagramType()`) and the support matrix, so a blank-but-valid VSDX is never a silent surprise. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
+**Empty-output warning**: if nothing at all is extracted (an empty diagram), the renderer emits a `console.warn` to stderr naming the detected diagram type, and the MCP tool repeats it in its result. stderr is safe for CLI, GUI, and the MCP server (whose JSON-RPC channel is stdout).
 
 **GraphData interfaces** (the Intermediate Representation):
 ```typescript
@@ -154,8 +160,9 @@ The suite shares one Chromium, started by `tests/global-setup.mjs` (which also b
 
 ## Known Limitations / Future Work
 
-- **Diagram-type support varies.** Empirically (see `diagram_types.test.ts`): flowchart/graph are full; sequence/classDiagram/stateDiagram/erDiagram are partial; pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey extract **zero** geometry and produce a blank-but-valid VSDX (the parser now warns when this happens). The README support matrix reflects this honestly.
-- **Sequence diagrams are partial:** actor boxes, lifelines, and labelled messages map (see the sequence extractor), but activations, notes, and loop/alt/opt frames are not yet extracted.
+- **Chart-like diagram types are static drawings** (see the README matrix): shapes and text in place, nothing connected.
+- **Sequence diagrams are partial:** no loop/alt/opt frames or stick-figure actors, and messages are not glued to lifelines.
+- **Compound nodes have one fill and one line colour** (a Visio shape has one of each), so ER attribute rows lose their alternating shading.
 - **Font family is opt-in** (`--fonts`). Only Calibri's font-table entry carries Visio's full metadata; other families are listed by name only, which has not yet been confirmed to open without a warning in desktop Visio.
 - **A cross edge end (`--x`) is drawn plain**: Visio has no cross line end.
 - **Fidelity mode**: The architectural plan envisions a second `fidelity` output mode that transcribes fixed SVG geometry rather than creating dynamic Visio shapes. Not yet implemented.

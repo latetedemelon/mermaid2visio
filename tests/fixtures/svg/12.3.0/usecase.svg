@@ -79,7 +79,7 @@
 <g class="cluster-label system-boundary-title" transform="translate(201.6796875, 8)">
 <foreignObject width="84.015625" height="21">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>Order system</p>
 </span>
 </div>
@@ -88,7 +88,7 @@
 </g>
 </g>
 <g class="edgePaths">
-<path d="M88.688,72L92.854,72C97.021,72,105.354,72,113.688,72C122.021,72,130.354,72,138.021,72C145.688,72,152.688,72,156.188,72L159.688,72" id="usecase-m2v-probe-edge-0" class=" edge-thickness-normal edge-pattern-solid default relationship relationship-association" style=";" data-edge="true" data-et="edge" data-id="edge-0" data-points="W3sieCI6ODguNjg3NSwieSI6NzJ9LHsieCI6MTEzLjY4NzUsInkiOjcyfSx7IngiOjEzOC42ODc1LCJ5Ijo3Mn0seyJ4IjoxNjMuNjg3NSwieSI6NzJ9XQ==" data-look="classic" marker-end="url(#m2v-probe_usecase-pointEnd)" data-usecase-id="edge-0" data-usecase-kind="relationship" role="img" aria-label="association from Customer to Place order">
+<path d="M88.688,72L92.854,72C97.021,72,105.354,72,113.688,72C122.021,72,130.354,72,138.021,72C145.688,72,152.688,72,156.188,72L159.688,72" id="usecase-m2v-probe-edge-0" class="edge-thickness-normal edge-pattern-solid default relationship relationship-association" style=";" data-edge="true" data-et="edge" data-id="edge-0" data-points="W3sieCI6ODguNjg3NSwieSI6NzJ9LHsieCI6MTEzLjY4NzUsInkiOjcyfSx7IngiOjEzOC42ODc1LCJ5Ijo3Mn0seyJ4IjoxNjMuNjg3NSwieSI6NzJ9XQ==" data-look="classic" marker-end="url(#m2v-probe_usecase-pointEnd)" data-usecase-id="edge-0" data-usecase-kind="relationship" role="img" aria-label="association from Customer to Place order">
 </path>
 </g>
 <g class="edgeLabels">
@@ -96,7 +96,7 @@
 <g class="label" data-id="edge-0" transform="translate(-2, 0)">
 <foreignObject width="4" height="0">
 <div xmlns="http://www.w3.org/1999/xhtml" class="labelBkg" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
-<span class="edgeLabel ">
+<span class="edgeLabel">
 </span>
 </div>
 </foreignObject>
@@ -112,7 +112,7 @@
 </rect>
 <foreignObject width="60.6875" height="21">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>Customer</p>
 </span>
 </div>
@@ -123,7 +123,7 @@
 </path>
 </g>
 </g>
-<g class="node default usecase-element usecase-ellipse " id="m2v-probe-usecase-Checkout" data-look="classic" transform="translate(243.6875, 72)" data-usecase-id="Checkout" data-usecase-kind="usecase" role="img" aria-label="use case Place order">
+<g class="node default usecase-element usecase-ellipse" id="m2v-probe-usecase-Checkout" data-look="classic" transform="translate(243.6875, 72)" data-usecase-id="Checkout" data-usecase-kind="usecase" role="img" aria-label="use case Place order">
 <ellipse class="basic label-container" style="" rx="80" ry="29" cx="0" cy="0">
 </ellipse>
 <g class="label" style="" transform="translate(-60, -9)">
@@ -131,7 +131,7 @@
 </rect>
 <foreignObject width="120" height="18">
 <div xmlns="http://www.w3.org/1999/xhtml" style="display: table; white-space: nowrap; line-height: 1.5; max-width: 120px; text-align: center; width: 120px;">
-<span class="nodeLabel ">
+<span class="nodeLabel">
 <p>Place order</p>
 </span>
 </div>

@@ -12,8 +12,22 @@ export interface GraphNode {
     text?: string;
     // Geometry family the generator draws: rectangle, circle, ellipse,
     // diamond, stadium, parallelogram, trapezoid, inv_trapezoid, hexagon,
-    // cylinder, subroutine.
+    // cylinder, subroutine, or "path" (drawn from `paths`).
     type?: string;
+    // Where Mermaid placed the text (top-left corner and size, SVG pixels).
+    textX?: number;
+    textY?: number;
+    textWidth?: number;
+    textHeight?: number;
+    // For type "path": the outline as Mermaid drew it.
+    paths?: OutlinePath[];
+    // For type "path": what sits at the ends of an open outline.
+    lineStart?: string;
+    lineEnd?: string;
+    // Text boxes that belong to this node (class members, ER attributes...).
+    // When present the node is written as a group holding them, so they
+    // move with it.
+    children?: GraphLabel[];
     // Mermaid's own name for the shape (e.g. "lean_right", "hexagon"), from
     // its parsed model. Absent when the model was unavailable.
     shape?: string;
@@ -33,6 +47,15 @@ export interface GraphNode {
         fontStyle?: string;
         textAlign?: string;
     };
+}
+
+// One drawable piece of a free-form outline.
+export interface OutlinePath {
+    // Polylines (curves already flattened), in SVG pixels relative to the
+    // owning node's top-left corner.
+    subpaths: Array<Array<[number, number]>>;
+    fill: boolean;
+    line: boolean;
 }
 
 export interface GraphEdge {
@@ -94,6 +117,8 @@ export interface GraphLabel {
     width: number;
     height: number;
     text: string;
+    // Clockwise rotation in degrees about the box centre, as on screen.
+    angle?: number;
     style?: {
         color?: string;
         fill?: string;

@@ -134,9 +134,7 @@ export async function handleConvertMermaidToVsdx(args: ConvertArgs, deps: Conver
         let text = `Successfully generated Visio diagram at: ${outFile}`;
         if (totalShapes === 0) {
             text += `\n\nWarning: no shapes were extracted, so the .vsdx will be blank. ` +
-                `The converter fully supports flowchart/graph and partially supports ` +
-                `sequence/class/state/ER diagrams; other types (pie, gantt, journey, etc.) ` +
-                `are not yet supported.`;
+                `Check that the diagram has content.`;
         }
 
         return {

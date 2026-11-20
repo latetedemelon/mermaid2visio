@@ -10,12 +10,17 @@
 
 import type { GraphCluster, GraphData, GraphEdge, GraphLabel, GraphNode } from '../core/types.js';
 import type { ModelEdge, UnifiedModel } from './model.js';
-import { all, toRootPoint, translateOf, type Box } from './dom.js';
+import { all, readLabel, rootBox, visiblePaint } from './dom.js';
+import { applyMatrix, outlinePaint, outlinePaths, rootMatrix, textLabels } from './primitives.js';
+import { flattenPath } from '../core/svgPath.js';
+import { translatePathD } from '../core/normalize.js';
 
 // Mermaid shape name (and its aliases) -> the geometry family the generator
-// draws. Anything not listed is drawn as a rectangle for now.
+// draws. Anything not listed is drawn from the outline Mermaid rendered.
 const SHAPE_TYPE: Record<string, string> = {
     rect: 'rectangle', squareRect: 'rectangle', roundedRect: 'rectangle', rounded: 'rectangle',
+    classBox: 'rectangle', erBox: 'rectangle', requirementBox: 'rectangle', kanbanItem: 'rectangle', note: 'rectangle',
+    defaultMindmapNode: 'rectangle', roundedWithTitle: 'rectangle',
     stadium: 'stadium', pill: 'stadium', terminal: 'stadium',
     diamond: 'diamond', diam: 'diamond', question: 'diamond', decision: 'diamond', choice: 'diamond',
     cylinder: 'cylinder', cyl: 'cylinder', database: 'cylinder', db: 'cylinder',
@@ -29,65 +34,6 @@ const SHAPE_TYPE: Record<string, string> = {
     trapezoid: 'trapezoid', 'trap-b': 'trapezoid', priority: 'trapezoid', 'trapezoid-bottom': 'trapezoid',
     inv_trapezoid: 'inv_trapezoid', 'trap-t': 'inv_trapezoid', manual: 'inv_trapezoid', 'inv-trapezoid': 'inv_trapezoid', 'trapezoid-top': 'inv_trapezoid',
 };
-
-const visiblePaint = (value: string | null | undefined): boolean => {
-    if (!value || value === 'none' || value === 'transparent') return false;
-    const alpha = /^rgba\([^)]*,\s*([\d.]+)\s*\)$/.exec(value)?.[1];
-    return alpha === undefined || parseFloat(alpha) > 0;
-};
-
-// Bounding box of `el` in the root SVG's user space.
-function rootBox(svg: SVGSVGElement, el: Element | null | undefined, fallbackFrom?: Element | null): Box {
-    if (!el) return { x: 0, y: 0, width: 0, height: 0 };
-    const b = (el as SVGGraphicsElement).getBBox();
-    const p1 = toRootPoint(svg, el, b.x, b.y);
-    const p2 = toRootPoint(svg, el, b.x + b.width, b.y + b.height);
-    if (p1 && p2) {
-        return {
-            x: Math.min(p1.x, p2.x),
-            y: Math.min(p1.y, p2.y),
-            width: Math.abs(p2.x - p1.x),
-            height: Math.abs(p2.y - p1.y),
-        };
-    }
-    // No CTM available: fall back to the owning group's translate().
-    const t = translateOf(fallbackFrom ?? el);
-    return { x: t.x + b.x, y: t.y + b.y, width: b.width, height: b.height };
-}
-
-interface LabelInfo {
-    text: string;
-    // Element whose computed style describes the text.
-    styleEl: Element | null;
-    // Element whose box is the label's extent.
-    boxEl: Element | null;
-}
-
-const tidy = (text: string): string => text.split('\n').map(l => l.trim()).join('\n').trim();
-
-// Reads a label rendered either as HTML (foreignObject) or as SVG text.
-function readLabel(root: Element | null | undefined): LabelInfo {
-    if (!root) return { text: '', styleEl: null, boxEl: null };
-    const fo = root.querySelector('foreignObject');
-    if (fo) {
-        const clone = fo.cloneNode(true) as Element;
-        clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
-        const paragraphs = Array.from(clone.querySelectorAll('p'));
-        const text = paragraphs.length > 1
-            ? paragraphs.map(p => p.textContent || '').join('\n')
-            : clone.textContent || '';
-        const styleEl = fo.querySelector('.nodeLabel, .edgeLabel') ?? fo.querySelector('span, p, div') ?? fo;
-        return { text: tidy(text), styleEl, boxEl: fo };
-    }
-    const textEl = root.querySelector('text');
-    if (textEl) {
-        // Mermaid wraps each line in a top-level tspan.
-        const lines = Array.from(textEl.children).filter(c => c.tagName.toLowerCase() === 'tspan');
-        const text = lines.length > 1 ? lines.map(l => l.textContent || '').join('\n') : textEl.textContent || '';
-        return { text: tidy(text), styleEl: textEl, boxEl: textEl };
-    }
-    return { text: tidy(root.textContent || ''), styleEl: root, boxEl: null };
-}
 
 // The element(s) that draw a node's outline. Simple shapes are one element;
 // most newer shapes are a group holding a fill path and a stroke path.
@@ -141,6 +87,26 @@ function endpointsFromId(edgeId: string, known: Set<string>): { start?: string; 
     return greedy ? { start: greedy[1], end: greedy[2] } : {};
 }
 
+// An edge's path data in the root SVG's coordinates. The `d` attribute is in
+// the coordinates of the group the path sits in, and Mermaid nests groups
+// with their own offsets (inside composite states, and around subgraphs that
+// have outside connections), so it must be mapped like everything else.
+function rootPathData(svg: SVGSVGElement, path: Element): string {
+    const d = path.getAttribute('d') || '';
+    const m = rootMatrix(svg, path);
+    if (!m || !d) return d;
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+    if (near(m.a, 1) && near(m.d, 1) && near(m.b, 0) && near(m.c, 0)) {
+        // A pure offset keeps the curve commands intact.
+        return near(m.e, 0) && near(m.f, 0) ? d : translatePathD(d, m.e, m.f);
+    }
+    // Anything else (scale, rotation): flatten and map point by point.
+    return flattenPath(d).map(sub => sub.map((p, i) => {
+        const q = applyMatrix(m, p.x, p.y);
+        return `${i === 0 ? 'M' : 'L'} ${q.x} ${q.y}`;
+    }).join(' ')).join(' ');
+}
+
 const isArrow = (kind: string | undefined): boolean => !!kind && kind !== 'none';
 
 function patternOf(edge: ModelEdge | undefined): GraphEdge['pattern'] {
@@ -163,7 +129,8 @@ export function extractUnified(
     const stripPrefix = (id: string) => (idPrefix && id.startsWith(idPrefix) ? id.slice(idPrefix.length) : id);
 
     // ---------------------------------------------------------- subgraphs
-    const clusters: GraphCluster[] = all(svg, '.cluster').map(cluster => {
+    // (Composite states are drawn as ".statediagram-cluster".)
+    const clusters: GraphCluster[] = all(svg, '.cluster, .statediagram-cluster').map(cluster => {
         const domId = stripPrefix(cluster.id);
         const modelNode = model?.resolveNode(domId);
         const frame = cluster.querySelector('rect, polygon, path');
@@ -194,13 +161,32 @@ export function extractUnified(
         const id = modelNode?.id ?? /^flowchart-(.+)-\d+$/.exec(domId)?.[1] ?? domId;
 
         const outline = outlineOf(node);
-        const box = rootBox(svg, outline.el, node);
+        // A node holding several separate pieces of text (a class with
+        // members, an ER entity with attributes, a requirement) is kept as
+        // drawn: its full outline including dividers, with each text in place.
+        const texts = textLabels(svg, node);
+        const compound = texts.length > 1;
+        const box = compound ? rootBox(svg, node) : rootBox(svg, outline.el, node);
         const fillStyle = window.getComputedStyle(outline.fillEl || node);
         const strokeStyle = window.getComputedStyle(outline.strokeEl || node);
-
-        const type = modelNode?.shape
-            ? SHAPE_TYPE[modelNode.shape] ?? (outline.el?.tagName.toLowerCase() === 'circle' ? 'circle' : outline.el?.tagName.toLowerCase() === 'ellipse' ? 'ellipse' : 'rectangle')
-            : typeFromDom(node, outline.el);
+        const tag = outline.el?.tagName.toLowerCase();
+        let type: string;
+        let paths;
+        if (compound) {
+            paths = outlinePaths(svg, node, box);
+            type = paths.length ? 'path' : 'rectangle';
+        } else if (!modelNode?.shape) {
+            type = typeFromDom(node, outline.el);
+        } else if (SHAPE_TYPE[modelNode.shape]) {
+            type = SHAPE_TYPE[modelNode.shape];
+        } else if (tag === 'circle' || tag === 'ellipse') {
+            type = tag;
+        } else {
+            // A shape with no parametric geometry here: carry the outline
+            // Mermaid drew, whatever it is.
+            paths = outline.el ? outlinePaths(svg, outline.el, box) : [];
+            type = paths.length ? 'path' : 'rectangle';
+        }
 
         let rounding = 0;
         if (outline.el?.tagName.toLowerCase() === 'rect') {
@@ -223,23 +209,31 @@ export function extractUnified(
             else if (cssAlign === 'right' || cssAlign === 'end') textAlign = 'right';
         }
 
+        // Where the text sits, for outlines whose label isn't at their centre.
+        const textAt = !compound && label.boxEl && label.text ? rootBox(svg, label.boxEl) : null;
+
         const anchor = node.querySelector('a') || node.closest('a');
         const url = (anchor ? anchor.getAttribute('href') || anchor.getAttribute('xlink:href') : undefined) || undefined;
 
         return {
             id,
             ...box,
-            text: label.text,
+            text: compound ? '' : label.text,
+            children: compound ? texts : undefined,
+            ...(textAt ? { textX: textAt.x, textY: textAt.y, textWidth: textAt.width, textHeight: textAt.height } : {}),
             type,
+            paths: type === 'path' ? paths : undefined,
             shape: modelNode?.shape,
             parentId: modelNode?.parentId,
             rounding,
             url,
             style: {
-                fill: fillStyle.fill,
-                stroke: strokeStyle.stroke,
-                strokeWidth: strokeStyle.strokeWidth,
-                strokeDasharray: strokeStyle.strokeDasharray,
+                ...(compound ? outlinePaint(svg, node) : {
+                    fill: fillStyle.fill,
+                    stroke: strokeStyle.stroke,
+                    strokeWidth: strokeStyle.strokeWidth,
+                    strokeDasharray: strokeStyle.strokeDasharray,
+                }),
                 color: textStyle ? textStyle.color : '#000000',
                 fontSize: textStyle ? textStyle.fontSize : undefined,
                 fontFamily: textStyle ? textStyle.fontFamily : undefined,
@@ -307,7 +301,7 @@ export function extractUnified(
 
         const style = window.getComputedStyle(path);
         edges.push({
-            d: path.getAttribute('d') || '',
+            d: rootPathData(svg, path),
             startId: fromId.start,
             endId: fromId.end,
             arrowStart: modelEdge ? isArrow(startKind) : !!path.getAttribute('marker-start'),
@@ -337,6 +331,16 @@ export function extractUnified(
     const labels: GraphLabel[] = rawLabels
         .filter(l => !l.used && l.text)
         .map(({ edgeId: _edgeId, used: _used, ...label }) => label);
+    // Text drawn outside any node, subgraph or edge label: multiplicities
+    // at the ends of class relationships, and the diagram's title.
+    for (const extra of all(svg, 'g.edgeTerminals, text[class*="itleText"]')) {
+        const root = extra.tagName.toLowerCase() === 'text' ? extra.parentElement : extra;
+        if (!root) continue;
+        for (const label of textLabels(svg, root)) {
+            if (extra.tagName.toLowerCase() === 'text' && label.text !== (extra.textContent || '').replace(/\s+/g, ' ').trim()) continue;
+            labels.push(label);
+        }
+    }
 
     return { width: graphWidth, height: graphHeight, nodes, edges, clusters, labels };
 }
