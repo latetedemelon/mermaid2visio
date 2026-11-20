@@ -11,7 +11,8 @@ export interface GraphNode {
     height: number;
     text?: string;
     // Geometry family the generator draws: rectangle, circle, ellipse,
-    // diamond, stadium, parallelogram, cylinder, subroutine.
+    // diamond, stadium, parallelogram, trapezoid, inv_trapezoid, hexagon,
+    // cylinder, subroutine.
     type?: string;
     // Mermaid's own name for the shape (e.g. "lean_right", "hexagon"), from
     // its parsed model. Absent when the model was unavailable.

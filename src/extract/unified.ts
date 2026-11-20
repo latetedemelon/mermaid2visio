@@ -25,6 +25,9 @@ const SHAPE_TYPE: Record<string, string> = {
     ellipse: 'ellipse', usecaseEllipse: 'ellipse',
     lean_right: 'parallelogram', 'lean-r': 'parallelogram', 'lean-right': 'parallelogram', 'in-out': 'parallelogram',
     lean_left: 'parallelogram', 'lean-l': 'parallelogram', 'lean-left': 'parallelogram', 'out-in': 'parallelogram',
+    hexagon: 'hexagon', hex: 'hexagon', prepare: 'hexagon',
+    trapezoid: 'trapezoid', 'trap-b': 'trapezoid', priority: 'trapezoid', 'trapezoid-bottom': 'trapezoid',
+    inv_trapezoid: 'inv_trapezoid', 'trap-t': 'inv_trapezoid', manual: 'inv_trapezoid', 'inv-trapezoid': 'inv_trapezoid', 'trapezoid-top': 'inv_trapezoid',
 };
 
 const visiblePaint = (value: string | null | undefined): boolean => {
@@ -207,10 +210,18 @@ export function extractUnified(
 
         const label = readLabel(node.querySelector('.label') ?? node);
         const textStyle = label.styleEl ? window.getComputedStyle(label.styleEl) : null;
+        // HTML labels are aligned by CSS text-align; SVG text by text-anchor
+        // (whose default, "start", says nothing about an HTML label).
         let textAlign = 'center';
-        const anchorVal = textStyle?.getPropertyValue('text-anchor');
-        if (anchorVal === 'start') textAlign = 'left';
-        else if (anchorVal === 'end') textAlign = 'right';
+        if (label.styleEl instanceof SVGElement) {
+            const anchorVal = textStyle?.getPropertyValue('text-anchor');
+            if (anchorVal === 'start') textAlign = 'left';
+            else if (anchorVal === 'end') textAlign = 'right';
+        } else if (textStyle) {
+            const cssAlign = textStyle.textAlign;
+            if (cssAlign === 'left' || cssAlign === 'start') textAlign = 'left';
+            else if (cssAlign === 'right' || cssAlign === 'end') textAlign = 'right';
+        }
 
         const anchor = node.querySelector('a') || node.closest('a');
         const url = (anchor ? anchor.getAttribute('href') || anchor.getAttribute('xlink:href') : undefined) || undefined;

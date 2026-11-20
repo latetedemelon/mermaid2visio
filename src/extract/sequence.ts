@@ -114,6 +114,11 @@ export function extractSequence(svg: SVGSVGElement, graphWidth: number, graphHei
             arrowStartKind: markerKind(ml.getAttribute('marker-start')),
             arrowEndKind: markerKind(ml.getAttribute('marker-end')),
             text: tEl?.textContent?.trim() || undefined,
+            // Mermaid draws the caption above its line; keep it there.
+            ...(tEl && tEl.textContent?.trim() ? (() => {
+                const b = tEl.getBBox();
+                return { labelX: b.x, labelY: b.y, labelWidth: b.width, labelHeight: b.height };
+            })() : {}),
             labelStyle: tEl ? {
                 color: ts?.color, fontSize: ts?.fontSize,
                 fontWeight: ts?.fontWeight, fontStyle: ts?.fontStyle,

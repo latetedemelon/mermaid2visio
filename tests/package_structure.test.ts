@@ -113,7 +113,7 @@ describe('VSDX package structure', () => {
         const files = await generate();
         const pagesXml = files['visio/pages/pages.xml'];
         expect(pagesXml).toContain('<Page');
-        expect(pagesXml).toMatch(/<PageSheet>/);
+        expect(pagesXml).toMatch(/<PageSheet\b/);
         expect(pagesXml).toContain('<Cell N="PageWidth"');
         expect(pagesXml).toContain('<Cell N="PageHeight"');
         // The <Rel r:id="rId1"/> ties the page entry to the relationship in

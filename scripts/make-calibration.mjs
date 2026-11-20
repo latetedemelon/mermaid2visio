@@ -163,7 +163,7 @@ const charSection = (cells) => `<Section N="Character"><Row IX="0">${cells}</Row
 // A filled box. `cells`/`sections` are appended in schema order (Cells, Sections, Text).
 function box(id, cx, cy, w, h, text, { cells = '', sections = '', fill = '#e1f5fe', geom } = {}) {
     return `<Shape ID="${id}" Type="Shape">${xform(cx, cy, w, h)}` +
-        cell('FillForegnd', fill) + cell('LineColor', '#01579b') + cell('LineWeight', 0.0104) + cells +
+        cell('FillForegnd', fill) + cell('FillPattern', 1) + cell('LineColor', '#01579b') + cell('LinePattern', 1) + cell('LineWeight', 0.0104) + cells +
         (geom ?? rectGeom(w, h)) + sections + (text != null ? `<Text>${esc(text)}</Text>` : '') + `</Shape>`;
 }
 

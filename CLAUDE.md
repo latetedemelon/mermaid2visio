@@ -81,46 +81,39 @@ GraphLabel  { x, y, width, height, text, style }  // standalone (rare)
 All `x`, `y` are **top-left** corners in SVG pixels. `width`/`height` are in SVG pixels.
 
 ### `src/vsdx.ts`
-Generates the VSDX ZIP package from `GraphData`.
+Generates the VSDX ZIP package from `GraphData`. The XML follows what Visio itself writes (checked against Visio-authored files), and every fill/line/text property is written explicitly on each shape rather than left to style-sheet inheritance. `src/core/color.ts` (any CSS colour -> `#rrggbb` + alpha) and `src/core/svgPath.ts` (path `d` -> polylines) are its pure helpers.
 
-**Coordinate system**: Visio uses inches, left-origin X, **bottom-origin** Y. Helpers:
-```
-toVisioX(svgPx) = margin + svgPx / dpi
-toVisioY(svgPx) = pageHeight - margin - svgPx / dpi
-```
-`margin = 0.5"`, `dpi = 96`. Page size is `max(8.5×11, content + 2×margin)`.
+**Coordinate system**: Visio uses inches, left-origin X, **bottom-origin** Y. `toVisioX(px) = margin + px/dpi`, `toVisioY(px) = pageHeight - margin - px/dpi`, with `margin = 0.5"`, `dpi = 96`. Page size is `max(8.5x11, content + 2*margin)`.
 
-**Emission order** (Z-order via `DisplayLevel`):
-1. Clusters / subgraphs — `DisplayLevel: 0` (background)
-2. Nodes — `DisplayLevel: 1` (mid)
-3. Connectors (edges) — no DisplayLevel (connectors are 1D)
-4. Standalone labels — `DisplayLevel: 2` (foreground, rare)
+**Every 2-D shape** carries `PinX/PinY/Width/Height` plus `LocPinX = Width*0.5`, `LocPinY = Height*0.5`. Without the LocPin cells a shape's pin is its bottom-left corner and everything lands half a shape away from its connectors (the old output did this).
 
-**Clusters** are emitted as `Type="Group"` shapes with a `User/msvStructureType = "Container"` row. They participate in the same `nodeIdToShapeId`/`nodeIdToPin` maps as nodes so cluster-endpoint edges (`G --> B`) can be glued.
+**Emission order = Z order**: subgraphs (outermost first), nodes, connectors, free-standing labels. Shape ids are assigned in that order.
 
-**Connectors** (glued path):
-- 1D shape: `Width = Euclidean length`, `Height = 0`, `Angle = atan2(dy,dx)`
-- `BeginX/EndX` cells set to endpoint PinX/PinY
-- Two `<Connect>` rows link Begin/End to their target shape's PinX
-- `ObjType = 2` marks the shape as a Visio connector (dynamic routing)
-- `ConLineRouteExt = 2` (curved routing, matching Mermaid's `curve: basis` default)
-- If `edge.text` is present, a `<Text>` element is embedded in the connector shape; if `edge.labelStyle` is present, a `Character` section (emitted before `<Text>`) forwards the label's color/size/weight so the caption matches the Mermaid theme
+**Subgraphs** are Visio containers: a plain shape with `User.msvStructureType = "Container"` and a `Relationships` cell listing its members (`DEPENDSON(1, ...)`); each member lists its containers (`DEPENDSON(4, ...)`), through every level of nesting. Membership comes from the extractor's `parentId`, or from geometry when absent. `VerticalAlign = 0` (a shape-level cell) puts the title at the top.
 
-**Connectors** (unglued fallback): Raw SVG path geometry is transcribed via `parsePathToVisio()`, using the same margin-aware `toVisioX/Y` transforms as every other shape (so unglued edges share the node coordinate space). Cubic Béziers are approximated with 4 Casteljau steps; quadratics likewise. Elliptical arcs (`A`) are flattened via the SVG endpoint-to-center parameterization (~1 segment / 15°), with a straight-line fallback only for degenerate (zero-radius / coincident-endpoint) arcs.
+**Node geometry** by `node.type`: rectangle (+`Rounding`), circle/ellipse (double circle adds an inner ring), diamond, hexagon, parallelogram (leaning the way `node.shape` says), trapezoid, inv_trapezoid, stadium and cylinder (`EllipticalArcTo` rows), subroutine. Rows carry `F` formulas in `Width`/`Height` so shapes resize sensibly.
 
-**Arrow direction**: `EndArrow: 13` when `edge.arrowEnd` is true; `BeginArrow: 13` when `edge.arrowStart` is true. `13` = standard Visio open arrowhead.
+**Connectors**: every edge is a 1-D shape. `BeginX/Y` and `EndX/Y` are the two ends of Mermaid's route, and the geometry is that route (curves flattened, then simplified) relative to the begin point, so the file opens looking like the Mermaid diagram. `Width = EndX-BeginX` and `Height = EndY-BeginY` are signed, as in Visio's own connectors.
+- If both ends resolve to different shapes the edge is **glued with dynamic glue**: `_WALKGLUE(...)` formulas on the endpoint cells, `BegTrigger`/`EndTrigger` = `_XFTRIGGER(Sheet.N!EventXFMod)`, `ObjType = 2`, and `<Connect FromPart="9|12" ToCell="PinX" ToPart="3">`. Visio re-routes it when a shape moves.
+- Otherwise (unresolvable end, or a self-loop) it is a plain line with the same geometry, unglued.
+- **Captions** are the connector's own text, placed with `TxtPinX/TxtPinY` at the position Mermaid chose (`edge.labelX...`), with a white `TextBkgnd`; glued connectors also get the `Controls.TextPosition` handle.
+- **Line ends** map Mermaid's end kinds (`arrow_point`, `arrow_circle`, `extension`, `aggregation`, `only_one`, ...) to Visio line-end codes; **line patterns** are 1 solid, 2 dashed, 3 dotted.
 
-**Visio schema order** within each `<Shape>`: Cells → Sections → Text. Violating this order causes Visio to reject the document. Every shape in the generator follows this order explicitly.
+**Colours**: `none`, `transparent` and zero-alpha paints produce `FillPattern = 0` / `LinePattern = 0` (they used to become black); partial alpha goes to `FillForegndTrans` / `LineColorTrans`.
 
-**Mermaid source round-trip**: If `mermaidSource` is passed to `generate()`, it is stored as `mermaid/source.mmd` inside the VSDX ZIP. This allows the source to be recovered without reverse-engineering the geometry.
+**Fonts** are opt-in (`new VsdxGenerator({ fonts: true })`, CLI `--fonts`): `Character.Font` is the first family in the CSS stack that Visio knows by name, with a matching `<FaceName>` entry. Off by default until the font table has been confirmed against desktop Visio (see `docs/VISIO_CALIBRATION.md`).
 
-**`VsdxGenerator.normalizeColor`** is intentionally `public static` — `styling.test.ts` calls it directly to verify color normalization without full round-tripping through the generator. Treat it as a stable internal utility rather than a public API: it's `public` only for the testing seam.
+**Visio schema order** within each `<Shape>`: Cells → Sections → Text. Only `Geometry` sections are indexed (`IX`).
+
+**Mermaid source round-trip**: If `mermaidSource` is passed to `generate()`, it is stored as `mermaid/source.mmd` inside the VSDX ZIP.
+
+**`VsdxGenerator.normalizeColor`** is `public static` only as a testing seam.
 
 ### `src/validate.ts`
-`validateVsdx(buffer)` — a structural validator that serves as the regression oracle in the absence of a working Visio/LibreOffice importer. Checks OPC package integrity (required parts present, every part has a content type, every relationship `Target` resolves, root `.rels` declares a document relationship) plus the ShapeSheet rules Visio enforces (colors `#RRGGBB`; no formula token in a `V=` without `F=`; `Character.Size` has no `U="PT"` and is a plain number; `Connection` rows start at `IX>=1`; `<Connects>` reference real shapes and sit as a sibling of `<Shapes>`; shape child order `Cells→Sections→Text`). Conservative by design: every rule maps to a documented constraint, so a failure means a real problem.
+`validateVsdx(buffer)` — a structural validator used as a regression oracle. Checks OPC package integrity (required parts present, every part has a content type, every relationship `Target` resolves, root `.rels` declares a document relationship) plus rules for mistakes Visio accepts silently and then renders wrongly: colours are `#RRGGBB` (on the shape and inside section rows); no formula token in a `V=` without `F=`; `Character.Size` is a plain inch number; every shape with `PinX` also states `LocPinX/LocPinY`; section names are ones MS-VSDX defines (`TextBlock` and `ShapeLayout` are not); only `Geometry` sections need `IX`; a 1-D shape has all four endpoint cells; `Sheet.N` references and `<Connects>` point at real shapes and each `<Connect>` states `FromPart`/`ToPart`; `<Connects>` is a sibling of `<Shapes>`; shape child order is `Cells→Sections→Text`. Passing it does not mean Visio accepts the file.
 
 ### `src/index.ts`
-CLI using `commander`. Handles `.md` file Markdown extraction (strips the ` ```mermaid ``` ` fence). Passes source string to `generate()` for round-trip storage. Options: `-o/--output`, `-l/--layout` (dagre|elk), `-t/--theme`, `-v/--verbose`.
+CLI using `commander`. Handles `.md` file Markdown extraction (strips the ` ```mermaid ``` ` fence). Passes source string to `generate()` for round-trip storage. Options: `-o/--output`, `-l/--layout` (dagre, elk, elk.*), `-t/--theme`, `--validate` (refuses to write an invalid package), `--fonts`, `-v/--verbose`.
 
 ### `src/gui.ts`
 Express server with a single-page HTML editor. Accepts Mermaid source + config (layout, theme, spacing, curve type) via JSON POST, returns the VSDX as a download.
@@ -163,7 +156,8 @@ The suite shares one Chromium, started by `tests/global-setup.mjs` (which also b
 
 - **Diagram-type support varies.** Empirically (see `diagram_types.test.ts`): flowchart/graph are full; sequence/classDiagram/stateDiagram/erDiagram are partial; pie/gantt/journey/gitGraph/mindmap/C4/XY/Sankey extract **zero** geometry and produce a blank-but-valid VSDX (the parser now warns when this happens). The README support matrix reflects this honestly.
 - **Sequence diagrams are partial:** actor boxes, lifelines, and labelled messages map (see the sequence extractor), but activations, notes, and loop/alt/opt frames are not yet extracted.
-- **Font family is not emitted.** `style.fontFamily` is parsed but never written to Visio — emitting it safely requires a populated `FaceNames` table in `document.xml`, and an empty/malformed one is a known 1400015 trigger, so it was left out pending verification in real Visio. Text currently renders in Visio's default face (size/color/weight/italic *are* forwarded).
+- **Font family is opt-in** (`--fonts`). Only Calibri's font-table entry carries Visio's full metadata; other families are listed by name only, which has not yet been confirmed to open without a warning in desktop Visio.
+- **A cross edge end (`--x`) is drawn plain**: Visio has no cross line end.
 - **Fidelity mode**: The architectural plan envisions a second `fidelity` output mode that transcribes fixed SVG geometry rather than creating dynamic Visio shapes. Not yet implemented.
 
 ### Resolved (this session)

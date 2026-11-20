@@ -121,4 +121,61 @@ describe('validateVsdx — generated packages are structurally sound', () => {
         expect(result.ok).toBe(false);
         expect(result.errors.some(e => /formula in V/.test(e))).toBe(true);
     });
+
+    // Each of these is a mistake the generator has made, or could make, that
+    // Visio would accept silently and then render wrongly.
+    describe('rules for defects Visio does not report', () => {
+        const glued: GraphData = {
+            width: 300, height: 300,
+            nodes: [
+                { id: 'a', x: 0, y: 0, width: 96, height: 48, text: 'A', style: { color: '#000000', fontSize: '14px' } },
+                { id: 'b', x: 150, y: 150, width: 96, height: 48, text: 'B' },
+            ],
+            edges: [{ d: 'M 96 24 L 198 24 L 198 150', startId: 'a', endId: 'b', arrowEnd: true }],
+            clusters: [], labels: [],
+        };
+        const corrupt = async (edit: (page: string) => string) => {
+            const JSZip = (await import('jszip')).default;
+            const zip = await JSZip.loadAsync(await new VsdxGenerator().generate(glued));
+            const page = await zip.file('visio/pages/page1.xml')!.async('string');
+            const edited = edit(page);
+            expect(edited).not.toBe(page);
+            zip.file('visio/pages/page1.xml', edited);
+            return validateVsdx(await zip.generateAsync({ type: 'nodebuffer' }));
+        };
+
+        it('accepts the unmodified package', async () => {
+            expect((await validateVsdx(await new VsdxGenerator().generate(glued))).errors).toEqual([]);
+        });
+
+        it('rejects a section Visio does not define', async () => {
+            const r = await corrupt(p => p.replace('<Section N="Connection">', '<Section N="TextBlock"><Row IX="0"><Cell N="VerticalAlign" V="0"/></Row></Section><Section N="Connection">'));
+            expect(r.errors.some(e => /N="TextBlock".*not a VSDX section/.test(e))).toBe(true);
+        });
+
+        it('rejects a shape placed without its local pin', async () => {
+            const r = await corrupt(p => p.replace(/<Cell N="LocPinX"[^>]*\/><Cell N="LocPinY"[^>]*\/>/, ''));
+            expect(r.errors.some(e => /no LocPinX\/LocPinY/.test(e))).toBe(true);
+        });
+
+        it('rejects a bad colour inside a section row, not only on the shape', async () => {
+            const r = await corrupt(p => p.replace('<Cell N="Color" V="#000000"/>', '<Cell N="Color" V="rgb(0, 0, 0)"/>'));
+            expect(r.errors.some(e => /cell Color .*not #RRGGBB/.test(e))).toBe(true);
+        });
+
+        it('rejects a formula that refers to a shape that is not there', async () => {
+            const r = await corrupt(p => p.replace('_XFTRIGGER(Sheet.2!EventXFMod)', '_XFTRIGGER(Sheet.99!EventXFMod)'));
+            expect(r.errors.some(e => /Sheet\.99, which does not exist/.test(e))).toBe(true);
+        });
+
+        it('rejects glue that does not say which end or which part', async () => {
+            const r = await corrupt(p => p.replace(' FromPart="9"', '').replace(' ToPart="3"', ''));
+            expect(r.errors.some(e => /missing FromPart\/ToPart/.test(e))).toBe(true);
+        });
+
+        it('rejects a 1-D shape with only some of its endpoints', async () => {
+            const r = await corrupt(p => p.replace(/<Cell N="EndY"[^>]*\/>/, ''));
+            expect(r.errors.some(e => /only some of BeginX/.test(e))).toBe(true);
+        });
+    });
 });

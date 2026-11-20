@@ -13,8 +13,9 @@ import { create } from 'xmlbuilder2';
 // It checks OOXML package integrity (relationship targets resolve, every part
 // has a content type) plus the Visio-specific ShapeSheet rules we've each
 // burned a debugging session on (formulas belong in F not V, colors are
-// #RRGGBB, Character.Size carries no U="PT", Connection rows start at IX>=1,
-// and <Connects> reference real shapes). It is intentionally conservative:
+// #RRGGBB, Character.Size carries no U="PT", every shape with a PinX also
+// states its LocPin, section names are ones Visio defines, Sheet.N references
+// and <Connects> point at real shapes). It is intentionally conservative:
 // every rule here corresponds to a documented constraint, so a failure means a
 // real problem rather than a stylistic preference.
 
@@ -56,6 +57,12 @@ function baseDirForRels(relsPath: string): string {
     if (!m) return '';
     return m[1].replace(/\/$/, '');
 }
+
+// The sections MS-VSDX defines for a shape.
+const VALID_SECTIONS = new Set([
+    'Actions', 'ActionTag', 'Character', 'Connection', 'Control', 'Field', 'FillGradient', 'Geometry',
+    'Hyperlink', 'Layer', 'LineGradient', 'Paragraph', 'Property', 'Reviewer', 'Scratch', 'Tabs', 'User',
+]);
 
 export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult> {
     const errors: string[] = [];
@@ -182,14 +189,41 @@ export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult
         } else {
             const shapes = asArray<any>(pc.Shapes?.Shape);
             const shapeIds = new Set<number>();
+            const sheetRefs: Array<{ from: number; to: number; cell: string }> = [];
             for (const sh of shapes) {
                 const id = Number(sh['@ID']);
                 if (!Number.isFinite(id)) { errors.push(`page1.xml: a Shape has a non-numeric ID "${sh['@ID']}"`); continue; }
                 if (shapeIds.has(id)) errors.push(`page1.xml: duplicate Shape ID ${id}`);
                 shapeIds.add(id);
 
-                // Cell-value rules (computed from the parsed model).
-                for (const cell of asArray<any>(sh.Cell)) {
+                // Cell-value rules. Cells live both directly on the shape
+                // and inside section rows; the same rules apply to both.
+                const directCells = asArray<any>(sh.Cell);
+                const sectionCells: any[] = [];
+                for (const sec of asArray<any>(sh.Section)) {
+                    const name = String(sec['@N']);
+                    // MS-VSDX defines exactly these sections. Anything else
+                    // (e.g. "TextBlock", "ShapeLayout" — those are shape-level
+                    // cells) is silently ignored by Visio.
+                    if (!VALID_SECTIONS.has(name)) {
+                        errors.push(`page1.xml: Shape ${id} has a <Section N="${name}">, which is not a VSDX section`);
+                    }
+                    // Only Geometry sections are indexed.
+                    if (name === 'Geometry' && sec['@IX'] === undefined) {
+                        errors.push(`page1.xml: Shape ${id} has a Geometry section without IX`);
+                    }
+                    sectionCells.push(...asArray<any>(sec.Cell));
+                    for (const row of asArray<any>(sec.Row)) {
+                        sectionCells.push(...asArray<any>(row.Cell));
+                        // Connection rows are either indexed rows of type
+                        // "Connection" (IX from 0, as Visio writes them) or
+                        // named rows.
+                        if (name === 'Connection' && row['@T'] !== 'Connection' && row['@N'] === undefined) {
+                            errors.push(`page1.xml: Shape ${id} has a Connection row that is neither T="Connection" nor named`);
+                        }
+                    }
+                }
+                for (const cell of [...directCells, ...sectionCells]) {
                     const n = cell['@N'];
                     const v = cell['@V'];
                     const u = cell['@U'];
@@ -208,17 +242,29 @@ export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult
                         if (u === 'PT') errors.push(`page1.xml: Shape ${id} Size cell has U="PT" (Visio reads Size in inches; renders V inches tall)`);
                         if (!/^\d+(?:\.\d+)?$/.test(String(v))) errors.push(`page1.xml: Shape ${id} Size cell V="${v}" is not a plain number`);
                     }
+                    // Formulas that refer to another shape must name one that exists.
+                    for (const ref of String(cell['@F'] ?? '').matchAll(/Sheet\.(\d+)!/g)) {
+                        sheetRefs.push({ from: id, to: Number(ref[1]), cell: n });
+                    }
                 }
 
-                // Connection rows must start at IX>=1 (IX=0 is silently skipped).
-                for (const sec of asArray<any>(sh.Section)) {
-                    if (sec['@N'] === 'Connection') {
-                        for (const row of asArray<any>(sec.Row)) {
-                            if (Number(row['@IX']) === 0) {
-                                errors.push(`page1.xml: Shape ${id} Connection section has a Row IX="0" (Visio ignores it)`);
-                            }
-                        }
-                    }
+                // Without LocPinX/LocPinY a shape's pin is its bottom-left
+                // corner, not its centre, and everything lands half a shape
+                // away from where it was placed.
+                const names = new Set(directCells.map(c => c['@N']));
+                if (names.has('PinX') && !(names.has('LocPinX') && names.has('LocPinY'))) {
+                    errors.push(`page1.xml: Shape ${id} has PinX/PinY but no LocPinX/LocPinY`);
+                }
+                // A 1-D shape needs all four endpoint cells.
+                const ends = ['BeginX', 'BeginY', 'EndX', 'EndY'].filter(n => names.has(n));
+                if (ends.length > 0 && ends.length < 4) {
+                    errors.push(`page1.xml: Shape ${id} has only some of BeginX/BeginY/EndX/EndY`);
+                }
+            }
+
+            for (const ref of sheetRefs) {
+                if (!shapeIds.has(ref.to)) {
+                    errors.push(`page1.xml: Shape ${ref.from} cell ${ref.cell} refers to Sheet.${ref.to}, which does not exist`);
                 }
             }
 
@@ -230,6 +276,11 @@ export async function validateVsdx(buffer: Uint8Array): Promise<ValidationResult
                 const to = Number(c['@ToSheet']);
                 if (!shapeIds.has(from)) errors.push(`page1.xml: Connect FromSheet=${c['@FromSheet']} references a missing Shape`);
                 if (!shapeIds.has(to)) errors.push(`page1.xml: Connect ToSheet=${c['@ToSheet']} references a missing Shape`);
+                // Visio records which end of the connector is glued, and to
+                // which part of the target; without them the glue is ignored.
+                if (c['@FromPart'] === undefined || c['@ToPart'] === undefined) {
+                    errors.push(`page1.xml: Connect from Shape ${c['@FromSheet']} is missing FromPart/ToPart`);
+                }
             }
 
             // <Connects> must be a sibling of <Shapes> under <PageContents>,
