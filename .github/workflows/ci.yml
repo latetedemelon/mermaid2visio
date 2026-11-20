@@ -43,7 +43,11 @@ jobs:
     # libreoffice-draw + libvisio enable the VSDX round-trip render test
     # (tests/render_libreoffice.test.ts). The suite auto-skips when soffice
     # isn't on PATH, so this step is what flips the render check on in CI.
+    # Optional: the render test skips itself without soffice, so a slow or
+    # unreachable package mirror must not fail (or stall) the build.
     - name: Install LibreOffice (for VSDX render test)
+      continue-on-error: true
+      timeout-minutes: 6
       run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-draw
 
     - name: Build
